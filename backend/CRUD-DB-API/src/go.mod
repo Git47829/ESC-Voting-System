@@ -1,3 +1,3 @@
-package main
+module main
 
-go latest
+go 1.23.0
