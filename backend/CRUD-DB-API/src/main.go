@@ -23,6 +23,42 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
+)
+
+type Client struct {
+	limiter *rate.Limiter
+}
+
+type RateLimitConfig struct {
+	RequestsPerSecond float64
+	BurstSize         int
+}
+
+var clients = make(map[string]*Client)
+
+var (
+	rateLimitConfigs = map[string]RateLimitConfig{
+		"GET /health":     {RequestsPerSecond: 100, BurstSize: 100},
+		"GET /votes/":     {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /countries/": {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /songs/":     {RequestsPerSecond: 10, BurstSize: 20},
+
+		// User voting - strict limits
+		"POST /vote/":     {RequestsPerSecond: 1, BurstSize: 1},
+		"POST /jury/vote": {RequestsPerSecond: 5, BurstSize: 5},
+
+		// Admin endpoints - moderate limits
+		"POST /admin/open/":        {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/close":        {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/addCountry":   {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addSong":      {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addArtist":    {RequestsPerSecond: 5, BurstSize: 5},
+		"DELETE /admin/delteVotes": {RequestsPerSecond: 1, BurstSize: 1},
+
+		// Metrics - unlimited
+		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
+	}
 )
 
 // Token Store
@@ -198,6 +234,51 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func getCLientLimiter(ip string, endpoint string) *rate.Limiter {
+	mu.Lock()
+	defer mu.Unlock()
+
+	key := ip + "::" + endpoint
+	if client, exists := clients[key]; exists {
+		return client.limiter
+	}
+
+	config, exists := rateLimitConfigs[endpoint]
+	if !exists {
+		config = RateLimitConfig{RequestsPerSecond: 10, BurstSize: 20}
+	}
+
+	limiter := rate.NewLimiter(rate.Limit(config.RequestsPerSecond), config.BurstSize)
+	clients[key] = &Client{limiter: limiter}
+	return limiter
+}
+
+func RateLimitingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		endpoint := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+		clientIP := r.RemoteAddr
+
+		limiter := getCLientLimiter(clientIP, endpoint)
+
+		if !limiter.Allow() {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Retry-After", "1")
+			w.WriteHeader(http.StatusTooManyRequests)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Rate limit exceeded",
+			})
+
+			logger.WarnContext(r.Context(), "rate limit exeeded",
+				slog.String("ip", clientIP),
+				slog.String("endpoint", endpoint),
+			)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func generateToken() (string, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
@@ -350,7 +431,7 @@ func main() {
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
-	handler := ObservabilityMiddleware(router)
+	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
 
 	// Start Sercer
 	err = http.ListenAndServe(":8000", handler)
