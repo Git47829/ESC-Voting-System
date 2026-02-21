@@ -198,6 +198,65 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	})
 
 }
+func getVotes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func vote(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func getCountries() {
+
+}
+
+func httpGetCountries(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func getCountryByName(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func getSongs() {
+
+}
+
+func httpGetSongs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func getSongbyID(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func openVote(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func closeVote(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func deleteVotes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func addCountry(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func addSong(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func addArtist(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
+
+func juryVote(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+}
 
 func main() {
 
@@ -226,7 +285,21 @@ func main() {
 
 	router := http.NewServeMux()
 	router.HandleFunc("GET /health", getHealth)
-	router.Handle("GET /metrics", promhttp.Handler())
+	router.HandleFunc("GET /votes/", getVotes)
+	router.HandleFunc("POST /vote/", vote)
+	router.HandleFunc("GET /countries/", httpGetCountries)
+	router.HandleFunc("GET /countryByName{NAME}/", getCountryByName)
+	router.HandleFunc("GET /songs/", httpGetSongs)
+	router.HandleFunc("GET /songByID/{ID}/", getSongbyID)
+	router.HandleFunc("POST /admin/open/", openVote)
+	router.HandleFunc("POST /admin/close", closeVote)
+	router.HandleFunc("DELETE /admin/delteVotes", deleteVotes)
+	router.HandleFunc("POST /admin/addCountry", addCountry)
+	router.HandleFunc("POST /admin/addSong", addSong)
+	router.HandleFunc("POST /admin/addArtist", addArtist)
+	router.HandleFunc("POST /jury/vote", juryVote)
+
+	router.Handle("GET /metrics/", promhttp.Handler())
 
 	handler := ObservabilityMiddleware(router)
 
