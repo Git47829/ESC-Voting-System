@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,6 +23,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+)
+
+// Token Store
+var (
+	usedTokens = make(map[string]bool)
+	mu         sync.Mutex
 )
 
 // Structured Logger
@@ -189,6 +198,12 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func generateToken() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	return hex.EncodeToString(b), err
+}
+
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -204,6 +219,40 @@ func getVotes(w http.ResponseWriter, r *http.Request) {
 
 func vote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	const cookieName string = "vote_cookie"
+
+	cookie, err := r.Cookie(cookieName)
+
+	if err == nil {
+		mu.Lock()
+		alreadyVoted := usedTokens[cookie.Value]
+		mu.Unlock()
+
+		if alreadyVoted == true {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Vote has already been cast",
+			})
+		}
+	}
+
+	token, _ := generateToken()
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    token,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	mu.Lock()
+	usedTokens[token] = true
+	mu.Unlock()
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success",
+		"payload": "mock",
+	})
 }
 
 func getCountries() {
