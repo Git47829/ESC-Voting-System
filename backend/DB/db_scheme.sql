@@ -52,3 +52,9 @@ CREATE TABLE Song_Komponist (
     CONSTRAINT fk_sk_song      FOREIGN KEY (Song_ID)      REFERENCES Song(ID),
     CONSTRAINT fk_sk_komponist FOREIGN KEY (Komponist_ID) REFERENCES Komponist(ID)
 );
+
+CREATE TABLE Voting_Status (
+	VotingID INT NOT NULL PRIMARY KEY,
+	isOpen BOOL NOT NULL,
+	lastChange TIME
+);
