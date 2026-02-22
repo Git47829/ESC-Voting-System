@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caarlos0/env/v11"
+	"github.com/joho/godotenv"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,6 +38,14 @@ type RateLimitConfig struct {
 	BurstSize         int
 }
 
+type LocalConfig struct {
+	dbName     string `env:"dbName"`
+	dbUser     string `env:"dbUser"`
+	dbPass     string `env:"dbPass"`
+	dbEndpoint string `env:"dbEndpoint"`
+	dbPort     int    `env:"dbPort"`
+}
+
 var clients = make(map[string]*Client)
 
 var (
@@ -54,6 +65,7 @@ var (
 		"POST /admin/addCountry":   {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addSong":      {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addArtist":    {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addInterpret": {RequestsPerSecond: 5, BurstSize: 5},
 		"DELETE /admin/delteVotes": {RequestsPerSecond: 1, BurstSize: 1},
 
 		// Metrics - unlimited
@@ -279,6 +291,41 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func checkAccessAdmin(input string) (bool, string) {
+
+	var TestToken string = "test123"
+
+	if input == "" {
+		return false, "Token has to be provided"
+	}
+	if input != TestToken {
+		return false, "Wrong Token provided"
+	}
+
+	if input == TestToken {
+		return true, "Autorized"
+	}
+
+	return false, "Error Processing Token"
+}
+
+func checkAccessJury(input string) (bool, string) {
+
+	TestToken := []string{"test123", "test456", "test789"}
+
+	if input == "" {
+		return false, "Token has to be provided"
+	}
+
+	for _, token := range TestToken {
+		if input == token {
+			return true, "Authorized"
+		}
+	}
+
+	return false, "Wrong Token Provided"
+}
+
 func generateToken() (string, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
@@ -346,6 +393,14 @@ func httpGetCountries(w http.ResponseWriter, r *http.Request) {
 
 func getCountryByName(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.PathValue("NAME")
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success",
+		"payload": idStr, //Mock Value for Testing
+	})
 }
 
 func getSongs() {
@@ -358,34 +413,285 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 
 func getSongbyID(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	idStr := r.PathValue("ID")
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success",
+		"payload": idStr, //Mock Value for Testing
+	})
 }
 
 func openVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	isOpen := query.Get("isActive")
+
+	autorized, message := checkAccessAdmin(token)
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": "The Vote has been opened",
+			"isOpen":  isOpen,
+		})
+	}
+
+	if autorized != true {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
 }
 
 func closeVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	isOpen := query.Get("isActive")
+
+	autorized, message := checkAccessAdmin(token)
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": "The Vote has been closed",
+			"isOpen":  isOpen,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
 }
 
 func deleteVotes(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	delete := query.Get("isActive")
+
+	autorized, message := checkAccessAdmin(token)
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message":    message,
+			"payload":    "All Votes have been deleted",
+			"wasDeleted": delete,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
 }
 
 func addCountry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	ID := query.Get("ID")
+	Name := query.Get("Name")
+	POT := query.Get("Pot")
+
+	autorized, message := checkAccessAdmin(token)
+
+	response := []any{ID, Name, POT}
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": response,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
 }
 
 func addSong(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	ID := query.Get("ID")
+	Name := query.Get("Name")
+
+	autorized, message := checkAccessAdmin(token)
+
+	response := []any{ID, Name}
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": response,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
+
 }
 
 func addArtist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	ID := query.Get("ID")
+	Name := query.Get("Name")
+	vorName := query.Get("vorName")
+
+	autorized, message := checkAccessAdmin(token)
+	response := []any{ID, Name, vorName}
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": response,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
+}
+
+func addInterpret(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	ID := query.Get("ID")
+	Name := query.Get("Name")
+
+	autorized, message := checkAccessAdmin(token)
+	response := []any{ID, Name}
+
+	if autorized == true {
+
+		// Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": response,
+		})
+	}
+
+	if autorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
 }
 
 func juryVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+	vote := query.Get("vote")
+	points := query.Get("points")
+
+	authorized, message := checkAccessJury(token)
+	response := []any{vote, points}
+
+	if authorized == true {
+
+		//Business Logic
+
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": message,
+			"payload": response,
+		})
+	}
+
+	if authorized != true {
+
+		logger.Warn("Invalid Login Attempt")
+		slog.String("token", token)
+
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+	}
+
 }
 
 func main() {
@@ -418,20 +724,34 @@ func main() {
 	router.HandleFunc("GET /votes/", getVotes)
 	router.HandleFunc("POST /vote/", vote)
 	router.HandleFunc("GET /countries/", httpGetCountries)
-	router.HandleFunc("GET /countryByName{NAME}/", getCountryByName)
+	router.HandleFunc("GET /countryByName/{NAME}", getCountryByName)
 	router.HandleFunc("GET /songs/", httpGetSongs)
-	router.HandleFunc("GET /songByID/{ID}/", getSongbyID)
+	router.HandleFunc("GET /songByID/{ID}", getSongbyID)
 	router.HandleFunc("POST /admin/open/", openVote)
 	router.HandleFunc("POST /admin/close", closeVote)
-	router.HandleFunc("DELETE /admin/delteVotes", deleteVotes)
-	router.HandleFunc("POST /admin/addCountry", addCountry)
-	router.HandleFunc("POST /admin/addSong", addSong)
-	router.HandleFunc("POST /admin/addArtist", addArtist)
-	router.HandleFunc("POST /jury/vote", juryVote)
+	router.HandleFunc("DELETE /admin/deleteVotes/", deleteVotes)
+	router.HandleFunc("POST /admin/addCountry/", addCountry)
+	router.HandleFunc("POST /admin/addSong/", addSong)
+	router.HandleFunc("POST /admin/addArtist/", addArtist)
+	router.HandleFunc("POST /admin/addInterpret/", addInterpret)
+	router.HandleFunc("POST /jury/vote/", juryVote)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
 	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
+
+	err = godotenv.Load("../.env")
+	if err != nil {
+		slog.Any("Failed to Load .env", err)
+	}
+
+	var localconfig LocalConfig
+	if err := env.Parse(&localconfig); err != nil {
+		log.Fatalf("Error reading the environment variables: %v", err)
+		return
+	}
+
+	log.Printf("%+v\n", localconfig)
 
 	// Start Sercer
 	err = http.ListenAndServe(":8000", handler)
