@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
@@ -45,6 +48,8 @@ type LocalConfig struct {
 	dbEndpoint string `env:"dbEndpoint"`
 	dbPort     int    `env:"dbPort"`
 }
+
+var db *sql.DB
 
 var clients = make(map[string]*Client)
 
@@ -342,12 +347,111 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 
 }
 func getVotes(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
+
+	query := `
+		SELECT
+			s.ID,
+			s.Name,
+			l.Name as Country,
+			s.PublikumsPunkte,
+			s.JuryPunkte,
+			s.GesamtPunkte,
+		FROM Song s
+		JOIN Land l on s.Land_ID = l.ID
+		ORDER BY s.GesamtPunkte DESC
+	`
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to query votes", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to retrieve Votes",
+		})
+		return
+	}
+	defer rows.Close()
+
+	type SongVote struct {
+		ID              int    `json:"id"`
+		Name            string `json:"name"`
+		Country         string `json:"country"`
+		PublikumsPunkte int    `json:"publicVotes"`
+		JuryPunkte      int    `json:"juryVotes"`
+		GesamtPunkte    int    `json:"totalVotes"`
+	}
+
+	var votes []SongVote
+	for rows.Next() {
+		var v SongVote
+		if err := rows.Scan(&v.ID, &v.Name, &v.PublikumsPunkte, &v.JuryPunkte, &v.GesamtPunkte); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		votes = append(votes, v)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process votes",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success",
+		"payload": votes,
+	})
 }
 
 func vote(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
+
+	songID := r.URL.Query().Get("songID")
+
+	query := `SELECT isOpen FROM Voting_Status`
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to query db Rows, is Database connected?", slog.Any("error", err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to query Rows",
+		})
+		return
+	}
+	defer rows.Close()
+
+	type vote_status struct {
+		id         string
+		isOpen     bool
+		lastChange time.Time
+	}
+
+	for rows.Next() {
+		var v vote_status
+		if err := rows.Scan(&v.id, &v.isOpen, &v.lastChange); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		if v.isOpen == false {
+			w.WriteHeader(http.StatusTooEarly)
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":   "voting has not started yet, please try again in a few minutes",
+				"payload": v,
+			})
+			return
+		}
+	}
+
 	const cookieName string = "vote_cookie"
+	const weightPublicVote int = 3
 
 	cookie, err := r.Cookie(cookieName)
 
@@ -376,10 +480,37 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	mu.Lock()
 	usedTokens[token] = true
 	mu.Unlock()
+
+	query = `UPDATE SONG
+			 SET PublikumsPunkte = PublikumsPunkte + ?
+			 WHERE ID = ?`
+
+	result, err := db.ExecContext(ctx, query, weightPublicVote, songID)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Song not found",
+		})
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"message": "Success",
-		"payload": "mock",
+		"message":   "Success",
+		"voted_for": songID,
 	})
 }
 
@@ -752,6 +883,33 @@ func main() {
 	}
 
 	log.Printf("%+v\n", localconfig)
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+		localconfig.dbUser,
+		localconfig.dbPass,
+		localconfig.dbEndpoint,
+		localconfig.dbPort,
+		localconfig.dbName,
+	)
+
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		logger.Error("Error Connecting the Database")
+		panic(err.Error())
+	}
+	defer db.Close()
+
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(3 * time.Minute)
+
+	err = db.Ping()
+	if err != nil {
+		logger.Error("Database is unreachable")
+		panic(err.Error())
+	}
+
+	logger.Info("Successfully Connected to the Database")
 
 	// Start Sercer
 	err = http.ListenAndServe(":8000", handler)

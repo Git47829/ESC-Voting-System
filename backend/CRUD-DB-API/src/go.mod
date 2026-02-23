@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.23.2
 	go.opentelemetry.io/otel v1.40.0
@@ -14,6 +15,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
