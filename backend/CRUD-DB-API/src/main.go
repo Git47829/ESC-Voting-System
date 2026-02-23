@@ -514,13 +514,54 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func getCountries() {
-
-}
-
-func httpGetCountries(w http.ResponseWriter, r *http.Request) {
+func getCountries(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
+
+	query := `SELECT ID, Name, POT FROM Land ORDER BY Name ASC`
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to query countries", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to retrieve countries",
+		})
+		return
+	}
+	defer rows.Close()
+
+	type Country struct {
+		ID string `json:"id"`
+		Name string `json:"name"`
+		Pot *int `json:"pot"`
+	}
+
+	var countries []Country
+	for rows.Next() {
+		var c Country
+		if err := rows.Scan(&c.ID, &c.Name, &c.Pot); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		countries = append(countries, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process countries"
+		})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success"
+		"payload": countries,
+	})
 }
+
 
 func getCountryByName(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
