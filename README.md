@@ -14,7 +14,7 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 ┌────────▼────────────────────────┐
 │      Backend Services           │
 ├─────────────────────────────────┤
-│ • CRUD API (Go + SQLite)        │
+│ • CRUD API (Go + MySQL)         │
 │ • EuroStats (Python + gRPC)     │
 └────────┬────────────────────────┘
          │
@@ -23,7 +23,7 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 ├─────────────────────────────────┤
 │ • OpenTelemetry Collector       │
 │ • Prometheus Monitoring         │
-│ • Grafana Dashboards           │
+│ • Grafana Dashboards            │
 └─────────────────────────────────┘
 ```
 
@@ -69,4 +69,3 @@ Each component has its own `README.md` with specific setup instructions. See the
 ## Development
 
 The project uses Docker containerization for all services. See individual component READMEs for container-specific instructions.
-
