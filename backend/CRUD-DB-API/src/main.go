@@ -613,10 +613,6 @@ func getCountryByName(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func getSongs() {
-
-}
-
 func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
