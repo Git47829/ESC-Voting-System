@@ -357,7 +357,7 @@ func getVotes(w http.ResponseWriter, r *http.Request) {
 			l.Name as Country,
 			s.PublikumsPunkte,
 			s.JuryPunkte,
-			s.GesamtPunkte,
+			s.GesamtPunkte
 		FROM Song s
 		JOIN Land l on s.Land_ID = l.ID
 		ORDER BY s.GesamtPunkte DESC
@@ -386,7 +386,7 @@ func getVotes(w http.ResponseWriter, r *http.Request) {
 	var votes []SongVote
 	for rows.Next() {
 		var v SongVote
-		if err := rows.Scan(&v.ID, &v.Name, &v.PublikumsPunkte, &v.JuryPunkte, &v.GesamtPunkte); err != nil {
+		if err := rows.Scan(&v.ID, &v.Name, &v.Country, &v.PublikumsPunkte, &v.JuryPunkte, &v.GesamtPunkte); err != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
 		}
@@ -532,9 +532,9 @@ func getCountries(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type Country struct {
-		ID string `json:"id"`
+		ID   string `json:"id"`
 		Name string `json:"name"`
-		Pot *int `json:"pot"`
+		Pot  *int   `json:"pot"`
 	}
 
 	var countries []Country
@@ -551,27 +551,65 @@ func getCountries(w http.ResponseWriter, r *http.Request) {
 		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to process countries"
+			"error": "Failed to process countries",
 		})
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
-		"message": "Success"
+		"message": "Success",
 		"payload": countries,
 	})
 }
 
-
 func getCountryByName(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
-
 	idStr := r.PathValue("NAME")
 
+	query := `SELECT ID, Name, POT FROM Land WHERE ID = ?`
+
+	rows, err := db.QueryContext(ctx, query, idStr)
+
+	if err != nil {
+		logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error":       "Could not retrieve Country with ID",
+			"requestedID": idStr,
+		})
+		return
+	}
+	defer rows.Close()
+
+	type Country struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+		Pot  *int   `json:"pot"`
+	}
+
+	var countries []Country
+	for rows.Next() {
+		var c Country
+		if err := rows.Scan(&c.ID, &c.Name, &c.Pot); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		countries = append(countries, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process countries",
+		})
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
 		"message": "Success",
-		"payload": idStr, //Mock Value for Testing
+		"payload": countries,
 	})
 }
 
@@ -580,39 +618,252 @@ func getSongs() {
 }
 
 func httpGetSongs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-}
-
-func getSongbyID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	idStr := r.PathValue("ID")
+	query := `SELECT
+    s.ID AS Song_ID,
+    s.Name AS Song_Name,
+    s.PublikumsPunkte,
+    s.JuryPunkte,
+    s.GesamtPunkte,
+    l.ID AS Land_ID,
+    l.Name AS Land_Name,
+    l.POT AS Land_POT,
+    k.ID AS Kuenstler_ID,
+    k.Vorname AS Kuenstler_Vorname,
+    k.Name AS Kuenstler_Name,
+    k.Typ AS Kuenstler_Typ,
+    komp.ID AS Komponist_ID,
+    komp.Vorname AS Komponist_Vorname,
+    komp.Name AS Komponist_Name,
+    vs.VotingID,
+    vs.isOpen AS Voting_IsOpen,
+    vs.lastChange AS Voting_LastChange
+    FROM Song s
+    INNER JOIN Land l ON s.Land_ID = l.ID
+    INNER JOIN Kuenstler k ON s.Kuenstler_ID = k.ID
+    LEFT JOIN Song_Komponist sk ON s.ID = sk.Song_ID
+    LEFT JOIN Komponist komp ON sk.Komponist_ID = komp.ID
+    LEFT JOIN Voting_Status vs ON vs.VotingID = 1  -- Assuming VotingID 1 is the current contest
+    ORDER BY s.ID, komp.ID;
+`
 
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "Faules querying Database",
+		})
+		return
+	}
+	defer rows.Close()
+
+	type Komponist struct {
+		ID      int    `json:"id"`
+		vorname string `json:"first_name"`
+		name    string `json:"surname"`
+	}
+
+	type CompleteESCEntryWithComposers struct {
+		// Song information
+		SongID          int    `json:"songId"`
+		SongName        string `json:"songName"`
+		PublikumsPunkte int    `json:"publicVotes"`
+		JuryPunkte      int    `json:"juryVotes"`
+		GesamtPunkte    int    `json:"totalVotes"`
+
+		// Land (Country) information for the song
+		LandID   string `json:"countryId"`
+		LandName string `json:"countryName"`
+		LandPOT  *int   `json:"countryPot,omitempty"`
+
+		// Künstler (Artist) information
+		KuenstlerID      int    `json:"artistId"`
+		KuenstlerVorname string `json:"artistFirstName"`
+		KuenstlerName    string `json:"artistLastName"`
+		KuenstlerTyp     string `json:"artistType"`
+
+		// Komponist (Composers) information - aggregated as array
+		Komponisten []Komponist `json:"composers"`
+
+		// Voting Status information
+		VotingID         int    `json:"votingId"`
+		VotingIsOpen     bool   `json:"votingIsOpen"`
+		VotingLastChange string `json:"votingLastChange"`
+	}
+
+	var song []CompleteESCEntryWithComposers
+	for rows.Next() {
+		var c CompleteESCEntryWithComposers
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &c.Komponisten); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		song = append(song, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process Song",
+		})
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
 		"message": "Success",
-		"payload": idStr, //Mock Value for Testing
+		"payload": song,
+	})
+}
+
+func getSongbyID(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	w.Header().Set("Content-Type", "application/json")
+	idStr := r.PathValue("ID")
+
+	query := `SELECT
+    s.ID AS Song_ID,
+    s.Name AS Song_Name,
+    s.PublikumsPunkte,
+    s.JuryPunkte,
+    s.GesamtPunkte,
+    l.ID AS Land_ID,
+    l.Name AS Land_Name,
+    l.POT AS Land_POT,
+    k.ID AS Kuenstler_ID,
+    k.Vorname AS Kuenstler_Vorname,
+    k.Name AS Kuenstler_Name,
+    k.Typ AS Kuenstler_Typ,
+    komp.ID AS Komponist_ID,
+    komp.Vorname AS Komponist_Vorname,
+    komp.Name AS Komponist_Name,
+    vs.VotingID,
+    vs.isOpen AS Voting_IsOpen,
+    vs.lastChange AS Voting_LastChange
+    FROM Song s
+    WHERE ID = ?
+    INNER JOIN Land l ON s.Land_ID = l.ID
+    INNER JOIN Kuenstler k ON s.Kuenstler_ID = k.ID
+    LEFT JOIN Song_Komponist sk ON s.ID = sk.Song_ID
+    LEFT JOIN Komponist komp ON sk.Komponist_ID = komp.ID
+    LEFT JOIN Voting_Status vs ON vs.VotingID = 1  -- Assuming VotingID 1 is the current contest
+    ORDER BY s.ID, komp.ID;
+`
+
+	rows, err := db.QueryContext(ctx, query, idStr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": "Faules querying Database",
+		})
+		return
+	}
+	defer rows.Close()
+
+	type Komponist struct {
+		ID      int    `json:"id"`
+		vorname string `json:"first_name"`
+		name    string `json:"surname"`
+	}
+
+	type CompleteESCEntryWithComposers struct {
+		// Song information
+		SongID          int    `json:"songId"`
+		SongName        string `json:"songName"`
+		PublikumsPunkte int    `json:"publicVotes"`
+		JuryPunkte      int    `json:"juryVotes"`
+		GesamtPunkte    int    `json:"totalVotes"`
+
+		// Land (Country) information for the song
+		LandID   string `json:"countryId"`
+		LandName string `json:"countryName"`
+		LandPOT  *int   `json:"countryPot,omitempty"`
+
+		// Künstler (Artist) information
+		KuenstlerID      int    `json:"artistId"`
+		KuenstlerVorname string `json:"artistFirstName"`
+		KuenstlerName    string `json:"artistLastName"`
+		KuenstlerTyp     string `json:"artistType"`
+
+		// Komponist (Composers) information - aggregated as array
+		Komponisten []Komponist `json:"composers"`
+
+		// Voting Status information
+		VotingID         int    `json:"votingId"`
+		VotingIsOpen     bool   `json:"votingIsOpen"`
+		VotingLastChange string `json:"votingLastChange"`
+	}
+
+	var song []CompleteESCEntryWithComposers
+	for rows.Next() {
+		var c CompleteESCEntryWithComposers
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &c.Komponisten); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		song = append(song, c)
+	}
+
+	if err := rows.Err(); err != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process Song",
+		})
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Success",
+		"payload": song,
 	})
 }
 
 func openVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	isOpen := query.Get("isActive")
+	dbQuery := `UPDATE Voting_Status SET isOpen = true, SET lastChange = ?`
 
 	autorized, message := checkAccessAdmin(token)
 
 	if autorized == true {
 
-		// Business Logic
+		changeTime := time.Now()
+
+		result, err := db.ExecContext(ctx, dbQuery, changeTime)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			logger.ErrorContext(ctx, "Could not Query Rows", slog.Any("error", err))
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error querying rows",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to open Vote", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error opening the Votes",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
 			"payload": "The Vote has been opened",
-			"isOpen":  isOpen,
 		})
 	}
 
@@ -621,28 +872,53 @@ func openVote(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": message,
 		})
+		return
 	}
 }
 
 func closeVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	isOpen := query.Get("isActive")
+	dbQuery := `UPDATE Voting_Status SET isOpen = true, SET lastChange = ?`
 
 	autorized, message := checkAccessAdmin(token)
 
 	if autorized == true {
 
-		// Business Logic
+		changeTime := time.Now()
+
+		result, err := db.ExecContext(ctx, dbQuery, changeTime)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			logger.ErrorContext(ctx, "Could not Query Rows", slog.Any("error", err))
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error querying rows",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to close Votes", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error Closing Votes",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
 			"payload": "The Vote has been closed",
-			"isOpen":  isOpen,
 		})
+		return
 	}
 
 	if autorized != true {
@@ -660,21 +936,41 @@ func closeVote(w http.ResponseWriter, r *http.Request) {
 func deleteVotes(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	delete := query.Get("isActive")
+	dbQuery := `DELETE PublikumsPunkte, JuryPunkte, GesamtPunkte FROM Song`
 
 	autorized, message := checkAccessAdmin(token)
 
 	if autorized == true {
 
-		// Business Logic
+		result, err := db.ExecContext(ctx, dbQuery)
+		if err != nil {
+			logger.ErrorContext(ctx, "Error Executing DB Query", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to delete Votes",
+			})
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed delete Votes", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error deleting Votes",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
-			"message":    message,
-			"payload":    "All Votes have been deleted",
-			"wasDeleted": delete,
+			"message": message,
+			"payload": "All Votes have been deleted",
 		})
 	}
 
@@ -895,7 +1191,7 @@ func main() {
 	router.HandleFunc("GET /health", getHealth)
 	router.HandleFunc("GET /votes/", getVotes)
 	router.HandleFunc("POST /vote/", vote)
-	router.HandleFunc("GET /countries/", httpGetCountries)
+	router.HandleFunc("GET /countries/", getCountries)
 	router.HandleFunc("GET /countryByName/{NAME}", getCountryByName)
 	router.HandleFunc("GET /songs/", httpGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", getSongbyID)
