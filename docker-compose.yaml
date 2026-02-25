@@ -9,7 +9,7 @@ services:
       - 8000
     env_file:
       - .env
-    enviroment:
+    environment:
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: esc_voting
@@ -20,6 +20,7 @@ services:
     networks:
       - backend
       - frontend
+      - observability
 
   db:
     build: /backend/DB/
@@ -36,7 +37,6 @@ services:
       - mysql_data:/var/lib/mysql/data
     networks:
       - backend
-      -
 
     otel-collector:
       image: otel/opentelemetry-collector-contrib:0.94.0
