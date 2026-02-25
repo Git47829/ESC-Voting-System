@@ -2,7 +2,7 @@ version: "3.3"
 
 services:
   api:
-    build: /backend/CRUD-DB-API/
+    build: ./backend/CRUD-DB-API/
     container_name: db-crud-api
     restart: unless-stopped
     ports:
@@ -23,7 +23,7 @@ services:
       - observability
 
   db:
-    build: /backend/DB/
+    build: ./backend/DB/
     container_name: escmysql
     restart: unless-stopped
     env_file:
