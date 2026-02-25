@@ -18,7 +18,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/joho/godotenv"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -1456,11 +1455,6 @@ func main() {
 	router.Handle("GET /metrics/", promhttp.Handler())
 
 	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
-
-	err = godotenv.Load("../../../.env")
-	if err != nil {
-		slog.Any("Failed to Load .env", err)
-	}
 
 	var localconfig LocalConfig
 	if err := env.Parse(&localconfig); err != nil {
