@@ -11,3 +11,5 @@ COPY src/*.go ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o /crud-db-api
 
 EXPOSE 8000
+
+CMD ["/crud-db-api"]
