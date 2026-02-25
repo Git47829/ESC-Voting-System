@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -1221,23 +1222,94 @@ func addInterpret(w http.ResponseWriter, r *http.Request) {
 
 func juryVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
 
 	query := r.URL.Query()
 	token := query.Get("Token")
-	vote := query.Get("vote")
 	points := query.Get("points")
+	songID := query.Get("songID")
+	dbQuery := `SELECT isOpen FROM Vote_Status`
 
 	authorized, message := checkAccessJury(token)
-	response := []any{vote, points}
 
 	if authorized == true {
 
-		//Business Logic
+		rows, err := db.QueryContext(ctx, dbQuery)
+		if err != nil {
+			logger.ErrorContext(ctx, "Error Querying DB", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error Querying DB",
+			})
+			return
+		}
+
+		defer rows.Close()
+
+		type vote_status struct {
+			id         string
+			isOpen     bool
+			lastChange time.Time
+		}
+
+		for rows.Next() {
+			var v vote_status
+			if err := rows.Scan(&v.id, &v.isOpen, &v.lastChange); err != nil {
+				logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+				continue
+			}
+			if v.isOpen == false {
+				w.WriteHeader(http.StatusTooEarly)
+				json.NewEncoder(w).Encode(map[string]any{
+					"error":   "voting has not started yet, please try again in a few minutes",
+					"payload": v,
+				})
+				return
+			}
+		}
+
+		const juryWeight int = 5
+		parsedPoints, err := strconv.Atoi(points)
+		if err != nil {
+			logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", points))
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Invalid points value - must be an Integer",
+			})
+		}
+
+		totalPoints := juryWeight * parsedPoints
+
+		dbQuery = `UPDATE SONG
+				 SET JuryPunkte = JuryPunkte + ?
+				 WHERE ID = ?`
+
+		result, err := db.ExecContext(ctx, dbQuery, totalPoints, songID)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to record vote",
+			})
+			return
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Song not found",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
-			"payload": response,
+			"payload": "Vote Successfully Cast",
 		})
 	}
 
