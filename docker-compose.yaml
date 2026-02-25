@@ -10,11 +10,11 @@ services:
     env_file:
       - .env
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_NAME: esc_voting
-      DB_USER: esc_user
-      DB_PASS: esc_password
+      dbHost: mysql
+      dbPort: 3306
+      dbName: esc_voting
+      dbUser: esc_user
+      dbPass: esc_password
     depends_on:
       - db
     networks:
