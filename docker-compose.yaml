@@ -38,42 +38,42 @@ services:
     networks:
       - backend
 
-    otel-collector:
-      image: otel/opentelemetry-collector-contrib:0.94.0
-      command: ["--config=/etc/otel/otel-collector.yml"]
-      volumes:
-        - ./backend/Observability/OTel/src/otel-collector.yml:/etc/otel/otel-collector.yml:ro
-      ports:
-        - "4317:4317" # OTLP gRPC
-        - "4318:4318" # OTLP HTTP
-        - "9464:9464" # Prometheus scrape endpoint
-      networks:
-        - observability
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.94.0
+    command: ["--config=/etc/otel/otel-collector.yml"]
+    volumes:
+      - ./backend/Observability/OTel/src/otel-collector.yml:/etc/otel/otel-collector.yml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "9464:9464" # Prometheus scrape endpoint
+    networks:
+      - observability
 
-    prometheus:
-      image: prom/prometheus:v2.51.1
-      command:
-        - "--config.file=/etc/prometheus/prometheus.yml"
-      volumes:
-        - ./backend/Observability/Prometheus/src/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      ports:
-        - "9090:9090"
-      networks:
-        - observability
-      depends_on:
-        - otel-collector
+  prometheus:
+    image: prom/prometheus:v2.51.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./backend/Observability/Prometheus/src/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+    depends_on:
+      - otel-collector
 
-    grafana:
-      image: grafana/grafana:10.4.2
-      volumes:
-        - grafana_data:/var/lib/grafana
-        - ./backend/Observability/grafana/src/provisioning:/etc/grafana/provisioning:ro
-      ports:
-        - "3000:3000"
-      networks:
-        - observability
-      depends_on:
-        - prometheus
+  grafana:
+    image: grafana/grafana:10.4.2
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./backend/Observability/grafana/src/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - observability
+    depends_on:
+      - prometheus
 
 volumes:
   mysql_data:
