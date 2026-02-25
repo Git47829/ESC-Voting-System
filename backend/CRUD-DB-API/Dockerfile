@@ -2,7 +2,7 @@ FROM golang:latest
 
 WORKDIR /src
 
-COPY go.mod go.sum ./
+COPY /src/go.mod /src/go.sum ./
 
 RUN go mod download
 
