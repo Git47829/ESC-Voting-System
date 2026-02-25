@@ -42,11 +42,11 @@ type RateLimitConfig struct {
 }
 
 type LocalConfig struct {
-	dbName     string `env:"dbName"`
-	dbUser     string `env:"dbUser"`
-	dbPass     string `env:"dbPass"`
-	dbEndpoint string `env:"dbEndpoint"`
-	dbPort     int    `env:"dbPort"`
+	DbName     string `env:"dbName"`
+	DbUser     string `env:"dbUser"`
+	DbPass     string `env:"dbPass"`
+	DbEndpoint string `env:"dbEndpoint"`
+	DbPort     int    `env:"dbPort"`
 }
 
 var db *sql.DB
