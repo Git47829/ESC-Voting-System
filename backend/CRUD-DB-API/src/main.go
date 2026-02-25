@@ -1457,7 +1457,7 @@ func main() {
 
 	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
 
-	err = godotenv.Load("../.env")
+	err = godotenv.Load("../../../.env")
 	if err != nil {
 		slog.Any("Failed to Load .env", err)
 	}
