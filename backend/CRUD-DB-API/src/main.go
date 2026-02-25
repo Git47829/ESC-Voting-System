@@ -42,11 +42,11 @@ type RateLimitConfig struct {
 }
 
 type LocalConfig struct {
-	DbName     string `env:"dbName"`
-	DbUser     string `env:"dbUser"`
-	DbPass     string `env:"dbPass"`
-	DbEndpoint string `env:"dbEndpoint"`
-	DbPort     int    `env:"dbPort"`
+	DbHost string `env:"dbHost"`
+	DbName string `env:"dbName"`
+	DbUser string `env:"dbUser"`
+	DbPass string `env:"dbPass"`
+	DbPort int    `env:"dbPort"`
 }
 
 var db *sql.DB
@@ -1466,10 +1466,10 @@ func main() {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		localconfig.DbUser,
+		localconfig.DbHost,
 		localconfig.DbPass,
-		localconfig.DbEndpoint,
-		localconfig.DbPort,
 		localconfig.DbName,
+		localconfig.DbPort,
 	)
 
 	db, err = sql.Open("mysql", dsn)
