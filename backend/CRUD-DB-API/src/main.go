@@ -550,9 +550,14 @@ func getCountries(w http.ResponseWriter, r *http.Request) {
 	var countries []Country
 	for rows.Next() {
 		var c Country
-		if err := rows.Scan(&c.ID, &c.Name, &c.Pot); err != nil {
+		var potValue sql.NullInt64
+		if err := rows.Scan(&c.ID, &c.Name, &potValue); err != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
+		}
+		if potValue.Valid {
+			pot := int(potValue.Int64)
+			c.Pot = &pot
 		}
 		countries = append(countries, c)
 	}
@@ -601,9 +606,14 @@ func getCountryByName(w http.ResponseWriter, r *http.Request) {
 	var countries []Country
 	for rows.Next() {
 		var c Country
-		if err := rows.Scan(&c.ID, &c.Name, &c.Pot); err != nil {
+		var potValue sql.NullInt64
+		if err := rows.Scan(&c.ID, &c.Name, &potValue); err != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
+		}
+		if potValue.Valid {
+			pot := int(potValue.Int64)
+			c.Pot = &pot
 		}
 		countries = append(countries, c)
 	}
@@ -703,9 +713,20 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
 		var c CompleteESCEntryWithComposers
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &c.Komponisten); err != nil {
+		var komponentID sql.NullInt64
+		var komponentVorname sql.NullString
+		var komponentName sql.NullString
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
+		}
+		if komponentID.Valid {
+			komponent := Komponist{
+				ID:      int(komponentID.Int64),
+				vorname: komponentVorname.String,
+				name:    komponentName.String,
+			}
+			c.Komponisten = append(c.Komponisten, komponent)
 		}
 		song = append(song, c)
 	}
@@ -754,12 +775,12 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
     vs.isOpen AS Voting_IsOpen,
     vs.lastChange AS Voting_LastChange
     FROM Song s
-    WHERE ID = ?
     INNER JOIN Land l ON s.Land_ID = l.ID
     INNER JOIN Kuenstler k ON s.Kuenstler_ID = k.ID
     LEFT JOIN Song_Komponist sk ON s.ID = sk.Song_ID
     LEFT JOIN Komponist komp ON sk.Komponist_ID = komp.ID
-    LEFT JOIN Voting_Status vs ON vs.VotingID = 1  -- Assuming VotingID 1 is the current contest
+    LEFT JOIN Voting_Status vs ON vs.VotingID = 1
+    WHERE s.ID = ?
     ORDER BY s.ID, komp.ID;
 `
 
@@ -811,9 +832,20 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
 		var c CompleteESCEntryWithComposers
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &c.Komponisten); err != nil {
+		var komponentID sql.NullInt64
+		var komponentVorname sql.NullString
+		var komponentName sql.NullString
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
+		}
+		if komponentID.Valid {
+			komponent := Komponist{
+				ID:      int(komponentID.Int64),
+				vorname: komponentVorname.String,
+				name:    komponentName.String,
+			}
+			c.Komponisten = append(c.Komponisten, komponent)
 		}
 		song = append(song, c)
 	}
@@ -839,7 +871,7 @@ func openVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	dbQuery := `UPDATE Voting_Status SET isOpen = true, SET lastChange = ?`
+	dbQuery := `UPDATE Voting_Status SET isOpen = true, lastChange = ?`
 
 	autorized, message := checkAccessAdmin(token)
 
@@ -856,7 +888,6 @@ func openVote(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -892,7 +923,7 @@ func closeVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	dbQuery := `UPDATE Voting_Status SET isOpen = true, SET lastChange = ?`
+	dbQuery := `UPDATE Voting_Status SET isOpen = false, lastChange = ?`
 
 	autorized, message := checkAccessAdmin(token)
 
@@ -909,7 +940,6 @@ func closeVote(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -949,7 +979,7 @@ func deleteVotes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	query := r.URL.Query()
 	token := query.Get("Token")
-	dbQuery := `DELETE PublikumsPunkte, JuryPunkte, GesamtPunkte FROM Song`
+	dbQuery := `UPDATE Song SET PublikumsPunkte = 0, JuryPunkte = 0`
 
 	autorized, message := checkAccessAdmin(token)
 
@@ -963,7 +993,6 @@ func deleteVotes(w http.ResponseWriter, r *http.Request) {
 				"error": "Failed to delete Votes",
 			})
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -1273,8 +1302,17 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	token := query.Get("Token")
 	points := query.Get("points")
-	songID := query.Get("songID")
-	dbQuery := `SELECT isOpen FROM Vote_Status`
+	songIDStr := query.Get("songID")
+	songID, err := strconv.Atoi(songIDStr)
+	if err != nil {
+		logger.ErrorContext(ctx, "invalid songID value", slog.Any("error", err), slog.String("songID", songIDStr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Invalid songID value - must be an Integer",
+		})
+		return
+	}
+	dbQuery := `SELECT isOpen FROM Voting_Status`
 
 	authorized, message := checkAccessJury(token)
 
@@ -1322,6 +1360,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Invalid points value - must be an Integer",
 			})
+			return
 		}
 
 		totalPoints := juryWeight * parsedPoints
