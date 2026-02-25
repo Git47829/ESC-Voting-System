@@ -414,7 +414,16 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	songID := r.URL.Query().Get("songID")
+	ID := r.URL.Query().Get("songID")
+	songID, err := strconv.Atoi(ID)
+	if err != nil {
+		logger.ErrorContext(ctx, "ID must be an Integer", slog.Any("error", err), slog.String("ID", ID))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Invalid ID value - must be an Integer",
+		})
+		return
+	}
 
 	query := `SELECT isOpen FROM Voting_Status`
 
@@ -720,6 +729,10 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	idStr := r.PathValue("ID")
+	ID, err := strconv.Atoi(idStr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", idStr))
+	}
 
 	query := `SELECT
     s.ID AS Song_ID,
@@ -750,7 +763,7 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
     ORDER BY s.ID, komp.ID;
 `
 
-	rows, err := db.QueryContext(ctx, query, idStr)
+	rows, err := db.QueryContext(ctx, query, ID)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -991,7 +1004,16 @@ func addCountry(w http.ResponseWriter, r *http.Request) {
 	token := query.Get("Token")
 	ID := query.Get("ID")
 	Name := query.Get("Name")
-	POT := query.Get("Pot")
+	POTstr := query.Get("Pot")
+	POT, err := strconv.Atoi(POTstr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Invalid POT value", slog.Any("error", err), slog.String("POT", POTstr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Pot Value must be Integer",
+		})
+		return
+	}
 	dbQuery := `INSERT INTO Land (ID, Name, POT)
 				VALUES (?, ?, ?)`
 
@@ -1047,7 +1069,15 @@ func addSong(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query()
 	token := query.Get("Token")
-	ID := query.Get("ID")
+	IDstr := query.Get("ID")
+	ID, err := strconv.Atoi(IDstr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", IDstr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "ID must be an Integer",
+		})
+	}
 	Name := query.Get("Name")
 	country := query.Get("Land")
 	dbQuery := `
@@ -1108,7 +1138,15 @@ func addArtist(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query()
 	token := query.Get("Token")
-	ID := query.Get("ID")
+	IDstr := query.Get("ID")
+	ID, err := strconv.Atoi(IDstr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "ID must be an Integer",
+		})
+	}
 	Name := query.Get("Name")
 	vorName := query.Get("vorName")
 	typ := query.Get("typ")
@@ -1168,7 +1206,15 @@ func addInterpret(w http.ResponseWriter, r *http.Request) {
 
 	query := r.URL.Query()
 	token := query.Get("Token")
-	ID := query.Get("ID")
+	IDstr := query.Get("ID")
+	ID, err := strconv.Atoi(IDstr)
+	if err != nil {
+		logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "ID must be an Integer",
+		})
+	}
 	Name := query.Get("Name")
 	vorName := query.Get("Vorname")
 	dbQuery := `INSERT INTO Komponist (ID, Vorname, Name) VALUES (?,?,?)`
