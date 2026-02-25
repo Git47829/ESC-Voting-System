@@ -17,9 +17,9 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
-      - backend
-    aliases:
-      - mysql
+      backend:
+        aliases:
+          - mysql
 
   api:
     build: ./backend/CRUD-DB-API/
