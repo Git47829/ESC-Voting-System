@@ -992,7 +992,7 @@ func addCountry(w http.ResponseWriter, r *http.Request) {
 	Name := query.Get("Name")
 	POT := query.Get("Pot")
 	dbQuery := `INSERT INTO Land (ID, Name, POT)
-				VALUES (?, ?, ?);`
+				VALUES (?, ?, ?)`
 
 	autorized, message := checkAccessAdmin(token)
 
@@ -1041,25 +1041,50 @@ func addCountry(w http.ResponseWriter, r *http.Request) {
 }
 
 func addSong(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
 	token := query.Get("Token")
 	ID := query.Get("ID")
 	Name := query.Get("Name")
+	country := query.Get("Land")
+	dbQuery := `
+				INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte)
+				VALUES (?, ?, ?, 0, 0)`
 
 	autorized, message := checkAccessAdmin(token)
 
-	response := []any{ID, Name}
-
 	if autorized == true {
 
-		// Business Logic
+		result, err := db.ExecContext(ctx, dbQuery, Name, country, ID)
+
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "error inserting into DB",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error verifying Query",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
-			"payload": response,
+			"payload": result,
 		})
 	}
 
@@ -1077,6 +1102,7 @@ func addSong(w http.ResponseWriter, r *http.Request) {
 }
 
 func addArtist(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
@@ -1084,18 +1110,42 @@ func addArtist(w http.ResponseWriter, r *http.Request) {
 	ID := query.Get("ID")
 	Name := query.Get("Name")
 	vorName := query.Get("vorName")
+	typ := query.Get("typ")
+	country := query.Get("Land")
+	dbQuery := `INSERT INTO Kuenstler (ID, Vorname, Name, Typ, Land_ID) VALUES (?, ?, ?, ?, ?)`
 
 	autorized, message := checkAccessAdmin(token)
-	response := []any{ID, Name, vorName}
 
 	if autorized == true {
 
-		// Business Logic
+		result, err := db.ExecContext(ctx, dbQuery, ID, Name, vorName, typ, country)
+
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "error inserting into DB",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error verifying Query",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
-			"payload": response,
+			"payload": result,
 		})
 	}
 
@@ -1112,24 +1162,48 @@ func addArtist(w http.ResponseWriter, r *http.Request) {
 }
 
 func addInterpret(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
 	token := query.Get("Token")
 	ID := query.Get("ID")
 	Name := query.Get("Name")
+	vorName := query.Get("Vorname")
+	dbQuery := `INSERT INTO Komponist (ID, Vorname, Name) VALUES (?,?,?)`
 
 	autorized, message := checkAccessAdmin(token)
-	response := []any{ID, Name}
 
 	if autorized == true {
 
-		// Business Logic
+		result, err := db.ExecContext(ctx, dbQuery, ID, Name, vorName)
+
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "error inserting into DB",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error verifying Query",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
-			"payload": response,
+			"payload": result,
 		})
 	}
 
