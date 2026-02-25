@@ -1,6 +1,24 @@
 version: "3.3"
 
 services:
+  db:
+    build: ./backend/DB/
+    container_name: escmysql
+    restart: unless-stopped
+    ports:
+      - 3306
+    env_file:
+      - .env
+    environment:
+      MYSQL_DATABASE: esc_voting
+      MYSQL_USER: esc_user
+      MYSQL_PASSWORD: esc_password
+      MYSQL_ROOT_PASSWORD: secretroot
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend
+
   api:
     build: ./backend/CRUD-DB-API/
     container_name: db-crud-api
@@ -21,24 +39,6 @@ services:
       - backend
       - frontend
       - observability
-
-  db:
-    build: ./backend/DB/
-    container_name: escmysql
-    restart: unless-stopped
-    ports:
-      - 3306
-    env_file:
-      - .env
-    environment:
-      MYSQL_DATABASE: esc_voting
-      MYSQL_USER: esc_user
-      MYSQL_PASSWORD: esc_password
-      MYSQL_ROOT_PASSWORD: secretroot
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - backend
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.94.0

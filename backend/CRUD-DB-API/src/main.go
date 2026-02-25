@@ -1466,10 +1466,10 @@ func main() {
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		localconfig.DbUser,
-		localconfig.DbHost,
 		localconfig.DbPass,
-		localconfig.DbName,
+		localconfig.DbHost,
 		localconfig.DbPort,
+		localconfig.DbName,
 	)
 
 	db, err = sql.Open("mysql", dsn)
