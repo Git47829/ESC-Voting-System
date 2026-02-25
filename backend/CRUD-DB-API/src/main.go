@@ -983,6 +983,7 @@ func deleteVotes(w http.ResponseWriter, r *http.Request) {
 }
 
 func addCountry(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
@@ -990,19 +991,40 @@ func addCountry(w http.ResponseWriter, r *http.Request) {
 	ID := query.Get("ID")
 	Name := query.Get("Name")
 	POT := query.Get("Pot")
+	dbQuery := `INSERT INTO Land (ID, Name, POT)
+				VALUES (?, ?, ?);`
 
 	autorized, message := checkAccessAdmin(token)
 
-	response := []any{ID, Name, POT}
-
 	if autorized == true {
 
-		// Business Logic
+		result, err := db.ExecContext(ctx, dbQuery, ID, Name, POT)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "error inserting into DB",
+			})
+			return
+		}
+		defer db.Close()
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Error verifying Query",
+			})
+			return
+		}
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
-			"payload": response,
+			"payload": result,
 		})
 	}
 
