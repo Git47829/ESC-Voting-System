@@ -1436,8 +1436,8 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	maxDBAttempts  = 30
-	dbAttemptDelay = time.Second * 2
+	maxDBAttempts  = 60
+	dbAttemptDelay = time.Second * 3
 )
 
 func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
