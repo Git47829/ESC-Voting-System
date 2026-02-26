@@ -8,9 +8,10 @@ ENV MYSQL_ROOT_PASSWORD=secretroot
 COPY db_scheme.sql /docker-entrypoint-initdb.d/01-schema.sql
 COPY seed_data.sql /docker-entrypoint-initdb.d/02-seed.sql
 COPY healthcheck.sh /healthcheck.sh
+COPY my.cnf /etc/mysql/conf.d/docker-mysql.cnf
 
 RUN chmod +x /healthcheck.sh
 
 EXPOSE 3306
 
-CMD ["mysqld", "--bind-address=0.0.0.0", "--skip-name-resolve"]
+CMD ["mysqld"]
