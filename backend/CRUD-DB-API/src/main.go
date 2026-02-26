@@ -1437,7 +1437,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 
 var (
 	maxDBAttempts  = 30
-	dbAttemptDelay = time.Second * 1
+	dbAttemptDelay = time.Second * 2
 )
 
 func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
@@ -1453,6 +1453,7 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	)
 
 	log.Printf("Attempting to connect to database at %s:%d/%s", cfg.DbHost, cfg.DbPort, cfg.DbName)
+	log.Printf("Database config: Host=%s, Port=%d, User=%s, Database=%s", cfg.DbHost, cfg.DbPort, cfg.DbUser, cfg.DbName)
 
 	var (
 		conn *sql.DB
@@ -1467,7 +1468,7 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 			conn.SetConnMaxLifetime(5 * time.Minute)
 
 			// Use a context with timeout for ping
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			pingErr := conn.PingContext(ctx)
 			cancel()
 

@@ -20,6 +20,12 @@ services:
       backend:
         aliases:
           - mysql
+    healthcheck:
+      test: ["CMD", "/healthcheck.sh"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 45s
 
   api:
     build: ./backend/CRUD-DB-API/
@@ -30,13 +36,14 @@ services:
     env_file:
       - .env
     environment:
-      dbHost: mysql
-      dbPort: 3306
-      dbName: esc_voting
-      dbUser: esc_user
-      dbPass: esc_password
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: esc_voting
+      DB_USER: esc_user
+      DB_PASS: esc_password
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - backend
       - frontend
