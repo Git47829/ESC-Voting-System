@@ -20,12 +20,6 @@ services:
       backend:
         aliases:
           - mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "--silent"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
 
   api:
     build: ./backend/CRUD-DB-API/
@@ -42,8 +36,7 @@ services:
       dbUser: esc_user
       dbPass: esc_password
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     networks:
       - backend
       - frontend
@@ -60,6 +53,9 @@ services:
       - "9464:9464" # Prometheus scrape endpoint
     networks:
       - observability
+    depends_on:
+      - api
+      - db
 
   prometheus:
     image: prom/prometheus:v2.51.1
