@@ -1455,15 +1455,19 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
 		conn, err = sql.Open("mysql", dsn)
 		if err == nil {
-			if pingErr := conn.Ping(); pingErr == nil {
+			pingErr := conn.Ping()
+			if pingErr == nil {
 				return conn, nil
 			}
-
+			err = pingErr
 		}
-		logger.Warn("database not ready, retrying",
-			slog.Int("attempt", attempt),
-			slog.String("error", err.Error()),
-		)
+		var errMsg string
+		if err != nil {
+			errMsg = err.Error()
+		} else {
+			errMsg = "unknown error"
+		}
+		log.Printf("database not ready, retrying (attempt %d): %s", attempt, errMsg)
 		time.Sleep(dbAttemptDelay * time.Duration(attempt))
 	}
 	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxDBAttempts, err)
