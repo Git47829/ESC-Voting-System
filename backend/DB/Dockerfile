@@ -9,6 +9,7 @@ COPY db_scheme.sql /docker-entrypoint-initdb.d/01-schema.sql
 COPY seed_data.sql /docker-entrypoint-initdb.d/02-seed.sql
 COPY healthcheck.sh /healthcheck.sh
 COPY docker-entrypoint.sh /entrypoint.sh
+COPY my.cnf /my.cnf
 
 RUN chmod +x /healthcheck.sh /entrypoint.sh
 
