@@ -1443,7 +1443,8 @@ var (
 func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	// URL encode the password to handle special characters
 	escapedPass := url.QueryEscape(cfg.DbPass)
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+	// Add connection timeout parameters to DSN
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",
 		cfg.DbUser,
 		escapedPass,
 		cfg.DbHost,
@@ -1465,7 +1466,11 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 			conn.SetMaxIdleConns(5)
 			conn.SetConnMaxLifetime(5 * time.Minute)
 
-			pingErr := conn.Ping()
+			// Use a context with timeout for ping
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			pingErr := conn.PingContext(ctx)
+			cancel()
+
 			if pingErr == nil {
 				log.Printf("Successfully connected to database on attempt %d", attempt)
 				return conn, nil

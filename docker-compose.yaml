@@ -6,7 +6,7 @@ services:
     container_name: escmysql
     restart: unless-stopped
     ports:
-      - 3306
+      - "3306:3306"
     env_file:
       - .env
     environment:
