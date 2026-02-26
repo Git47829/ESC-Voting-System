@@ -10,6 +10,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"sync"
@@ -1435,18 +1436,22 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	maxDBAttempts  = 8
-	dbAttemptDelay = time.Second * 2
+	maxDBAttempts  = 30
+	dbAttemptDelay = time.Second * 1
 )
 
 func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
+	// URL encode the password to handle special characters
+	escapedPass := url.QueryEscape(cfg.DbPass)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
 		cfg.DbUser,
-		cfg.DbPass,
+		escapedPass,
 		cfg.DbHost,
 		cfg.DbPort,
 		cfg.DbName,
 	)
+
+	log.Printf("Attempting to connect to database at %s:%d/%s", cfg.DbHost, cfg.DbPort, cfg.DbName)
 
 	var (
 		conn *sql.DB
@@ -1455,8 +1460,14 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
 		conn, err = sql.Open("mysql", dsn)
 		if err == nil {
+			// Set connection pool settings
+			conn.SetMaxOpenConns(25)
+			conn.SetMaxIdleConns(5)
+			conn.SetConnMaxLifetime(5 * time.Minute)
+
 			pingErr := conn.Ping()
 			if pingErr == nil {
+				log.Printf("Successfully connected to database on attempt %d", attempt)
 				return conn, nil
 			}
 			err = pingErr
@@ -1467,8 +1478,10 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 		} else {
 			errMsg = "unknown error"
 		}
-		log.Printf("database not ready, retrying (attempt %d): %s", attempt, errMsg)
-		time.Sleep(dbAttemptDelay * time.Duration(attempt))
+		log.Printf("Database connection attempt %d/%d failed: %s", attempt, maxDBAttempts, errMsg)
+		if attempt < maxDBAttempts {
+			time.Sleep(dbAttemptDelay * time.Duration(attempt))
+		}
 	}
 	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxDBAttempts, err)
 }
