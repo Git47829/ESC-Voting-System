@@ -3,9 +3,7 @@ module main
 go 1.24.0
 
 require (
-	github.com/caarlos0/env/v11 v11.3.1
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.23.2
 	go.opentelemetry.io/otel v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.40.0

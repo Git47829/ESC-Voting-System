@@ -17,8 +17,6 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
-	"github.com/caarlos0/env/v11"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -47,6 +45,32 @@ type LocalConfig struct {
 	DbUser string `env:"dbUser"`
 	DbPass string `env:"dbPass"`
 	DbPort int    `env:"dbPort"`
+}
+
+func loadLocalConfig() LocalConfig {
+	return LocalConfig{
+		DbHost: getEnvOrDefault("DB_HOST", "localhost"),
+		DbName: getEnvOrDefault("DB_NAME", "esc_voting"),
+		DbUser: getEnvOrDefault("DB_USER", "root"),
+		DbPass: getEnvOrDefault("DB_PASS", ""),
+		DbPort: getEnvOrDefaultInt("DB_PORT", 3306),
+	}
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func getEnvOrDefaultInt(key string, fallback int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return fallback
 }
 
 var db *sql.DB
@@ -1410,6 +1434,41 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 
 }
 
+var (
+	maxDBAttempts  = 8
+	dbAttemptDelay = time.Second * 2
+)
+
+func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+		cfg.DbUser,
+		cfg.DbPass,
+		cfg.DbHost,
+		cfg.DbPort,
+		cfg.DbName,
+	)
+
+	var (
+		conn *sql.DB
+		err  error
+	)
+	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
+		conn, err = sql.Open("mysql", dsn)
+		if err == nil {
+			if pingErr := conn.Ping(); pingErr == nil {
+				return conn, nil
+			}
+
+		}
+		logger.Warn("database not ready, retrying",
+			slog.Int("attempt", attempt),
+			slog.String("error", err.Error()),
+		)
+		time.Sleep(dbAttemptDelay * time.Duration(attempt))
+	}
+	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxDBAttempts, err)
+}
+
 func main() {
 
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
@@ -1417,9 +1476,9 @@ func main() {
 	}))
 	slog.SetDefault(logger)
 
-	tp, err := initTracer()
-	if err != nil {
-		log.Printf("Warning: Failed to initialize tracer: %v. Continue without tracig", err)
+	tp, erro := initTracer()
+	if erro != nil {
+		log.Printf("Warning: Failed to initialize tracer: %v. Continue without tracig", erro)
 	} else {
 		defer func() {
 			if err := tp.Shutdown(context.Background()); err != nil {
@@ -1456,40 +1515,13 @@ func main() {
 
 	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
 
-	var localconfig LocalConfig
-	if err := env.Parse(&localconfig); err != nil {
-		log.Fatalf("Error reading the environment variables: %v", err)
-		return
-	}
-
-	log.Printf("%+v\n", localconfig)
-
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		localconfig.DbUser,
-		localconfig.DbPass,
-		localconfig.DbHost,
-		localconfig.DbPort,
-		localconfig.DbName,
-	)
-
-	db, err = sql.Open("mysql", dsn)
+	var err error
+	db, err = connectToDatabase(loadLocalConfig())
 	if err != nil {
 		logger.Error("Error Connecting the Database")
 		panic(err.Error())
 	}
 	defer db.Close()
-
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(3 * time.Minute)
-
-	err = db.Ping()
-	if err != nil {
-		logger.Error("Database is unreachable")
-		panic(err.Error())
-	}
-
-	logger.Info("Successfully Connected to the Database")
 
 	// Start Sercer
 	err = http.ListenAndServe(":8000", handler)
