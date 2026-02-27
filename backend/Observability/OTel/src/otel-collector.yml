@@ -11,6 +11,11 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:9464"
     namespace: "esc"
+    insecure: true
+    send_timestamps: true
+    metric_expiration: 180m
+    resource_to_telemetry_conversion:
+      enabled: true
   logging:
     logLevel: info
 
