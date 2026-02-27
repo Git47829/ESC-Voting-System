@@ -1,0 +1,38 @@
+name: Docker Compose Startup Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Check all containers start
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env
+          # Add your secrets in: Settings → Secrets and variables → Actions
+          # Then reference them here like the examples below:
+          # DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          # API_KEY=${{ secrets.API_KEY }}
+          EOF
+
+      - name: Build images
+        run: docker compose build --parallel
+
+      - name: Start services
+        run: docker compose up -d --wait
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes --remove-orphans
