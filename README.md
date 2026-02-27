@@ -19,17 +19,10 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 │  │   CRUD API (Go)            │  │  EuroStats (Python)      │   │
 │  │   • Port 8000              │  │  • Real-time Stats       │   │
 │  │   • Rate Limiting          │◄─┤  • gRPC Consumer         │   │
-<<<<<<< HEAD
-│  │   • JWT/Token Auth         │  │  • Vote Aggregation      │   │
-│  │   • OpenTelemetry Traces   │  │  • NumPy Analytics       │   │
-│  └───────────┬────────────────┘  └──────────────────────────┘   │
-│              │                                                  │ 
-=======
 │  │   • Token Auth             │  │  • Vote Aggregation      │   │
 │  │   • OpenTelemetry Traces   │  │  • NumPy Analytics       │   │
 │  └───────────┬────────────────┘  └──────────────────────────┘   │
 │              │                                                  │
->>>>>>> aeb3bd6ddc5e6123af4c9a8ec41cd8a31a4350dc
 │  ┌───────────▼────────────────┐                                 │
 │  │   MySQL Database           │                                 │
 │  │   • Port 3306              │                                 │
