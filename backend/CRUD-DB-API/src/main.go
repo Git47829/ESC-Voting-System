@@ -809,9 +809,9 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type Komponist struct {
-		ID      int    `json:"id"`
-		vorname string `json:"first_name"`
-		name    string `json:"surname"`
+		ID      int `json:"id"`
+		vorname string
+		name    string
 	}
 
 	type CompleteESCEntryWithComposers struct {
@@ -928,9 +928,9 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	type Komponist struct {
-		ID      int    `json:"id"`
-		vorname string `json:"first_name"`
-		name    string `json:"surname"`
+		ID      int `json:"id"`
+		vorname string
+		name    string
 	}
 
 	type CompleteESCEntryWithComposers struct {
