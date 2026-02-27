@@ -108,6 +108,7 @@ services:
 volumes:
   mysql_data:
   grafana_data:
+  loki_data:
 
 networks:
   backend:
