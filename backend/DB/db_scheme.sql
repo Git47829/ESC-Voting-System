@@ -58,3 +58,9 @@ CREATE TABLE Voting_Status (
 	isOpen BOOL NOT NULL,
 	lastChange TIME
 );
+
+CREATE TABLE Phone_Nums (
+    ID INT NOT NULL AUTO_INCREMENT,
+    Phone_Number VARCHAR(200) NOT NULL,
+    PRIMARY KEY (ID)
+);
