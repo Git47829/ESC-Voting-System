@@ -14,6 +14,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env
+          # Add your secrets in: Settings → Secrets and variables → Actions
+          # Then reference them here like the examples below:
+          # DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          # API_KEY=${{ secrets.API_KEY }}
+          EOF
+
       - name: Build images
         run: docker compose build --parallel
 
