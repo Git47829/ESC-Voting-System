@@ -455,6 +455,17 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
+	ownCountry := r.URL.Query().Get("ownCountry")
+	phone := r.URL.Query().Get("phoneNum")
+	phoneNum, err := hashPassword(phone)
+	if err != nil {
+		logger.ErrorContext(ctx, "error hashing phonenumber", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "error hashing password",
+		})
+		return
+	}
 	ID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(ID)
 	if err != nil {
@@ -501,68 +512,148 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	const cookieName string = "vote_cookie"
-	const weightPublicVote int = 3
+	query = `SELECT Land_ID FROM Song WHERE ID = ?`
 
-	cookie, err := r.Cookie(cookieName)
+	rows, dbErr := db.QueryContext(ctx, query, ID)
+	if dbErr != nil {
+		logger.ErrorContext(ctx, "error Querying DB rows", slog.Any("error", err), slog.String("ID", ID))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "error Querying DB",
+		})
+		return
+	}
 
-	if err == nil {
-		mu.Lock()
-		alreadyVoted := usedTokens[cookie.Value]
-		mu.Unlock()
+	type vote_verify struct {
+		id     string
+		landId string
+	}
 
-		if alreadyVoted == true {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "Vote has already been cast",
+	for rows.Next() {
+		var v vote_verify
+		if err := rows.Scan(&v.id, &v.landId); err != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+			continue
+		}
+		if v.landId == ownCountry {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]any{
+				"error":   "cannot vote for your own country",
+				"payload": v,
 			})
+			return
 		}
 	}
 
-	token, _ := generateToken()
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    token,
-		Expires:  time.Now().Add(365 * 24 * time.Hour),
-		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
-	})
+	query = `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
+	var exists bool
+	phoneErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&exists)
 
-	mu.Lock()
-	usedTokens[token] = true
-	mu.Unlock()
+	if phoneErr == sql.ErrNoRows {
 
-	query = `UPDATE SONG
-			 SET PublikumsPunkte = PublikumsPunkte + ?
-			 WHERE ID = ?`
+		query = `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
 
-	result, err := db.ExecContext(ctx, query, weightPublicVote, songID)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+		result, insertErr := db.ExecContext(ctx, query, phoneNum)
+
+		if insertErr != nil {
+			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to record vote",
+			})
+			return
+		}
+
+		affectedRows, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
+		}
+		if affectedRows == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Song not found",
+			})
+			return
+		}
+
+		const cookieName string = "vote_cookie"
+		const weightPublicVote int = 3
+
+		cookie, err := r.Cookie(cookieName)
+
+		if err == nil {
+			mu.Lock()
+			alreadyVoted := usedTokens[cookie.Value]
+			mu.Unlock()
+
+			if alreadyVoted == true {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"message": "Vote has already been cast",
+				})
+			}
+		}
+
+		token, _ := generateToken()
+		http.SetCookie(w, &http.Cookie{
+			Name:     cookieName,
+			Value:    token,
+			Expires:  time.Now().Add(365 * 24 * time.Hour),
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+		})
+
+		mu.Lock()
+		usedTokens[token] = true
+		mu.Unlock()
+
+		query = `UPDATE SONG
+				 SET PublikumsPunkte = PublikumsPunkte + ?
+				 WHERE ID = ?`
+
+		result, voteErr := db.ExecContext(ctx, query, weightPublicVote, songID)
+		if voteErr != nil {
+			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Failed to record vote",
+			})
+			return
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
+		}
+		if rowsAffected == 0 {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Song not found",
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message":   "Success",
+			"voted_for": songID,
+		})
+
+	} else if phoneErr != nil {
+		logger.ErrorContext(ctx, "error Querying DB", slog.Any("error", phoneErr))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to record vote",
+			"error": "error querying DB",
 		})
 		return
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
-	}
-	if rowsAffected == 0 {
-		w.WriteHeader(http.StatusNotFound)
+	} else {
+		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Song not found",
+			"error": "your vote has already been cast",
 		})
-		return
+
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
-		"message":   "Success",
-		"voted_for": songID,
-	})
 }
 
 func getCountries(w http.ResponseWriter, r *http.Request) {
