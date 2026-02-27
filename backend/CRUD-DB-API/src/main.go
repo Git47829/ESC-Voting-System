@@ -18,6 +18,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -321,18 +323,29 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+func hashPassword(password string) (string, error) {
+	// The cost parameter controls how slow the hash is
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
+
+func checkPassword(password, hashedPassword string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	return err == nil
+}
+
 func checkAccessAdmin(input string) (bool, string) {
 
-	var TestToken string = "test123"
+	adminPassword := os.Getenv("adminPassword")
 
 	if input == "" {
 		return false, "Token has to be provided"
 	}
-	if input != TestToken {
+	if checkPassword(input, adminPassword) != true {
 		return false, "Wrong Token provided"
 	}
 
-	if input == TestToken {
+	if checkPassword(input, adminPassword) == true {
 		return true, "Autorized"
 	}
 
@@ -341,14 +354,18 @@ func checkAccessAdmin(input string) (bool, string) {
 
 func checkAccessJury(input string) (bool, string) {
 
-	TestToken := []string{"test123", "test456", "test789"}
+	juryPassword1 := os.Getenv("juryPassword1")
+	juryPassword2 := os.Getenv("juryPassword2")
+	juryPassword3 := os.Getenv("juryPassword3")
+
+	TestToken := []string{juryPassword1, juryPassword2, juryPassword3}
 
 	if input == "" {
 		return false, "Token has to be provided"
 	}
 
 	for _, token := range TestToken {
-		if input == token {
+		if checkPassword(input, token) {
 			return true, "Authorized"
 		}
 	}
