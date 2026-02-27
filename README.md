@@ -19,10 +19,17 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 │  │   CRUD API (Go)            │  │  EuroStats (Python)      │   │
 │  │   • Port 8000              │  │  • Real-time Stats       │   │
 │  │   • Rate Limiting          │◄─┤  • gRPC Consumer         │   │
+<<<<<<< HEAD
 │  │   • JWT/Token Auth         │  │  • Vote Aggregation      │   │
 │  │   • OpenTelemetry Traces   │  │  • NumPy Analytics       │   │
 │  └───────────┬────────────────┘  └──────────────────────────┘   │
 │              │                                                  │ 
+=======
+│  │   • Token Auth             │  │  • Vote Aggregation      │   │
+│  │   • OpenTelemetry Traces   │  │  • NumPy Analytics       │   │
+│  └───────────┬────────────────┘  └──────────────────────────┘   │
+│              │                                                  │
+>>>>>>> aeb3bd6ddc5e6123af4c9a8ec41cd8a31a4350dc
 │  ┌───────────▼────────────────┐                                 │
 │  │   MySQL Database           │                                 │
 │  │   • Port 3306              │                                 │
@@ -34,14 +41,14 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 ┌────────────────────────────────▼────────────────────────────────┐
 │                    Observability Stack                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │ OTel Collector   │  │ Prometheus   │  │ Grafana          │  │
-│  │ Port 4317/4318   │─►│ Port 9090    │─►│ Port 3000        │  │
-│  └──────────────────┘  └──────────────┘  └──────────────────┘  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │ Loki (Log Aggregation)                                   │  │
-│  │ Port 3100                                                │  │
-│  └──────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ OTel Collector   │  │ Prometheus   │  │ Grafana          │   │
+│  │ Port 4317/4318   │─►│ Port 9090    │─►│ Port 3000        │   │
+│  └──────────────────┘  └──────────────┘  └──────────────────┘   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Loki (Log Aggregation)                                   │   │
+│  │ Port 3100                                                │   │
+│  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
