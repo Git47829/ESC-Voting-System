@@ -76,6 +76,7 @@ func getEnvOrDefaultInt(key string, fallback int) int {
 	return fallback
 }
 
+// Singleton Pattern
 var db *sql.DB
 
 var clients = make(map[string]*Client)
@@ -210,6 +211,7 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
+// Chain of Responsibility Design Pattern
 func ObservabilityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
