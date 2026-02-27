@@ -17,7 +17,8 @@ exporters:
     resource_to_telemetry_conversion:
       enabled: true
   logging:
-    logLevel: info
+    debug:
+      verbosity: detailed
 
 service:
   pipelines:
