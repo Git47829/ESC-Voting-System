@@ -66,8 +66,9 @@ services:
       - observability
     depends_on:
       db:
+        condition: service_healthy
       api:
-      condition: service_healthy
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v2.51.1
