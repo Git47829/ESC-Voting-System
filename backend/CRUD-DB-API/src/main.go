@@ -635,6 +635,8 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		NotifyVote(songID, ownCountry, db)
+
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message":   "Success",
@@ -1525,6 +1527,8 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		NotifyVote(songID, "JURY", db)
+
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message": message,
@@ -1655,6 +1659,14 @@ func main() {
 		panic(err.Error())
 	}
 	defer db.Close()
+
+	voteService, err := StartGRPCServer(db, "50051")
+	if err != nil {
+		logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
+		panic(err)
+	}
+	SetGlobalVoteServer(voteService)
+	logger.Info("gRPC vote streaming service initialized")
 
 	// Start Sercer
 	err = http.ListenAndServe(":8000", handler)
