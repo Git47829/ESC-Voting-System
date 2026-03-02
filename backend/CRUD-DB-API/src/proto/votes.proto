@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package votes;
+
+option go_package = "main/proto";
+
+message Vote {
+  string country_voted_for = 1;
+  string country_voted_for_name = 2;
+  int32 vote_count = 3;
+  string voter_country = 4;
+  string voter_country_name = 5;
+  int64 timestamp = 6;
+  int32 song_id = 7;
+  string song_name = 8;
+}
+
+message VoteStreamRequest {
+  bool include_historical = 1;
+}
+
+service VoteService {
+  rpc StreamVotes(VoteStreamRequest) returns (stream Vote);
+}
