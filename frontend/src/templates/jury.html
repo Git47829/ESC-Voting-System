@@ -1,8 +1,5 @@
-{% extends "base.html" %}
-
-{% block title %}Jury Vote — ESC Voting System{% endblock %}
-
-{% block head %}
+{% extends "base.html" %} {% block title %}Jury Vote — ESC Voting System{%
+endblock %} {% block head %}
 <style>
     .point-btn {
         transition: all 0.15s ease;
@@ -32,47 +29,53 @@
         display: flex;
     }
     @keyframes vote-success {
-        0% { transform: scale(0.8); opacity: 0; }
-        50% { transform: scale(1.1); }
-        100% { transform: scale(1); opacity: 1; }
+        0% {
+            transform: scale(0.8);
+            opacity: 0;
+        }
+        50% {
+            transform: scale(1.1);
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
     }
     .vote-success-anim {
         animation: vote-success 0.4s ease-out forwards;
     }
 </style>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
-
-    <!-- Page Header -->
     <div class="text-center mb-10">
-        <h1 class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3">
+        <h1
+            class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3"
+        >
             Jury Voting
         </h1>
         <p class="text-esc-muted text-sm max-w-lg mx-auto">
-            Award points to each entry using the Eurovision scoring system. Select a point value and confirm your vote for each country.
+            Award points to each entry using the Eurovision scoring system.
+            Select a point value and confirm your vote for each country.
         </p>
 
         <!-- Points Legend -->
-        <div class="mt-6 inline-flex items-center gap-2 rounded-xl border border-esc-surface bg-esc-surface/30 px-4 py-3">
-            <span class="text-[10px] text-esc-muted uppercase tracking-wider mr-1">Points:</span>
+        <div
+            class="mt-6 inline-flex items-center gap-2 rounded-xl border border-esc-surface bg-esc-surface/30 px-4 py-3"
+        >
+            <span
+                class="text-[10px] text-esc-muted uppercase tracking-wider mr-1"
+                >Points:</span
+            >
             {% for p in [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] %}
-            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold
-                         {% if p == 12 %}
-                             bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40
-                         {% elif p == 10 %}
-                             bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20
-                         {% else %}
-                             bg-esc-surface text-esc-muted border border-esc-surface
-                         {% endif %}">
+            <span
+                class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold {% if p == 12 %} bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40 {% elif p == 10 %} bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20 {% else %} bg-esc-surface text-esc-muted border border-esc-surface {% endif %}"
+            >
                 {{ p }}
             </span>
             {% endfor %}
         </div>
     </div>
 
-    <!-- Jury Cards -->
     {% if songs %}
     <div class="space-y-4" id="jury-entries">
         {% for song in songs %}
@@ -82,36 +85,46 @@
             data-song-id="{{ song.songId }}"
         >
             <div class="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
-
                 <!-- Left: Flag + Country + Song Info -->
                 <div class="flex items-center gap-4 sm:w-64 flex-shrink-0">
                     <!-- Flag -->
-                    <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-esc-surface flex items-center justify-center bg-esc-black flex-shrink-0">
+                    <div
+                        class="w-12 h-12 rounded-full overflow-hidden border-2 border-esc-surface flex items-center justify-center bg-esc-black flex-shrink-0"
+                    >
                         <img
                             src="https://flagcdn.com/w80/{{ song.countryId[:2]|lower }}.png"
                             alt="{{ song.countryName }} flag"
                             class="w-full h-full object-cover"
-                            onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\'text-xl\'>🏳️</span>';"
-                        >
+                            onerror="
+                                this.onerror = null;
+                                this.parentElement.innerHTML =
+                                    '<span class=\'text-xl\'>🏳️</span>';
+                            "
+                        />
                     </div>
 
-                    <!-- Info -->
                     <div class="min-w-0">
-                        <h3 class="font-heading font-bold text-base text-esc-text leading-tight truncate">
+                        <h3
+                            class="font-heading font-bold text-base text-esc-text leading-tight truncate"
+                        >
                             {{ song.countryName }}
                         </h3>
                         <p class="text-xs text-esc-muted truncate leading-snug">
                             "{{ song.songName }}"
                         </p>
-                        <p class="text-[11px] text-esc-muted/60 truncate leading-snug">
+                        <p
+                            class="text-[11px] text-esc-muted/60 truncate leading-snug"
+                        >
                             {{ song.artistFirstName }} {{ song.artistLastName }}
                         </p>
                     </div>
                 </div>
 
-                <!-- Center: Point Selector Buttons -->
                 <div class="flex-1 flex items-center justify-center">
-                    <div class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2" id="points-group-{{ song.songId }}">
+                    <div
+                        class="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"
+                        id="points-group-{{ song.songId }}"
+                    >
                         {% for p in [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] %}
                         <button
                             type="button"
@@ -127,7 +140,13 @@
                                    {% if not voting_is_open %}opacity-40 cursor-not-allowed{% endif %}"
                             data-points="{{ p }}"
                             data-song-id="{{ song.songId }}"
-                            {% if not voting_is_open %}disabled{% endif %}
+                            {%
+                            if
+                            not
+                            voting_is_open
+                            %}disabled{%
+                            endif
+                            %}
                             onclick="selectPoints(this, {{ song.songId }}, {{ p }})"
                         >
                             {{ p }}
@@ -136,57 +155,109 @@
                     </div>
                 </div>
 
-                <!-- Right: Submit + Status -->
-                <div class="flex items-center gap-3 sm:w-44 flex-shrink-0 justify-end">
-                    <!-- Selected points display -->
-                    <div id="selected-display-{{ song.songId }}" class="hidden flex items-center gap-1.5">
-                        <span class="text-[10px] text-esc-muted uppercase tracking-wider">Selected:</span>
-                        <span id="selected-value-{{ song.songId }}" class="font-heading font-bold text-lg text-esc-yellow">—</span>
+                <div
+                    class="flex items-center gap-3 sm:w-44 flex-shrink-0 justify-end"
+                >
+                    <div
+                        id="selected-display-{{ song.songId }}"
+                        class="hidden flex items-center gap-1.5"
+                    >
+                        <span
+                            class="text-[10px] text-esc-muted uppercase tracking-wider"
+                            >Selected:</span
+                        >
+                        <span
+                            id="selected-value-{{ song.songId }}"
+                            class="font-heading font-bold text-lg text-esc-yellow"
+                            >—</span
+                        >
                     </div>
 
-                    <!-- Submit Button -->
                     <button
                         type="button"
                         id="submit-btn-{{ song.songId }}"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider
-                               hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black
-                               transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
                         disabled
                         onclick="submitJuryVote({{ song.songId }})"
                     >
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        <svg
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M5 13l4 4L19 7"
+                            />
                         </svg>
                         <span id="submit-text-{{ song.songId }}">Vote</span>
                     </button>
 
                     <!-- Voted Status Icon (hidden until voted) -->
-                    <div class="vote-status-icon hidden items-center gap-1.5 text-green-400" id="voted-icon-{{ song.songId }}">
-                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <div
+                        class="vote-status-icon hidden items-center gap-1.5 text-green-400"
+                        id="voted-icon-{{ song.songId }}"
+                    >
+                        <svg
+                            class="w-5 h-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
                         </svg>
-                        <span class="text-[10px] font-medium uppercase tracking-wider">Voted</span>
+                        <span
+                            class="text-[10px] font-medium uppercase tracking-wider"
+                            >Voted</span
+                        >
                     </div>
                 </div>
-
             </div>
 
-            <!-- Error / Response Message -->
-            <div id="response-{{ song.songId }}" class="hidden border-t border-esc-surface px-5 py-3 text-sm"></div>
+            <div
+                id="response-{{ song.songId }}"
+                class="hidden border-t border-esc-surface px-5 py-3 text-sm"
+            ></div>
         </div>
         {% endfor %}
     </div>
 
-    <!-- Summary Footer -->
-    <div class="mt-8 rounded-xl border border-esc-surface bg-esc-surface/20 px-5 py-4 flex items-center justify-between">
+    <div
+        class="mt-8 rounded-xl border border-esc-surface bg-esc-surface/20 px-5 py-4 flex items-center justify-between"
+    >
         <div class="flex items-center gap-3">
             <span class="text-sm text-esc-muted">Votes cast:</span>
-            <span id="votes-cast-count" class="font-heading font-bold text-lg text-esc-yellow">0</span>
+            <span
+                id="votes-cast-count"
+                class="font-heading font-bold text-lg text-esc-yellow"
+                >0</span
+            >
             <span class="text-sm text-esc-muted">/ {{ songs|length }}</span>
         </div>
-        <div id="all-done-msg" class="hidden text-xs text-green-400 font-medium flex items-center gap-1.5">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        <div
+            id="all-done-msg"
+            class="hidden text-xs text-green-400 font-medium flex items-center gap-1.5"
+        >
+            <svg
+                class="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+            >
+                <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M5 13l4 4L19 7"
+                />
             </svg>
             All votes submitted!
         </div>
@@ -195,58 +266,45 @@
     {% else %}
     <div class="flex flex-col items-center justify-center py-20 text-center">
         <span class="text-5xl mb-4">🎵</span>
-        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">No Entries Available</h2>
+        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">
+            No Entries Available
+        </h2>
         <p class="text-sm text-esc-muted max-w-sm">
             No songs have been added to the contest yet. Please check back soon.
         </p>
     </div>
     {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
-    // ------------------------------------------------------------------
-    // State tracking
-    // ------------------------------------------------------------------
-    const selectedPoints = {};   // { songId: points }
+
+    const selectedPoints = {};
     const votedSongs = new Set();
     const totalSongs = {{ songs|length }};
 
-    // ------------------------------------------------------------------
-    // Select points for a song
-    // ------------------------------------------------------------------
     function selectPoints(btn, songId, points) {
-        // Deselect all buttons in this group
         const group = document.getElementById('points-group-' + songId);
         const buttons = group.querySelectorAll('.point-btn');
         buttons.forEach(function (b) {
             b.classList.remove('selected');
         });
 
-        // Select this button
         btn.classList.add('selected');
 
-        // Store selection
         selectedPoints[songId] = points;
 
-        // Show selected display
         const display = document.getElementById('selected-display-' + songId);
         const valueEl = document.getElementById('selected-value-' + songId);
         display.classList.remove('hidden');
         display.classList.add('flex');
         valueEl.textContent = points;
 
-        // Enable submit button (only if not already voted)
         if (!votedSongs.has(songId)) {
             const submitBtn = document.getElementById('submit-btn-' + songId);
             submitBtn.disabled = false;
         }
     }
 
-    // ------------------------------------------------------------------
-    // Submit jury vote
-    // ------------------------------------------------------------------
     async function submitJuryVote(songId) {
         const points = selectedPoints[songId];
         if (!points) return;
@@ -256,11 +314,9 @@
         const responseDiv = document.getElementById('response-' + songId);
         const card = document.getElementById('jury-card-' + songId);
 
-        // Disable and show loading state
         submitBtn.disabled = true;
         submitText.textContent = 'Sending…';
 
-        // Build form data
         const formData = new FormData();
         formData.append('songID', songId);
         formData.append('points', points);
@@ -275,23 +331,18 @@
             responseDiv.classList.remove('hidden');
 
             if (resp.ok) {
-                // Success
                 responseDiv.className = 'border-t border-green-500/20 px-5 py-3 text-sm text-green-400 bg-green-500/5';
                 responseDiv.textContent = '✓ ' + points + ' points awarded successfully!';
 
-                // Mark as voted
                 votedSongs.add(songId);
                 card.classList.add('voted');
 
-                // Show voted icon with animation
                 const votedIcon = document.getElementById('voted-icon-' + songId);
                 votedIcon.classList.remove('hidden');
                 votedIcon.classList.add('vote-success-anim');
 
-                // Hide submit button
                 submitBtn.classList.add('hidden');
 
-                // Disable point buttons for this song
                 const group = document.getElementById('points-group-' + songId);
                 const buttons = group.querySelectorAll('.point-btn');
                 buttons.forEach(function (b) {
@@ -299,16 +350,13 @@
                     b.classList.add('opacity-40', 'cursor-not-allowed');
                 });
 
-                // Update counter
                 updateVoteCount();
 
-                // Auto-hide response after a few seconds
                 setTimeout(function () {
                     responseDiv.classList.add('hidden');
                 }, 3000);
 
             } else {
-                // Error
                 responseDiv.className = 'border-t border-red-500/20 px-5 py-3 text-sm text-red-400 bg-red-500/5';
                 responseDiv.textContent = data.error || data.message || 'Failed to submit vote.';
                 submitBtn.disabled = false;
@@ -323,9 +371,6 @@
         }
     }
 
-    // ------------------------------------------------------------------
-    // Update the votes cast counter
-    // ------------------------------------------------------------------
     function updateVoteCount() {
         const countEl = document.getElementById('votes-cast-count');
         const allDoneMsg = document.getElementById('all-done-msg');

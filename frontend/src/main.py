@@ -1,4 +1,5 @@
 import os
+import time
 from functools import wraps
 
 import requests
@@ -17,55 +18,84 @@ from flask import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "esc-voting-secret-key-change-me")
 
-# Backend API base URL
+
 API_BASE = os.environ.get("API_BASE_URL", "http://db-crud-api:8000")
 
-# Request timeout for backend calls
+
 API_TIMEOUT = int(os.environ.get("API_TIMEOUT", "10"))
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+from telemetry import (
+    record_backend_call,
+    record_vote,
+    set_active_sessions,
+    setup_telemetry,
+)
+
+setup_telemetry(app)
 
 
 def api_get(endpoint):
-    """Make a GET request to the backend API."""
+    """Make a GET request to the backend API, recording backend call duration."""
+    t0 = time.perf_counter()
+    status_code = 500
     try:
         resp = requests.get(f"{API_BASE}{endpoint}", timeout=API_TIMEOUT)
+        status_code = resp.status_code
         resp.raise_for_status()
         return resp.json()
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"API GET {endpoint} failed: {e}")
+        app.logger.error(
+            "backend GET failed",
+            extra={"api.endpoint": endpoint, "error": str(e)},
+        )
         return None
+    finally:
+        record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
 def api_post(endpoint, params=None):
-    """Make a POST request to the backend API."""
+    """Make a POST request to the backend API, recording backend call duration."""
+    t0 = time.perf_counter()
+    status_code = 500
     try:
         resp = requests.post(
             f"{API_BASE}{endpoint}",
             params=params or {},
             timeout=API_TIMEOUT,
         )
+        status_code = resp.status_code
         return resp.status_code, resp.json()
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"API POST {endpoint} failed: {e}")
+        app.logger.error(
+            "backend POST failed",
+            extra={"api.endpoint": endpoint, "error": str(e)},
+        )
         return 500, {"error": str(e)}
+    finally:
+        record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
 def api_delete(endpoint, params=None):
-    """Make a DELETE request to the backend API."""
+    """Make a DELETE request to the backend API, recording backend call duration."""
+    t0 = time.perf_counter()
+    status_code = 500
     try:
         resp = requests.delete(
             f"{API_BASE}{endpoint}",
             params=params or {},
             timeout=API_TIMEOUT,
         )
+        status_code = resp.status_code
         return resp.status_code, resp.json()
     except requests.exceptions.RequestException as e:
-        app.logger.error(f"API DELETE {endpoint} failed: {e}")
+        app.logger.error(
+            "backend DELETE failed",
+            extra={"api.endpoint": endpoint, "error": str(e)},
+        )
         return 500, {"error": str(e)}
+    finally:
+        record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
 def get_voting_status():
@@ -93,11 +123,6 @@ def login_required(role):
     return decorator
 
 
-# ---------------------------------------------------------------------------
-# Context processor — inject voting status into every template
-# ---------------------------------------------------------------------------
-
-
 @app.context_processor
 def inject_voting_status():
     try:
@@ -107,18 +132,12 @@ def inject_voting_status():
     return dict(voting_is_open=is_open)
 
 
-# ---------------------------------------------------------------------------
-# Public Routes
-# ---------------------------------------------------------------------------
-
-
 @app.route("/")
 def vote_page():
     """Home / Vote page — shows country cards grid."""
     songs_data = api_get("/songs/")
     songs = []
     if songs_data and "payload" in songs_data:
-        # Deduplicate songs (backend may return duplicates due to composer JOIN)
         seen_ids = set()
         for s in songs_data["payload"]:
             if s["songId"] not in seen_ids:
@@ -161,12 +180,14 @@ def submit_vote():
         },
     )
 
+    if status == 200:
+        record_vote("public")
+        app.logger.info(
+            "public vote cast",
+            extra={"song_id": song_id, "own_country": own_country},
+        )
+
     return jsonify(data), status
-
-
-# ---------------------------------------------------------------------------
-# Auth Routes
-# ---------------------------------------------------------------------------
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -182,16 +203,18 @@ def login():
         flash("Token is required.", "error")
         return render_template("login.html"), 401
 
-    # Validate token by attempting a benign admin or jury action
     if role == "admin":
-        # Try to hit a read-like admin endpoint to verify token
-        # We'll just store and let the actual actions validate
         session["token"] = token
         session["role"] = "admin"
+
+        set_active_sessions(1)
+        app.logger.info("admin login", extra={"role": "admin"})
         return redirect(url_for("admin_dashboard"))
     elif role == "jury":
         session["token"] = token
         session["role"] = "jury"
+        set_active_sessions(1)
+        app.logger.info("jury login", extra={"role": "jury"})
         return redirect(url_for("jury_page"))
     else:
         flash("Invalid role.", "error")
@@ -201,13 +224,11 @@ def login():
 @app.route("/logout")
 def logout():
     """Clear session and redirect to home."""
+    role = session.get("role", "unknown")
     session.clear()
+    set_active_sessions(0)
+    app.logger.info("logout", extra={"role": role})
     return redirect(url_for("vote_page"))
-
-
-# ---------------------------------------------------------------------------
-# Admin Routes
-# ---------------------------------------------------------------------------
 
 
 @app.route("/admin")
@@ -243,6 +264,7 @@ def admin_open_vote():
     token = session.get("token", "")
     status, data = api_post("/admin/open/", params={"Token": token})
     if status in (200, 202):
+        app.logger.info("voting opened by admin")
         flash("Voting has been opened!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to open voting.")), "error")
@@ -256,6 +278,7 @@ def admin_close_vote():
     token = session.get("token", "")
     status, data = api_post("/admin/close", params={"Token": token})
     if status in (200, 202):
+        app.logger.info("voting closed by admin")
         flash("Voting has been closed!", "success")
     else:
         flash(
@@ -271,6 +294,7 @@ def admin_reset_votes():
     token = session.get("token", "")
     status, data = api_delete("/admin/deleteVotes/", params={"Token": token})
     if status in (200, 202):
+        app.logger.warning("all votes reset by admin")
         flash("All votes have been reset!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to reset votes.")), "error")
@@ -300,6 +324,7 @@ def admin_add_country():
         },
     )
     if status in (200, 202):
+        app.logger.info("country added", extra={"country_id": country_id, "name": name})
         flash(f"Country '{name}' added successfully!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to add country.")), "error")
@@ -333,6 +358,10 @@ def admin_add_artist():
         },
     )
     if status in (200, 202):
+        app.logger.info(
+            "artist added",
+            extra={"artist_id": artist_id, "name": f"{first_name} {last_name}"},
+        )
         flash(f"Artist '{first_name} {last_name}' added successfully!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to add artist.")), "error")
@@ -362,15 +391,13 @@ def admin_add_song():
         },
     )
     if status in (200, 202):
+        app.logger.info(
+            "song added", extra={"song_name": song_name, "country": country}
+        )
         flash(f"Song '{song_name}' added successfully!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to add song.")), "error")
     return redirect(url_for("admin_dashboard"))
-
-
-# ---------------------------------------------------------------------------
-# Jury Routes
-# ---------------------------------------------------------------------------
 
 
 @app.route("/jury")
@@ -407,16 +434,20 @@ def jury_submit_vote():
             "points": points,
         },
     )
+
+    if status in (200, 202):
+        record_vote("jury")
+        app.logger.info(
+            "jury vote cast",
+            extra={"song_id": song_id, "points": points},
+        )
+
     return jsonify(data), status
-
-
-# ---------------------------------------------------------------------------
-# Error Handlers
-# ---------------------------------------------------------------------------
 
 
 @app.errorhandler(403)
 def forbidden(e):
+    app.logger.warning("403 forbidden", extra={"path": request.path})
     return render_template(
         "error.html",
         code=403,
@@ -426,6 +457,7 @@ def forbidden(e):
 
 @app.errorhandler(404)
 def not_found(e):
+    app.logger.info("404 not found", extra={"path": request.path})
     return render_template(
         "error.html", code=404, message="Page Not Found — this page doesn't exist."
     ), 404
@@ -433,16 +465,15 @@ def not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+    app.logger.error(
+        "500 internal error", extra={"path": request.path, "error": str(e)}
+    )
     return render_template(
         "error.html",
         code=500,
         message="Internal Server Error — something went wrong on our end.",
     ), 500
 
-
-# ---------------------------------------------------------------------------
-# Run
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_PORT", "5000"))
