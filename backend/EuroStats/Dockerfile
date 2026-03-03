@@ -24,6 +24,6 @@ COPY src ./src
 ENV PYTHONPATH=/app/src:$PYTHONPATH
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:88000/health')"
+    CMD python -c "import requests; requests.get('http://localhost:8880/health')"
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "88000"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8880"]
