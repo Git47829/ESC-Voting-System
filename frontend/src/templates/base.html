@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ESC Voting System{% endblock %}</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'esc-yellow': '#ffde00',
+                        'esc-black': '#0a0a0a',
+                        'esc-surface': '#1a1a1a',
+                        'esc-text': '#e8e8e8',
+                        'esc-muted': '#666666',
+                    },
+                    fontFamily: {
+                        'heading': ['Syne', 'sans-serif'],
+                        'body': ['DM Mono', 'monospace'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts: Syne + DM Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --yellow: #ffde00;
+            --black: #0a0a0a;
+            --surface: #1a1a1a;
+            --text: #e8e8e8;
+            --muted: #666;
+        }
+
+        body {
+            font-family: 'DM Mono', monospace;
+            background-color: var(--black);
+            color: var(--text);
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Syne', sans-serif;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--black);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--muted);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--yellow);
+        }
+
+        /* Flash message animation */
+        @keyframes flash-fade {
+            0% { opacity: 0; transform: translateY(-10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            90% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        .flash-message {
+            animation: flash-fade 4s ease-in-out forwards;
+        }
+
+        /* Modal backdrop */
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+        }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+<body class="h-full bg-esc-black text-esc-text font-body">
+
+    <!-- ============================================================ -->
+    <!-- Navbar                                                        -->
+    <!-- ============================================================ -->
+    <nav class="sticky top-0 z-50 border-b border-esc-surface bg-esc-black/90 backdrop-blur-sm">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="flex h-16 items-center justify-between">
+
+                <!-- Logo (left) -->
+                <a href="/" class="flex items-center gap-3 group">
+                    <span class="text-2xl">🎤</span>
+                    <span class="font-heading font-bold text-xl text-esc-yellow tracking-tight group-hover:text-white transition-colors">
+                        ESC Voting
+                    </span>
+                </a>
+
+                <!-- Nav Links + Status (right) -->
+                <div class="flex items-center gap-6">
+                    <!-- Nav Links -->
+                    <div class="hidden sm:flex items-center gap-1">
+                        <a href="/"
+                           class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                                  {% if request.path == '/' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                            Vote
+                        </a>
+                        <a href="/results"
+                           class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                                  {% if request.path == '/results' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                            Results
+                        </a>
+                        {% if session.get('role') == 'admin' %}
+                        <a href="/admin"
+                           class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                                  {% if request.path == '/admin' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                            Admin
+                        </a>
+                        {% endif %}
+                        {% if session.get('role') in ('jury', 'admin') %}
+                        <a href="/jury"
+                           class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                                  {% if request.path == '/jury' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                            Jury
+                        </a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Voting Status Badge -->
+                    {% if voting_is_open %}
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-esc-yellow/30 bg-esc-yellow/10 px-3 py-1 text-xs font-medium text-esc-yellow uppercase tracking-wider">
+                        <span class="relative flex h-2 w-2">
+                            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-esc-yellow opacity-75"></span>
+                            <span class="relative inline-flex h-2 w-2 rounded-full bg-esc-yellow"></span>
+                        </span>
+                        Voting Open
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center gap-1.5 rounded-full border border-esc-muted/30 bg-esc-muted/10 px-3 py-1 text-xs font-medium text-esc-muted uppercase tracking-wider">
+                        <span class="relative flex h-2 w-2">
+                            <span class="relative inline-flex h-2 w-2 rounded-full bg-esc-muted"></span>
+                        </span>
+                        Voting Closed
+                    </span>
+                    {% endif %}
+
+                    <!-- Auth Link -->
+                    {% if session.get('role') %}
+                    <a href="/logout"
+                       class="text-xs text-esc-muted hover:text-esc-yellow transition-colors"
+                       title="Logout">
+                        Logout
+                    </a>
+                    {% else %}
+                    <a href="/login"
+                       class="text-xs text-esc-muted hover:text-esc-yellow transition-colors"
+                       title="Login">
+                        Login
+                    </a>
+                    {% endif %}
+
+                    <!-- Mobile menu button -->
+                    <button id="mobile-menu-btn"
+                            class="sm:hidden inline-flex items-center justify-center rounded-md p-2 text-esc-muted hover:bg-esc-surface hover:text-esc-yellow transition-colors"
+                            aria-label="Toggle menu">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Nav Menu -->
+        <div id="mobile-menu" class="hidden sm:hidden border-t border-esc-surface">
+            <div class="space-y-1 px-4 pb-3 pt-2">
+                <a href="/"
+                   class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                          {% if request.path == '/' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                    Vote
+                </a>
+                <a href="/results"
+                   class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                          {% if request.path == '/results' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                    Results
+                </a>
+                {% if session.get('role') == 'admin' %}
+                <a href="/admin"
+                   class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                          {% if request.path == '/admin' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                    Admin
+                </a>
+                {% endif %}
+                {% if session.get('role') in ('jury', 'admin') %}
+                <a href="/jury"
+                   class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors
+                          {% if request.path == '/jury' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}">
+                    Jury
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!-- Flash Messages                                                -->
+    <!-- ============================================================ -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm">
+            {% for category, message in messages %}
+            <div class="flash-message rounded-lg border px-4 py-3 text-sm shadow-lg
+                        {% if category == 'success' %}
+                            border-green-500/30 bg-green-500/10 text-green-400
+                        {% elif category == 'error' %}
+                            border-red-500/30 bg-red-500/10 text-red-400
+                        {% else %}
+                            border-esc-yellow/30 bg-esc-yellow/10 text-esc-yellow
+                        {% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- ============================================================ -->
+    <!-- Main Content                                                  -->
+    <!-- ============================================================ -->
+    <main class="min-h-[calc(100vh-4rem)]">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ============================================================ -->
+    <!-- Footer                                                        -->
+    <!-- ============================================================ -->
+    <footer class="border-t border-esc-surface py-6">
+        <div class="mx-auto max-w-7xl px-4 text-center">
+            <p class="text-xs text-esc-muted">
+                ESC Voting System &middot; Built with 🎶
+            </p>
+        </div>
+    </footer>
+
+    <!-- Mobile menu toggle -->
+    <script>
+        document.getElementById('mobile-menu-btn').addEventListener('click', function () {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+        });
+    </script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>
