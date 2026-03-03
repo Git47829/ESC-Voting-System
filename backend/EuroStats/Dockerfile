@@ -12,14 +12,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY proto ./proto
 
-# Generate proto files
-RUN python -m grpc_tools.protoc \
-    -I./proto \
-    --python_out=./src/proto \
-    --grpc_python_out=./src/proto \
-    ./proto/votes.proto && \
-    touch ./src/proto/__init__.py
-
 COPY src ./src
 
 ENV PYTHONPATH=/app/src:$PYTHONPATH
