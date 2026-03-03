@@ -8,24 +8,30 @@ Pillars
 1. Traces  — OpenTelemetry SDK → OTLP/HTTP → otel-collector → (logging exporter)
 2. Metrics — OpenTelemetry SDK → OTLP/gRPC → otel-collector → Prometheus scrape
              + prometheus_client scrape endpoint at GET /metrics
-3. Logs    — Python structlog-style JSON handler → OTLP/gRPC logs exporter
+3. Logs    — Python logging JSON handler → OTLP/gRPC logs exporter
              → otel-collector → Loki
 
 Custom business metrics exposed
 --------------------------------
-- esc_frontend_http_requests_total          (counter)   method, path, status_code
+- esc_frontend_http_requests_total           (counter)   method, path, status_code
 - esc_frontend_http_request_duration_seconds (histogram) method, path, status_code
 - esc_frontend_http_request_size_bytes       (histogram) method, path
 - esc_frontend_http_response_size_bytes      (histogram) method, path, status_code
 - esc_frontend_api_backend_duration_seconds  (histogram) endpoint, status_code
 - esc_frontend_votes_cast_total              (counter)   type=public|jury
 - esc_frontend_active_sessions               (gauge)     —
+
+Multiprocess note
+-----------------
+prometheus_client requires special handling when running under gunicorn with
+multiple workers. When PROMETHEUS_MULTIPROC_DIR is set, every worker writes
+its metrics to that shared directory and the /metrics endpoint aggregates
+them all via a multiprocess CollectorRegistry before responding.
 """
 
 import logging
 import os
 import time
-from typing import Callable
 
 from flask import Flask, Response, g, request
 
@@ -45,16 +51,35 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+# ---------------------------------------------------------------------------
+# Prometheus — multiprocess-aware scrape endpoint
+# ---------------------------------------------------------------------------
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
+    REGISTRY,
+    CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
     generate_latest,
+    multiprocess,
 )
+
+# ---------------------------------------------------------------------------
+# Structured JSON logging
+# ---------------------------------------------------------------------------
 from pythonjsonlogger import jsonlogger
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Prometheus native metrics
+# All are declared at module level so they are created once in the master
+# gunicorn process before fork(). prometheus_client's multiprocess mode
+# then keeps each worker's counters in the shared PROMETHEUS_MULTIPROC_DIR
+# directory, and the /metrics endpoint aggregates them.
+# ---------------------------------------------------------------------------
 
 PROM_REQUEST_COUNT = Counter(
     "esc_frontend_http_requests_total",
@@ -99,13 +124,30 @@ PROM_VOTES_CAST = Counter(
 PROM_ACTIVE_SESSIONS = Gauge(
     "esc_frontend_active_sessions",
     "Approximate number of active authenticated sessions",
+    multiprocess_mode="livesum",
 )
 
+# ---------------------------------------------------------------------------
+# OTel metric instruments — populated alongside the Prometheus counters so
+# that metric data also flows through the OTel collector → Prometheus path.
+# These are set in _setup_metrics() and used by the helper functions below.
+# ---------------------------------------------------------------------------
 
 _otel_request_counter = None
 _otel_request_duration = None
 _otel_backend_duration = None
 _otel_votes_counter = None
+
+# Guard against double-instrumentation when gunicorn uses --preload.
+# With --preload the app module is imported once in the master process and
+# the worker processes inherit the already-instrumented state via fork().
+# FlaskInstrumentor and RequestsInstrumentor will raise if instrumented twice.
+_telemetry_initialised = False
+
+
+# ---------------------------------------------------------------------------
+# Internal setup helpers
+# ---------------------------------------------------------------------------
 
 
 def _build_resource() -> Resource:
@@ -176,7 +218,7 @@ def _setup_logging(resource: Resource, otlp_grpc_endpoint: str) -> None:
       2. JSON formatter on the root handler so every log line emitted
          by gunicorn/Flask is structured and carries trace context.
     """
-
+    # OTel log pipeline
     log_provider = LoggerProvider(resource=resource)
     log_exporter = OTLPLogExporter(endpoint=otlp_grpc_endpoint, insecure=True)
     log_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
@@ -186,6 +228,8 @@ def _setup_logging(resource: Resource, otlp_grpc_endpoint: str) -> None:
         logger_provider=log_provider,
     )
 
+    # JSON formatter for stdout — gunicorn captures stdout, and any log
+    # aggregator that tails container stdout will receive structured records.
     json_formatter = jsonlogger.JsonFormatter(
         fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
         rename_fields={"asctime": "timestamp", "levelname": "level"},
@@ -196,7 +240,7 @@ def _setup_logging(resource: Resource, otlp_grpc_endpoint: str) -> None:
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
-
+    # Remove any existing handlers to avoid duplicate output on --preload forks.
     root_logger.handlers.clear()
     root_logger.addHandler(stream_handler)
     root_logger.addHandler(otel_handler)
@@ -204,14 +248,24 @@ def _setup_logging(resource: Resource, otlp_grpc_endpoint: str) -> None:
     logger.info("OTel logging initialised → %s", otlp_grpc_endpoint)
 
 
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+
 def setup_telemetry(app: Flask) -> None:
     """
     Initialise all three observability pillars and wire them into the Flask app.
-    Safe to call multiple times — subsequent calls are no-ops if already set up.
-    Call this once, right after creating the Flask application object.
+
+    Idempotent — safe to call multiple times (subsequent calls are no-ops).
+    This matters under gunicorn --preload: the master process calls this once
+    and workers inherit the instrumented state via fork() without re-running it.
     """
-    # Read collector addresses from environment (with sane defaults that
-    # match the service names declared in docker-compose.yaml)
+    global _telemetry_initialised
+    if _telemetry_initialised:
+        return
+    _telemetry_initialised = True
+
     otlp_http = os.getenv(
         "OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318"
     )
@@ -225,27 +279,41 @@ def setup_telemetry(app: Flask) -> None:
         _setup_metrics(resource, otlp_grpc)
         _setup_logging(resource, otlp_grpc)
 
+        # Auto-instrument Flask — injects trace context into every request
+        # and creates spans automatically for each route handler.
         FlaskInstrumentor().instrument_app(
             app,
-            excluded_urls="/metrics,/health",  # don't trace scrape/health endpoints
+            excluded_urls="/metrics,/health",
         )
 
+        # Auto-instrument the `requests` library — every outbound call to
+        # the CRUD API backend gets a child span and the W3C traceparent
+        # header injected so traces are correlated end-to-end.
         RequestsInstrumentor().instrument()
 
+        # Per-request hooks for Prometheus recording and structured logging.
         _register_request_hooks(app)
 
+        # Prometheus pull endpoint — multiprocess-aware.
         _register_metrics_endpoint(app)
 
+        # Lightweight liveness probe that doesn't touch the backend API.
         _register_health_endpoint(app)
 
         app.logger.info("Telemetry fully initialised for esc-voting-frontend")
 
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
+        # Observability must never crash the application.
         app.logger.error("Failed to initialise telemetry: %s", exc, exc_info=True)
 
 
+# ---------------------------------------------------------------------------
+# Per-request hooks — Prometheus + OTel recording
+# ---------------------------------------------------------------------------
+
+
 def _register_request_hooks(app: Flask) -> None:
-    """Register before/after request hooks to record Prometheus metrics."""
+    """Register before/after request hooks to record metrics and logs."""
 
     @app.before_request
     def _before() -> None:
@@ -253,7 +321,7 @@ def _register_request_hooks(app: Flask) -> None:
 
     @app.after_request
     def _after(response: Response) -> Response:
-
+        # Skip the scrape and health endpoints to avoid feedback loops.
         if request.path in ("/metrics", "/health", "/favicon.ico"):
             return response
 
@@ -262,13 +330,13 @@ def _register_request_hooks(app: Flask) -> None:
         )
         status_code = str(response.status_code)
         method = request.method
-
+        # Normalise dynamic/high-cardinality path segments.
         path = _normalise_path(request.path)
 
         req_size = request.content_length or 0
-
         resp_size = response.calculate_content_length() or 0
 
+        # --- Prometheus ---
         PROM_REQUEST_COUNT.labels(method, path, status_code).inc()
         PROM_REQUEST_DURATION.labels(method, path, status_code).observe(duration)
         if req_size > 0:
@@ -276,6 +344,7 @@ def _register_request_hooks(app: Flask) -> None:
         if resp_size > 0:
             PROM_RESPONSE_SIZE.labels(method, path, status_code).observe(resp_size)
 
+        # --- OTel ---
         attrs = {
             "http.method": method,
             "http.route": path,
@@ -286,6 +355,7 @@ def _register_request_hooks(app: Flask) -> None:
         if _otel_request_duration:
             _otel_request_duration.record(duration, attrs)
 
+        # Structured request log (flows to Loki via the OTel log handler).
         current_span = trace.get_current_span()
         ctx = current_span.get_span_context()
         app.logger.info(
@@ -310,13 +380,12 @@ def _register_request_hooks(app: Flask) -> None:
 
 def _normalise_path(path: str) -> str:
     """
-    Collapse high-cardinality path segments to keep Prometheus label sets
-    manageable. Rules applied in order:
-      /static/...       → /static
-      /vote/submit      → /vote/submit   (kept as-is — known fixed route)
-      /jury/submit      → /jury/submit
-      /admin/...        → /admin/<action> (first two segments only)
-      anything else     → kept verbatim (all frontend routes are fixed)
+    Collapse high-cardinality path segments to keep Prometheus label cardinality
+    bounded. All frontend routes are fixed strings, so only two rules are needed:
+
+      /static/...    → /static   (many filenames, one logical route)
+      /admin/<x>     → /admin/<x> capped at two segments
+      everything else → kept verbatim
     """
     parts = path.strip("/").split("/")
     if not parts or parts == [""]:
@@ -328,10 +397,15 @@ def _normalise_path(path: str) -> str:
     return path
 
 
+# ---------------------------------------------------------------------------
+# Business metric helpers — called from main.py
+# ---------------------------------------------------------------------------
+
+
 def record_backend_call(endpoint: str, status_code: int, duration_s: float) -> None:
     """
     Record the latency and outcome of an outbound call to the CRUD API.
-    Call this from the api_get / api_post / api_delete helpers in main.py.
+    Called from the api_get / api_post / api_delete helpers in main.py.
     """
     status_str = str(status_code)
     PROM_BACKEND_DURATION.labels(endpoint, status_str).observe(duration_s)
@@ -345,7 +419,7 @@ def record_backend_call(endpoint: str, status_code: int, duration_s: float) -> N
 def record_vote(vote_type: str) -> None:
     """
     Increment the votes-cast counter.
-    vote_type should be "public" or "jury".
+    vote_type must be "public" or "jury".
     """
     PROM_VOTES_CAST.labels(vote_type).inc()
     if _otel_votes_counter:
@@ -353,15 +427,33 @@ def record_vote(vote_type: str) -> None:
 
 
 def set_active_sessions(count: int) -> None:
-    """Update the active-sessions gauge. Call whenever a session is created/destroyed."""
+    """Update the active-sessions gauge. Called on login and logout."""
     PROM_ACTIVE_SESSIONS.set(count)
+
+
+# ---------------------------------------------------------------------------
+# /metrics endpoint — multiprocess-aware Prometheus pull
+# ---------------------------------------------------------------------------
 
 
 def _register_metrics_endpoint(app: Flask) -> None:
     @app.route("/metrics")
     def metrics_endpoint() -> Response:
-        data = generate_latest()
+        # When PROMETHEUS_MULTIPROC_DIR is set, we must collect from all
+        # worker files rather than the in-process registry alone.
+        if "PROMETHEUS_MULTIPROC_DIR" in os.environ:
+            registry = CollectorRegistry()
+            multiprocess.MultiProcessCollector(registry)
+            data = generate_latest(registry)
+        else:
+            # Single-process mode (local dev without gunicorn).
+            data = generate_latest(REGISTRY)
         return Response(data, status=200, mimetype=CONTENT_TYPE_LATEST)
+
+
+# ---------------------------------------------------------------------------
+# /health endpoint — lightweight liveness probe
+# ---------------------------------------------------------------------------
 
 
 def _register_health_endpoint(app: Flask) -> None:

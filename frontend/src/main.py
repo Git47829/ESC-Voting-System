@@ -18,14 +18,15 @@ from flask import (
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "esc-voting-secret-key-change-me")
 
-
 API_BASE = os.environ.get("API_BASE_URL", "http://db-crud-api:8000")
-
-
 API_TIMEOUT = int(os.environ.get("API_TIMEOUT", "10"))
 
-
-from telemetry import (
+# ---------------------------------------------------------------------------
+# Telemetry — initialised immediately after the app object is created, before
+# any helpers or routes, so that FlaskInstrumentor wraps all route registrations
+# and RequestsInstrumentor patches the requests library before first use.
+# ---------------------------------------------------------------------------
+from telemetry import (  # noqa: E402 — intentional post-app import
     record_backend_call,
     record_vote,
     set_active_sessions,
@@ -35,8 +36,13 @@ from telemetry import (
 setup_telemetry(app)
 
 
+# ---------------------------------------------------------------------------
+# Backend API helpers
+# ---------------------------------------------------------------------------
+
+
 def api_get(endpoint):
-    """Make a GET request to the backend API, recording backend call duration."""
+    """GET the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
     try:
@@ -55,7 +61,7 @@ def api_get(endpoint):
 
 
 def api_post(endpoint, params=None):
-    """Make a POST request to the backend API, recording backend call duration."""
+    """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
     try:
@@ -77,7 +83,7 @@ def api_post(endpoint, params=None):
 
 
 def api_delete(endpoint, params=None):
-    """Make a DELETE request to the backend API, recording backend call duration."""
+    """DELETE the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
     try:
@@ -107,7 +113,7 @@ def get_voting_status():
 
 
 def login_required(role):
-    """Decorator that checks for a valid session role."""
+    """Decorator that enforces a session role. Admins can access jury routes."""
 
     def decorator(f):
         @wraps(f)
@@ -123,6 +129,11 @@ def login_required(role):
     return decorator
 
 
+# ---------------------------------------------------------------------------
+# Context processor — inject voting status into every template render
+# ---------------------------------------------------------------------------
+
+
 @app.context_processor
 def inject_voting_status():
     try:
@@ -130,6 +141,11 @@ def inject_voting_status():
     except Exception:
         is_open = False
     return dict(voting_is_open=is_open)
+
+
+# ---------------------------------------------------------------------------
+# Public routes
+# ---------------------------------------------------------------------------
 
 
 @app.route("/")
@@ -148,13 +164,13 @@ def vote_page():
 
 @app.route("/results")
 def results_page():
-    """Live results page — bar chart of votes."""
+    """Live results page — bar chart of votes, polled every 10 s."""
     return render_template("results.html")
 
 
 @app.route("/api/results")
 def api_results():
-    """JSON endpoint for polling results from the frontend."""
+    """JSON endpoint polled by the results page every 10 s."""
     data = api_get("/votes/")
     if data and "payload" in data:
         return jsonify(data["payload"])
@@ -163,7 +179,7 @@ def api_results():
 
 @app.route("/vote/submit", methods=["POST"])
 def submit_vote():
-    """Handle public vote submission."""
+    """Handle public vote form submission."""
     song_id = request.form.get("songID")
     phone = request.form.get("phoneNum")
     own_country = request.form.get("ownCountry", "")
@@ -190,9 +206,14 @@ def submit_vote():
     return jsonify(data), status
 
 
+# ---------------------------------------------------------------------------
+# Auth routes
+# ---------------------------------------------------------------------------
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Login page — authenticates admin or jury users."""
+    """Login page — token + role selector."""
     if request.method == "GET":
         return render_template("login.html")
 
@@ -206,7 +227,6 @@ def login():
     if role == "admin":
         session["token"] = token
         session["role"] = "admin"
-
         set_active_sessions(1)
         app.logger.info("admin login", extra={"role": "admin"})
         return redirect(url_for("admin_dashboard"))
@@ -231,10 +251,15 @@ def logout():
     return redirect(url_for("vote_page"))
 
 
+# ---------------------------------------------------------------------------
+# Admin routes
+# ---------------------------------------------------------------------------
+
+
 @app.route("/admin")
 @login_required("admin")
 def admin_dashboard():
-    """Admin dashboard — manage voting, countries, songs, artists."""
+    """Admin dashboard — voting controls, entries table, add-entry forms."""
     songs_data = api_get("/songs/")
     countries_data = api_get("/countries/")
 
@@ -250,11 +275,7 @@ def admin_dashboard():
     if countries_data and "payload" in countries_data:
         countries = countries_data["payload"]
 
-    return render_template(
-        "admin.html",
-        songs=songs,
-        countries=countries,
-    )
+    return render_template("admin.html", songs=songs, countries=countries)
 
 
 @app.route("/admin/open", methods=["POST"])
@@ -316,12 +337,7 @@ def admin_add_country():
 
     status, data = api_post(
         "/admin/addCountry/",
-        params={
-            "Token": token,
-            "ID": country_id,
-            "Name": name,
-            "Pot": pot,
-        },
+        params={"Token": token, "ID": country_id, "Name": name, "Pot": pot},
     )
     if status in (200, 202):
         app.logger.info("country added", extra={"country_id": country_id, "name": name})
@@ -383,12 +399,7 @@ def admin_add_song():
 
     status, data = api_post(
         "/admin/addSong/",
-        params={
-            "Token": token,
-            "ID": artist_id,
-            "Name": song_name,
-            "Land": country,
-        },
+        params={"Token": token, "ID": artist_id, "Name": song_name, "Land": country},
     )
     if status in (200, 202):
         app.logger.info(
@@ -400,10 +411,15 @@ def admin_add_song():
     return redirect(url_for("admin_dashboard"))
 
 
+# ---------------------------------------------------------------------------
+# Jury routes
+# ---------------------------------------------------------------------------
+
+
 @app.route("/jury")
 @login_required("jury")
 def jury_page():
-    """Jury voting page — list countries with point selectors."""
+    """Jury voting page — point selectors per song."""
     songs_data = api_get("/songs/")
     songs = []
     if songs_data and "payload" in songs_data:
@@ -428,11 +444,7 @@ def jury_submit_vote():
 
     status, data = api_post(
         "/jury/vote/",
-        params={
-            "Token": token,
-            "songID": song_id,
-            "points": points,
-        },
+        params={"Token": token, "songID": song_id, "points": points},
     )
 
     if status in (200, 202):
@@ -443,6 +455,11 @@ def jury_submit_vote():
         )
 
     return jsonify(data), status
+
+
+# ---------------------------------------------------------------------------
+# Error handlers
+# ---------------------------------------------------------------------------
 
 
 @app.errorhandler(403)
@@ -459,7 +476,9 @@ def forbidden(e):
 def not_found(e):
     app.logger.info("404 not found", extra={"path": request.path})
     return render_template(
-        "error.html", code=404, message="Page Not Found — this page doesn't exist."
+        "error.html",
+        code=404,
+        message="Page Not Found — this page doesn't exist.",
     ), 404
 
 
@@ -474,6 +493,10 @@ def internal_error(e):
         message="Internal Server Error — something went wrong on our end.",
     ), 500
 
+
+# ---------------------------------------------------------------------------
+# Dev server entry point
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     port = int(os.environ.get("FLASK_PORT", "5000"))
