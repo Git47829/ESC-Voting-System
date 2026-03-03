@@ -59,7 +59,7 @@ services:
       dockerfile: Dockerfile
     container_name: eurostats
     ports:
-      - "88001:88000"
+      - "8881:8880"
     environment:
       - GRPC_HOST=db-crud-api
       - GRPC_PORT=50051
