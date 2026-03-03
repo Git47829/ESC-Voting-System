@@ -57,31 +57,31 @@ services:
     build:
       context: ./backend/EuroStats
       dockerfile: Dockerfile
-      container_name: eurostats
-      ports:
-        - "88001:88000"
-      environment:
-        - GRPC_HOST=db-crud-api
-        - GRPC_PORT=50051
-        - LOG_LEVEL=INFO
-      depends_on:
-        - api
-      networks:
-        - backend
-        - observability
-      restart: unless-stopped
-      healthcheck:
-        test:
-          [
-            "CMD",
-            "python",
-            "-c",
-            "import requests; requests.get('http://localhost:88000/health')",
-          ]
-        interval: 30s
-        timeout: 10s
-        retries: 3
-        start_period: 10s
+    container_name: eurostats
+    ports:
+      - "88001:88000"
+    environment:
+      - GRPC_HOST=db-crud-api
+      - GRPC_PORT=50051
+      - LOG_LEVEL=INFO
+    depends_on:
+      - api
+    networks:
+      - backend
+      - observability
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import requests; requests.get('http://localhost:88000/health')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.94.0
