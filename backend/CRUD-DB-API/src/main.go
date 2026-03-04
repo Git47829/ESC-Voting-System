@@ -1222,7 +1222,6 @@ func addCountry(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -1290,7 +1289,6 @@ func addSong(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -1359,7 +1357,6 @@ func addArtist(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
@@ -1425,7 +1422,6 @@ func addInterpret(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		defer db.Close()
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
