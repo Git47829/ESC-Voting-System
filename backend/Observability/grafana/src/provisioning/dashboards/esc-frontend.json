@@ -42,7 +42,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -76,7 +76,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total[2m]))",
           "legendFormat": "req/s",
           "refId": "A"
@@ -86,7 +86,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -120,7 +120,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
@@ -130,7 +130,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -164,7 +164,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total{status_code=~\"5..\"}[2m])) / sum(rate(esc_frontend_http_requests_total[2m]))",
           "legendFormat": "error rate",
           "refId": "A"
@@ -174,16 +174,14 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null }
-            ]
+            "steps": [{ "color": "blue", "value": null }]
           },
           "unit": "short"
         },
@@ -206,7 +204,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(increase(esc_frontend_votes_cast_total[1h]))",
           "legendFormat": "votes/h",
           "refId": "A"
@@ -216,7 +214,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -250,7 +248,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "esc_frontend_active_sessions",
           "legendFormat": "sessions",
           "refId": "A"
@@ -260,7 +258,7 @@
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -294,7 +292,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_api_backend_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "backend p95",
           "refId": "A"
@@ -311,7 +309,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -348,12 +346,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "id": 10,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total[2m])) by (path)",
           "legendFormat": "{{ path }}",
           "refId": "A"
@@ -363,7 +366,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -398,39 +401,59 @@
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "5xx" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "red", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "4xx" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "orange", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "2xx" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "green", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "id": 11,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total{status_code=~\"2..\"}[2m]))",
           "legendFormat": "2xx",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total{status_code=~\"4..\"}[2m]))",
           "legendFormat": "4xx",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total{status_code=~\"5..\"}[2m]))",
           "legendFormat": "5xx",
           "refId": "C"
@@ -447,7 +470,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -470,7 +493,13 @@
             "showPoints": "never",
             "spanNulls": true,
             "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "line+area", "steps": [{ "color": "transparent" }, { "color": "red", "value": 1 }] }
+            "thresholdsStyle": {
+              "mode": "line+area",
+              "steps": [
+                { "color": "transparent" },
+                { "color": "red", "value": 1 }
+              ]
+            }
           },
           "mappings": [],
           "thresholds": {
@@ -487,24 +516,29 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
       "id": 20,
       "options": {
-        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_frontend_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.99, sum(rate(esc_frontend_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
@@ -514,7 +548,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -551,12 +585,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "id": 21,
       "options": {
-        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_http_request_duration_seconds_bucket[2m])) by (le, path))",
           "legendFormat": "p95 {{ path }}",
           "refId": "A"
@@ -573,7 +612,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -610,18 +649,23 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "id": 30,
       "options": {
-        "legend": { "calcs": ["mean", "max", "lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max", "lastNotNull"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_frontend_api_backend_duration_seconds_bucket[2m])) by (le, endpoint))",
           "legendFormat": "p50 {{ endpoint }}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_api_backend_duration_seconds_bucket[2m])) by (le, endpoint))",
           "legendFormat": "p95 {{ endpoint }}",
           "refId": "B"
@@ -631,7 +675,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -666,25 +710,35 @@
         "overrides": [
           {
             "matcher": { "id": "byFrameRefID", "options": "B" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "red", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "id": 31,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_api_backend_duration_seconds_count[2m])) by (endpoint)",
           "legendFormat": "{{ endpoint }}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_api_backend_duration_seconds_count{status_code=~\"5..\"}[2m])) by (endpoint)",
           "legendFormat": "errors {{ endpoint }}",
           "refId": "B"
@@ -701,7 +755,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -736,23 +790,38 @@
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "public" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#ffde00", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#ffde00", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "jury" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#38bdf8", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#38bdf8", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
       "id": 40,
       "options": {
-        "legend": { "calcs": ["sum"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["sum"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(increase(esc_frontend_votes_cast_total[5m])) by (type)",
           "legendFormat": "{{ type }}",
           "refId": "A"
@@ -762,7 +831,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -776,11 +845,21 @@
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "public" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#ffde00", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#ffde00", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "jury" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#38bdf8", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#38bdf8", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
@@ -788,13 +867,18 @@
       "id": 41,
       "options": {
         "displayLabels": ["name", "value"],
-        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true,
+          "values": ["value", "percent"]
+        },
         "pieType": "donut",
         "tooltip": { "mode": "single", "sort": "none" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(esc_frontend_votes_cast_total) by (type)",
           "legendFormat": "{{ type }}",
           "refId": "A"
@@ -804,7 +888,7 @@
       "type": "piechart"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -834,7 +918,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(esc_frontend_votes_cast_total)",
           "legendFormat": "total",
           "refId": "A"
@@ -851,7 +935,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -888,12 +972,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
       "id": 50,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_http_response_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "p95 resp {{ path }}",
           "refId": "A"
@@ -903,7 +992,7 @@
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -940,12 +1029,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
       "id": 51,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_response_size_bytes_sum[2m])) by (path)",
           "legendFormat": "throughput {{ path }}",
           "refId": "A"
@@ -962,7 +1056,7 @@
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -985,25 +1079,65 @@
               { "id": "unit", "value": "reqps" },
               {
                 "id": "custom.cellOptions",
-                "value": { "mode": "lcd", "type": "gauge", "valueDisplayMode": "color" }
+                "value": {
+                  "mode": "lcd",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
               },
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 }] } }
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 5 },
+                    { "color": "red", "value": 20 }
+                  ]
+                }
+              }
             ]
           },
           {
             "matcher": { "id": "byName", "options": "p95 Latency" },
             "properties": [
               { "id": "unit", "value": "s" },
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.1 }, { "color": "red", "value": 0.5 }] } },
-              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.1 },
+                    { "color": "red", "value": 0.5 }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              }
             ]
           },
           {
             "matcher": { "id": "byName", "options": "Error Rate" },
             "properties": [
               { "id": "unit", "value": "percentunit" },
-              { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 }] } },
-              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "yellow", "value": 0.01 },
+                    { "color": "red", "value": 0.05 }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background" }
+              }
             ]
           }
         ]
@@ -1012,14 +1146,19 @@
       "id": 60,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [{ "desc": true, "displayName": "Rate (req/s)" }]
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,
@@ -1027,7 +1166,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_frontend_http_request_duration_seconds_bucket[5m])) by (le, path))",
           "format": "table",
           "instant": true,
@@ -1035,7 +1174,7 @@
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_frontend_http_requests_total{status_code=~\"5..\"}[5m])) by (path) / sum(rate(esc_frontend_http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,

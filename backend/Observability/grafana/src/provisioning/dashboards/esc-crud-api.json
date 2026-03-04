@@ -55,7 +55,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -89,7 +89,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total[2m]))",
           "legendFormat": "req/s",
           "refId": "A"
@@ -100,7 +100,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -134,7 +134,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
@@ -145,7 +145,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -179,7 +179,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m])) / sum(rate(esc_http_requests_total[2m]))",
           "legendFormat": "error rate",
           "refId": "A"
@@ -190,7 +190,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -224,7 +224,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m])) / sum(rate(esc_http_requests_total[2m]))",
           "legendFormat": "rate-limited",
           "refId": "A"
@@ -235,7 +235,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -269,7 +269,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
@@ -280,7 +280,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -314,7 +314,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.99, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "A"
@@ -333,7 +333,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -380,7 +380,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total[2m])) by (path)",
           "legendFormat": "{{path}}",
           "refId": "A"
@@ -391,7 +391,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -475,7 +475,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total[2m])) by (status)",
           "legendFormat": "HTTP {{status}}",
           "refId": "A"
@@ -494,7 +494,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -541,25 +541,25 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.90, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p90",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.99, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "D"
@@ -570,7 +570,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -617,7 +617,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le, path))",
           "legendFormat": "p95 {{path}}",
           "refId": "A"
@@ -636,7 +636,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -711,19 +711,19 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=~\"4..\"}[2m]))",
           "legendFormat": "4xx errors",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m]))",
           "legendFormat": "5xx errors",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m]))",
           "legendFormat": "429 rate-limited",
           "refId": "C"
@@ -734,7 +734,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -800,13 +800,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m])) by (path)",
           "legendFormat": "5xx {{path}}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m])) by (path)",
           "legendFormat": "429 {{path}}",
           "refId": "B"
@@ -825,7 +825,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -872,13 +872,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "req p50 {{path}}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "req p95 {{path}}",
           "refId": "B"
@@ -889,7 +889,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -936,13 +936,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_response_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "resp p50 {{path}}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_response_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "resp p95 {{path}}",
           "refId": "B"
@@ -961,7 +961,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -1027,13 +1027,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{path=\"/vote/\", method=\"POST\", status=\"200\"}[2m]))",
           "legendFormat": "public votes",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{path=\"/jury/vote/\", method=\"POST\", status=\"200\"}[2m]))",
           "legendFormat": "jury votes",
           "refId": "B"
@@ -1044,7 +1044,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -1091,13 +1091,13 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
           "legendFormat": "p95 {{path}}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
           "legendFormat": "p50 {{path}}",
           "refId": "B"
@@ -1108,7 +1108,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -1155,7 +1155,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{path=~\"/admin/.*\"}[2m])) by (path, method)",
           "legendFormat": "{{method}} {{path}}",
           "refId": "A"
@@ -1174,7 +1174,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -1270,7 +1270,7 @@
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,
@@ -1278,7 +1278,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[5m])) by (le, path))",
           "format": "table",
           "instant": true,
@@ -1286,7 +1286,7 @@
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[5m])) by (le, path))",
           "format": "table",
           "instant": true,
@@ -1294,7 +1294,7 @@
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[5m])) by (path) / sum(rate(esc_http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,
@@ -1332,7 +1332,7 @@
     },
 
     {
-      "datasource": { "type": "loki", "uid": "Loki" },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 62 },
       "id": 70,
@@ -1348,7 +1348,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "Loki" },
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
           "expr": "{service_name=\"esc-voting-crud-api\"} | json",
           "legendFormat": "",
           "refId": "A"
@@ -1359,7 +1359,7 @@
     },
 
     {
-      "datasource": { "type": "loki", "uid": "Loki" },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 74 },
       "id": 71,
@@ -1375,7 +1375,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "Loki" },
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
           "expr": "{service_name=\"esc-voting-crud-api\"} | json | level=~\"error|warn\" or msg=~\"(?i)(error|warn|fail|rate limit)\"",
           "legendFormat": "",
           "refId": "A"
@@ -1394,7 +1394,7 @@
     },
 
     {
-      "datasource": { "type": "tempo", "uid": "Tempo" },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -1426,7 +1426,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "tempo", "uid": "Tempo" },
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
           "limit": 20,
           "queryType": "nativeSearch",
           "refId": "A",

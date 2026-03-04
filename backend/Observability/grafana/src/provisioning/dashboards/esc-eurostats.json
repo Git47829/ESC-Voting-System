@@ -46,7 +46,6 @@
   "id": null,
   "links": [],
   "panels": [
-
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
@@ -56,7 +55,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -80,13 +79,17 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[2m]))",
           "legendFormat": "req/s",
           "refId": "A"
@@ -97,7 +100,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -121,13 +124,17 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
@@ -138,7 +145,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -162,13 +169,17 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_status_code=~\"5..\"}[2m])) / sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[2m]))",
           "legendFormat": "error rate",
           "refId": "A"
@@ -179,12 +190,18 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
           "mappings": [
-            { "options": { "0": { "color": "red", "index": 0, "text": "DISCONNECTED" }, "1": { "color": "green", "index": 1, "text": "CONNECTED" } }, "type": "value" }
+            {
+              "options": {
+                "0": { "color": "red", "index": 0, "text": "DISCONNECTED" },
+                "1": { "color": "green", "index": 1, "text": "CONNECTED" }
+              },
+              "type": "value"
+            }
           ],
           "thresholds": {
             "mode": "absolute",
@@ -204,13 +221,17 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "clamp_max(sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\"}[2m])), 1)",
           "legendFormat": "gRPC stream",
           "refId": "A"
@@ -221,7 +242,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -245,13 +266,17 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_rpc_client_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
@@ -262,7 +287,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -286,13 +311,17 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
         "textMode": "auto"
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\", rpc_grpc_status_code!=\"0\"}[2m])) / sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\"}[2m]))",
           "legendFormat": "gRPC error rate",
           "refId": "A"
@@ -311,7 +340,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -337,7 +366,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "reqps"
         },
         "overrides": []
@@ -345,12 +377,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
       "id": 10,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[2m])) by (http_route)",
           "legendFormat": "{{http_route}}",
           "refId": "A"
@@ -361,7 +398,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -387,33 +424,56 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "reqps"
         },
         "overrides": [
           {
             "matcher": { "id": "byRegexp", "options": ".*2.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "green", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": ".*4.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "yellow", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": ".*5.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "red", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
       "id": 11,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[2m])) by (http_status_code)",
           "legendFormat": "HTTP {{http_status_code}}",
           "refId": "A"
@@ -432,7 +492,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -458,7 +518,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "ms"
         },
         "overrides": []
@@ -466,30 +529,35 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
       "id": 20,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.90, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p90",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.99, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "D"
@@ -500,7 +568,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -526,7 +594,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "ms"
         },
         "overrides": []
@@ -534,12 +605,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "id": 21,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le, http_route))",
           "legendFormat": "p95 {{http_route}}",
           "refId": "A"
@@ -558,7 +634,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -584,7 +660,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "cps"
         },
         "overrides": []
@@ -592,12 +671,17 @@
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
       "id": 30,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\"}[2m])) by (rpc_method)",
           "legendFormat": "{{rpc_method}}",
           "refId": "A"
@@ -608,7 +692,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -634,7 +718,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "ms"
         },
         "overrides": []
@@ -642,24 +729,29 @@
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
       "id": 31,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_rpc_client_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le, rpc_method))",
           "legendFormat": "p50 {{rpc_method}}",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_rpc_client_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le, rpc_method))",
           "legendFormat": "p95 {{rpc_method}}",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.99, sum(rate(esc_rpc_client_duration_milliseconds_bucket{service_name=\"eurostats\"}[2m])) by (le, rpc_method))",
           "legendFormat": "p99 {{rpc_method}}",
           "refId": "C"
@@ -670,7 +762,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -696,25 +788,38 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "cps"
         },
         "overrides": [
           {
             "matcher": { "id": "byRegexp", "options": ".*error.*" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "red", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
       "id": 32,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\", rpc_grpc_status_code!=\"0\"}[2m])) by (rpc_grpc_status_code, rpc_method)",
           "legendFormat": "error {{rpc_grpc_status_code}} {{rpc_method}}",
           "refId": "A"
@@ -733,7 +838,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -759,25 +864,38 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "cps"
         },
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "StreamVotes" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#ffde00", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#ffde00", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
       "id": 40,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\", rpc_method=\"StreamVotes\"}[2m]))",
           "legendFormat": "StreamVotes",
           "refId": "A"
@@ -788,7 +906,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -814,7 +932,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "reqps"
         },
         "overrides": []
@@ -822,18 +943,23 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
       "id": 41,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_route=\"/votes/subscribe\"}[2m]))",
           "legendFormat": "/votes/subscribe",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_route=\"/ws/votes\"}[2m]))",
           "legendFormat": "/ws/votes (WebSocket)",
           "refId": "B"
@@ -852,7 +978,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -878,45 +1004,68 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "reqps"
         },
         "overrides": [
           {
             "matcher": { "id": "byName", "options": "4xx errors" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "yellow", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "5xx errors" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "red", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byName", "options": "503 gRPC unavailable" },
-            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "orange", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 42 },
       "id": 50,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_status_code=~\"4..\"}[2m]))",
           "legendFormat": "4xx errors",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_status_code=~\"5..\"}[2m]))",
           "legendFormat": "5xx errors",
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_status_code=\"503\"}[2m]))",
           "legendFormat": "503 gRPC unavailable",
           "refId": "C"
@@ -927,7 +1076,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -953,7 +1102,10 @@
             "thresholdsStyle": { "mode": "off" }
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          },
           "unit": "cps"
         },
         "overrides": []
@@ -961,12 +1113,17 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 42 },
       "id": 51,
       "options": {
-        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "legend": {
+          "calcs": ["mean", "max"],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
         "tooltip": { "mode": "multi", "sort": "desc" }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_rpc_client_duration_milliseconds_count{service_name=\"eurostats\", rpc_grpc_status_code!=\"0\"}[2m])) by (rpc_grpc_status_code)",
           "legendFormat": "gRPC status {{rpc_grpc_status_code}}",
           "refId": "A"
@@ -985,7 +1142,7 @@
     },
 
     {
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -1069,14 +1226,19 @@
       "id": 60,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": ["sum"],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [{ "desc": true, "displayName": "req/s" }]
       },
       "pluginVersion": "10.4.0",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[5m])) by (http_route)",
           "format": "table",
           "instant": true,
@@ -1084,7 +1246,7 @@
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.50, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[5m])) by (le, http_route))",
           "format": "table",
           "instant": true,
@@ -1092,7 +1254,7 @@
           "refId": "B"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "histogram_quantile(0.95, sum(rate(esc_http_server_duration_milliseconds_bucket{service_name=\"eurostats\"}[5m])) by (le, http_route))",
           "format": "table",
           "instant": true,
@@ -1100,7 +1262,7 @@
           "refId": "C"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
           "expr": "sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\", http_status_code=~\"5..\"}[5m])) by (http_route) / sum(rate(esc_http_server_request_count_total{service_name=\"eurostats\"}[5m])) by (http_route)",
           "format": "table",
           "instant": true,
@@ -1138,7 +1300,7 @@
     },
 
     {
-      "datasource": { "type": "loki", "uid": "loki" },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 62 },
       "id": 70,
@@ -1154,7 +1316,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
           "expr": "{service_name=\"eurostats\"} | json",
           "legendFormat": "",
           "refId": "A"
@@ -1165,7 +1327,7 @@
     },
 
     {
-      "datasource": { "type": "loki", "uid": "loki" },
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
       "fieldConfig": { "defaults": {}, "overrides": [] },
       "gridPos": { "h": 10, "w": 24, "x": 0, "y": 74 },
       "id": 71,
@@ -1181,7 +1343,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "loki", "uid": "loki" },
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
           "expr": "{service_name=\"eurostats\"} | json | level=~\"error|warning\" or message=~\"(?i)(error|fail|exception|grpc error|disconnected)\"",
           "legendFormat": "",
           "refId": "A"
@@ -1200,7 +1362,7 @@
     },
 
     {
-      "datasource": { "type": "tempo", "uid": "tempo" },
+      "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -1211,7 +1373,10 @@
             "inspect": false
           },
           "mappings": [],
-          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
         },
         "overrides": []
       },
@@ -1229,7 +1394,7 @@
       },
       "targets": [
         {
-          "datasource": { "type": "tempo", "uid": "tempo" },
+          "datasource": { "type": "tempo", "uid": "P214B5B846CF3925F" },
           "limit": 20,
           "queryType": "nativeSearch",
           "refId": "A",
@@ -1239,7 +1404,6 @@
       "title": "Recent Traces — EuroStats",
       "type": "traces"
     }
-
   ],
   "refresh": "30s",
   "schemaVersion": 39,
