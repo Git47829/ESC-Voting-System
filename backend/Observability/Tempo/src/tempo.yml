@@ -20,6 +20,22 @@ ingester:
       kvstore:
         store: inmemory
 
+querier:
+  search:
+    prefer_self: 10
+
+query_frontend:
+  search:
+    prefer_self: 10
+
+ingester_client:
+  grpc_client_config:
+    grpc_compression: gzip
+
+memberlist:
+  bind_addr: ["0.0.0.0"]
+  join_members: []
+
 storage:
   trace:
     backend: local
