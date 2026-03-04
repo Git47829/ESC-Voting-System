@@ -1268,6 +1268,7 @@ func addSong(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "ID must be an Integer",
 		})
+		return
 	}
 	Name := query.Get("Name")
 	country := query.Get("Land")
@@ -1336,6 +1337,7 @@ func addArtist(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "ID must be an Integer",
 		})
+		return
 	}
 	Name := query.Get("Name")
 	vorName := query.Get("vorName")
@@ -1403,6 +1405,7 @@ func addInterpret(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "ID must be an Integer",
 		})
+		return
 	}
 	Name := query.Get("Name")
 	vorName := query.Get("Vorname")
