@@ -105,7 +105,7 @@ endblock %} {% block content %}
 
             <form
                 method="POST"
-                action="/admin/deleteVotes"
+                action="/admin/reset"
                 onsubmit="return confirmReset();"
             >
                 <button
@@ -761,7 +761,7 @@ endblock %} {% block content %}
         modal.classList.remove("hidden");
         document.body.style.overflow = "hidden";
 
-        pendingResetForm = event.target;
+        pendingResetForm = event.target.closest("form");
 
         document.getElementById("confirm-reset-btn").onclick = function () {
             cancelReset();
