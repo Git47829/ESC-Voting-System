@@ -169,6 +169,13 @@ services:
     volumes:
       - loki_data:/loki
 
+  tempo-init:
+    image: busybox
+    user: root
+    command: chown -R 10001:10001 /tmp/tempo
+    volumes:
+      - tempo_data:/tmp/tempo
+
   tempo:
     image: grafana/tempo:latest
     command: ["-config.file=/etc/tempo.yaml"]
@@ -179,6 +186,9 @@ services:
       - "3200:3200"
     networks:
       - observability
+    depends_on:
+      tempo-init:
+        condition: service_completed_successfully
 
 volumes:
   mysql_data:
