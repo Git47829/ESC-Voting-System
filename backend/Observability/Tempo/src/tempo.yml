@@ -20,10 +20,6 @@ ingester:
       kvstore:
         store: inmemory
 
-compactor:
-  compaction:
-    block_retention: 336h
-
 storage:
   trace:
     backend: local
