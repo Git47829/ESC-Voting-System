@@ -767,10 +767,8 @@ endblock %} {% block content %}
         pendingResetForm = event.target.closest("form");
 
         document.getElementById("confirm-reset-btn").onclick = function () {
-            cancelReset();
-
             const form = pendingResetForm;
-            form.onsubmit = null;
+            cancelReset();
             form.submit();
         };
 
