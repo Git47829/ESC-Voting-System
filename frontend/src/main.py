@@ -340,7 +340,9 @@ def admin_add_country():
         params={"Token": token, "ID": country_id, "Name": name, "Pot": pot},
     )
     if status in (200, 202):
-        app.logger.info("country added", extra={"country_id": country_id, "name": name})
+        app.logger.info(
+            "country added", extra={"country_id": country_id, "country_name": name}
+        )
         flash(f"Country '{name}' added successfully!", "success")
     else:
         flash(data.get("message", data.get("error", "Failed to add country.")), "error")
@@ -376,7 +378,7 @@ def admin_add_artist():
     if status in (200, 202):
         app.logger.info(
             "artist added",
-            extra={"artist_id": artist_id, "name": f"{first_name} {last_name}"},
+            extra={"artist_id": artist_id, "artist_name": f"{first_name} {last_name}"},
         )
         flash(f"Artist '{first_name} {last_name}' added successfully!", "success")
     else:
