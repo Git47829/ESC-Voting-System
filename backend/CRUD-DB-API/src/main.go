@@ -1528,7 +1528,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 
 		totalPoints := juryWeight * parsedPoints
 
-		dbQuery = `UPDATE SONG
+		dbQuery = `UPDATE Song
 				 SET JuryPunkte = JuryPunkte + ?
 				 WHERE ID = ?`
 
