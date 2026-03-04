@@ -3,6 +3,8 @@ target: all
 server:
   http_listen_port: 3200
 
+search_enabled: true
+
 distributor:
   receivers:
     otlp:
@@ -14,6 +16,13 @@ distributor:
 
 ingester:
   max_block_duration: 5m
+  lifecycler:
+    ring:
+      replication_factor: 1
+
+memberlist:
+  join_members:
+    - 127.0.0.1
 
 storage:
   trace:
