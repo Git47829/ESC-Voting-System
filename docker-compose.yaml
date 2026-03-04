@@ -40,6 +40,7 @@ services:
       DB_NAME: esc_voting
       DB_USER: esc_user
       DB_PASS: esc_password
+      OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
