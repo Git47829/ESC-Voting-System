@@ -177,7 +177,7 @@ services:
       - tempo_data:/tmp/tempo
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.4.2
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./backend/Observability/Tempo/src/tempo.yml:/etc/tempo.yaml:ro

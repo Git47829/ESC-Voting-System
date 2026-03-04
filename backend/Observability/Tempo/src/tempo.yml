@@ -1,17 +1,9 @@
 target: all
-stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
-  grpc_listen_port: 9095
-  log_level: warn
-
-usage_report:
-  reporting_enabled: false
 
 distributor:
-  ingester_write_path_enabled: true
-  kafka_write_path_enabled: false
   receivers:
     otlp:
       protocols:
@@ -26,19 +18,7 @@ ingester:
     ring:
       replication_factor: 1
       kvstore:
-        store: memberlist
-  partition_ring: # Neu in v2.10!
-    kvstore:
-      store: memberlist
-
-memberlist:
-  abort_if_cluster_join_fails: false
-  bind_port: 7946
-  join_members:
-    - tempo:7946
-
-query_frontend:
-  rf1_after: "1999-01-01T00:00:00Z"
+        store: inmemory
 
 storage:
   trace:
