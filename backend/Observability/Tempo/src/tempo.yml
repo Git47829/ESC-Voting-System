@@ -9,6 +9,8 @@ usage_report:
   reporting_enabled: false
 
 distributor:
+  ingester_write_path_enabled: true # Explizit alten Pfad aktivieren
+  kafka_write_path_enabled: false # Kafka deaktivieren
   receivers:
     otlp:
       protocols:
@@ -32,7 +34,11 @@ memberlist:
     - tempo:7946
 
 query_frontend:
-  rf1_after: "1999-01-01T00:00:00Z" # Kritisch für v2.10!
+  rf1_after: "1999-01-01T00:00:00Z"
+
+querier:
+  frontend_worker:
+    frontend_address: "localhost:9095"
 
 storage:
   trace:
