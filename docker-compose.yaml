@@ -53,6 +53,38 @@ services:
       - frontend
       - observability
 
+  frontend:
+    build: ./frontend/
+    container_name: esc-frontend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-esc-voting-secret-change-me}
+      API_BASE_URL: http://db-crud-api:8000
+      API_TIMEOUT: 10
+      FLASK_PORT: 5000
+      # OpenTelemetry
+      OTEL_SERVICE_NAME: esc-voting-frontend
+      OTEL_SERVICE_VERSION: "1.0.0"
+      OTEL_ENVIRONMENT: production
+      OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_GRPC_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - frontend
+      - observability
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   eurostats:
     build:
       context: ./backend/EuroStats

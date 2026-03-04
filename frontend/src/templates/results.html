@@ -1,0 +1,355 @@
+{% extends "base.html" %} {% block title %}Live Results — ESC Voting System{%
+endblock %} {% block content %}
+<div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10">
+    <div class="text-center mb-10">
+        <h1
+            class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3"
+        >
+            Live Results
+        </h1>
+        <p class="text-esc-muted text-sm max-w-md mx-auto">
+            Scores update automatically every 10 seconds.
+        </p>
+        <div class="mt-4 flex items-center justify-center gap-3">
+            <span
+                id="refresh-indicator"
+                class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted"
+            >
+                <span class="relative flex h-1.5 w-1.5">
+                    <span
+                        id="ping-dot"
+                        class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"
+                    ></span>
+                    <span
+                        class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"
+                    ></span>
+                </span>
+                <span id="refresh-text"
+                    >Live — updates in <span id="countdown">10</span>s</span
+                >
+            </span>
+            <button
+                id="pause-btn"
+                onclick="togglePause()"
+                class="text-[11px] text-esc-muted/60 hover:text-esc-yellow transition-colors underline underline-offset-2"
+                title="Pause auto-refresh"
+            >
+                Pause
+            </button>
+        </div>
+    </div>
+
+    <div
+        id="loading-state"
+        class="flex flex-col items-center justify-center py-20"
+    >
+        <svg
+            class="animate-spin h-8 w-8 text-esc-yellow mb-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+            ></circle>
+            <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            ></path>
+        </svg>
+        <p class="text-sm text-esc-muted">Loading results&hellip;</p>
+    </div>
+
+    <div
+        id="empty-state"
+        class="hidden flex flex-col items-center justify-center py-20 text-center"
+    >
+        <span class="text-5xl mb-4">📊</span>
+        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">
+            No Results Yet
+        </h2>
+        <p class="text-sm text-esc-muted max-w-sm">
+            No votes have been cast yet. Results will appear here once voting
+            begins.
+        </p>
+    </div>
+
+    <div id="results-container" class="hidden space-y-3">
+        <div
+            class="flex items-center justify-end gap-5 mb-6 text-[11px] text-esc-muted"
+        >
+            <span class="flex items-center gap-1.5">
+                <span
+                    class="inline-block w-3 h-3 rounded-sm bg-esc-yellow"
+                ></span>
+                Public Votes
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="inline-block w-3 h-3 rounded-sm bg-sky-400"></span>
+                Jury Votes
+            </span>
+        </div>
+
+        <div id="chart-rows" class="space-y-2.5"></div>
+    </div>
+
+    <div
+        id="error-state"
+        class="hidden flex flex-col items-center justify-center py-20 text-center"
+    >
+        <span class="text-5xl mb-4">⚠️</span>
+        <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">
+            Failed to Load Results
+        </h2>
+        <p class="text-sm text-esc-muted max-w-sm mb-4">
+            Could not connect to the voting server. Retrying
+            automatically&hellip;
+        </p>
+        <button
+            onclick="fetchResults()"
+            class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors"
+        >
+            Retry Now
+        </button>
+    </div>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+    const countryToAlpha2 = {
+        Germany: "de",
+        Sweden: "se",
+        France: "fr",
+        Spain: "es",
+        Italy: "it",
+        "United Kingdom": "gb",
+        Norway: "no",
+        Finland: "fi",
+        Austria: "at",
+        Belgium: "be",
+        Netherlands: "nl",
+        Switzerland: "ch",
+        Portugal: "pt",
+        Greece: "gr",
+        Ireland: "ie",
+        Denmark: "dk",
+        Iceland: "is",
+        Croatia: "hr",
+        Serbia: "rs",
+        Ukraine: "ua",
+        Poland: "pl",
+        "Czech Republic": "cz",
+        Czechia: "cz",
+        Romania: "ro",
+        Bulgaria: "bg",
+        Hungary: "hu",
+        Slovenia: "si",
+        Slovakia: "sk",
+        Estonia: "ee",
+        Latvia: "lv",
+        Lithuania: "lt",
+        Cyprus: "cy",
+        Malta: "mt",
+        Israel: "il",
+        Georgia: "ge",
+        Armenia: "am",
+        Azerbaijan: "az",
+        Moldova: "md",
+        Montenegro: "me",
+        "North Macedonia": "mk",
+        Albania: "al",
+        "Bosnia and Herzegovina": "ba",
+        "San Marino": "sm",
+        Andorra: "ad",
+        Luxembourg: "lu",
+        Australia: "au",
+    };
+
+    function getFlagUrl(country) {
+        const code = countryToAlpha2[country];
+        if (code) return "https://flagcdn.com/w40/" + code + ".png";
+        return null;
+    }
+
+    let pollInterval = null;
+    let countdownInterval = null;
+    let secondsLeft = 10;
+    let paused = false;
+    let previousData = null;
+
+    function renderChart(results) {
+        const container = document.getElementById("chart-rows");
+        const loadingEl = document.getElementById("loading-state");
+        const emptyEl = document.getElementById("empty-state");
+        const resultsEl = document.getElementById("results-container");
+        const errorEl = document.getElementById("error-state");
+
+        loadingEl.classList.add("hidden");
+        errorEl.classList.add("hidden");
+
+        if (!results || results.length === 0) {
+            emptyEl.classList.remove("hidden");
+            resultsEl.classList.add("hidden");
+            return;
+        }
+
+        emptyEl.classList.add("hidden");
+        resultsEl.classList.remove("hidden");
+
+        const maxTotal = Math.max(...results.map((r) => r.totalVotes || 0), 1);
+
+        let html = "";
+        results.forEach(function (entry, index) {
+            const rank = index + 1;
+            const publicVotes = entry.publicVotes || 0;
+            const juryVotes = entry.juryVotes || 0;
+            const totalVotes = entry.totalVotes || 0;
+            const publicPct = (publicVotes / maxTotal) * 100;
+            const juryPct = (juryVotes / maxTotal) * 100;
+            const flagUrl = getFlagUrl(entry.country);
+
+            let changed = false;
+            if (previousData) {
+                const prev = previousData.find((p) => p.id === entry.id);
+                if (prev && prev.totalVotes !== totalVotes) {
+                    changed = true;
+                }
+            }
+
+            const changeClass = changed
+                ? "ring-1 ring-esc-yellow/30 bg-esc-yellow/5"
+                : "";
+
+            html += `
+                <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changeClass}">
+
+                    <!-- Rank -->
+                    <div class="flex-shrink-0 w-8 text-right">
+                        <span class="font-heading font-bold text-sm ${rank <= 3 ? "text-esc-yellow" : "text-esc-muted"}">
+                            ${rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "#" + rank}
+                        </span>
+                    </div>
+
+                    <!-- Flag -->
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-esc-surface flex items-center justify-center bg-esc-black">
+                        ${
+                            flagUrl
+                                ? `<img src="${flagUrl}" alt="${entry.country}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
+                                : '<span class="text-sm">🏳️</span>'
+                        }
+                    </div>
+
+                    <!-- Country + Song Name -->
+                    <div class="flex-shrink-0 w-32 sm:w-44 min-w-0">
+                        <p class="font-heading font-semibold text-sm text-esc-text truncate leading-tight">${entry.country}</p>
+                        <p class="text-[10px] text-esc-muted truncate leading-tight">${entry.name}</p>
+                    </div>
+
+                    <!-- Bar -->
+                    <div class="flex-1 min-w-0">
+                        <div class="flex h-6 rounded-md overflow-hidden bg-esc-black/50">
+                            <div
+                                class="h-full bg-esc-yellow transition-all duration-700 ease-out"
+                                style="width: ${publicPct}%"
+                                title="Public: ${publicVotes} pts"
+                            ></div>
+                            <div
+                                class="h-full bg-sky-400 transition-all duration-700 ease-out"
+                                style="width: ${juryPct}%"
+                                title="Jury: ${juryVotes} pts"
+                            ></div>
+                        </div>
+                    </div>
+
+                    <!-- Total Points -->
+                    <div class="flex-shrink-0 w-16 text-right">
+                        <span class="font-heading font-bold text-base ${rank === 1 ? "text-esc-yellow" : "text-esc-text"}">${totalVotes}</span>
+                        <span class="text-[10px] text-esc-muted block leading-none">pts</span>
+                    </div>
+
+                    <!-- Breakdown tooltip on hover -->
+                    <div class="flex-shrink-0 hidden sm:flex flex-col items-end w-20 text-right">
+                        <span class="text-[10px] text-esc-yellow/70">pub ${publicVotes}</span>
+                        <span class="text-[10px] text-sky-400/70">jury ${juryVotes}</span>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+        previousData = results;
+    }
+
+    async function fetchResults() {
+        try {
+            const resp = await fetch("/api/results");
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const data = await resp.json();
+            renderChart(data);
+        } catch (err) {
+            console.error("Failed to fetch results:", err);
+            if (!previousData) {
+                document
+                    .getElementById("loading-state")
+                    .classList.add("hidden");
+                document
+                    .getElementById("error-state")
+                    .classList.remove("hidden");
+            }
+        }
+    }
+
+    function resetCountdown() {
+        secondsLeft = 10;
+        document.getElementById("countdown").textContent = secondsLeft;
+    }
+
+    function startPolling() {
+        fetchResults();
+
+        countdownInterval = setInterval(function () {
+            if (paused) return;
+            secondsLeft--;
+            if (secondsLeft < 0) secondsLeft = 0;
+            document.getElementById("countdown").textContent = secondsLeft;
+        }, 1000);
+
+        pollInterval = setInterval(function () {
+            if (paused) return;
+            fetchResults();
+            resetCountdown();
+        }, 10000);
+    }
+
+    function togglePause() {
+        paused = !paused;
+        const btn = document.getElementById("pause-btn");
+        const pingDot = document.getElementById("ping-dot");
+        const refreshText = document.getElementById("refresh-text");
+
+        if (paused) {
+            btn.textContent = "Resume";
+            pingDot.classList.remove("animate-ping");
+            pingDot.classList.add("bg-esc-muted");
+            pingDot.classList.remove("bg-green-400");
+            refreshText.innerHTML = "Paused";
+        } else {
+            btn.textContent = "Pause";
+            pingDot.classList.add("animate-ping");
+            pingDot.classList.remove("bg-esc-muted");
+            pingDot.classList.add("bg-green-400");
+            refreshText.innerHTML =
+                'Live — updates in <span id="countdown">10</span>s';
+            resetCountdown();
+            fetchResults();
+        }
+    }
+
+    startPolling();
+</script>
+{% endblock %}
