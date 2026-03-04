@@ -12,6 +12,9 @@ distributor:
 
 ingester:
   max_block_duration: 5m
+  lifecycler:
+    ring:
+      replication_factor: 1
 
 storage:
   trace:
