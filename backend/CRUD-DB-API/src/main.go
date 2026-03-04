@@ -484,32 +484,36 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT isOpen FROM Voting_Status`
-
-	rows, err := db.QueryContext(ctx, query)
+	statusQuery := `SELECT VotingID, isOpen, lastChange FROM Voting_Status`
+	statusRows, err := db.QueryContext(ctx, statusQuery)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to query db Rows, is Database connected?", slog.Any("error", err.Error()))
+		logger.ErrorContext(ctx, "Failed to query db Rows, is Database connected?", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to query Rows",
 		})
 		return
 	}
-	defer rows.Close()
+	defer statusRows.Close()
 
-	type vote_status struct {
-		id         string
-		isOpen     bool
-		lastChange time.Time
+	type voteStatus struct {
+		VotingID   int        `json:"votingId"`
+		IsOpen     bool       `json:"isOpen"`
+		LastChange *time.Time `json:"lastChange,omitempty"`
 	}
 
-	for rows.Next() {
-		var v vote_status
-		if err := rows.Scan(&v.id, &v.isOpen, &v.lastChange); err != nil {
-			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+	for statusRows.Next() {
+		var v voteStatus
+		var lastChange sql.NullTime
+		if scanErr := statusRows.Scan(&v.VotingID, &v.IsOpen, &lastChange); scanErr != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", scanErr))
 			continue
 		}
-		if v.isOpen == false {
+		if lastChange.Valid {
+			t := lastChange.Time
+			v.LastChange = &t
+		}
+		if !v.IsOpen {
 			w.WriteHeader(http.StatusTooEarly)
 			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "voting has not started yet, please try again in a few minutes",
@@ -519,30 +523,41 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	query = `SELECT Land_ID FROM Song WHERE ID = ?`
+	if statusErr := statusRows.Err(); statusErr != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", statusErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process voting status",
+		})
+		return
+	}
 
-	rows, dbErr := db.QueryContext(ctx, query, ID)
+	songQuery := `SELECT ID, Land_ID FROM Song WHERE ID = ?`
+	songRows, dbErr := db.QueryContext(ctx, songQuery, songID)
 	if dbErr != nil {
-		logger.ErrorContext(ctx, "error Querying DB rows", slog.Any("error", err), slog.String("ID", ID))
+		logger.ErrorContext(ctx, "error Querying DB rows", slog.Any("error", dbErr), slog.String("ID", ID))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "error Querying DB",
 		})
 		return
 	}
+	defer songRows.Close()
 
-	type vote_verify struct {
-		id     string
-		landId string
+	type voteVerify struct {
+		SongID int    `json:"songId"`
+		LandID string `json:"landId"`
 	}
 
-	for rows.Next() {
-		var v vote_verify
-		if err := rows.Scan(&v.id, &v.landId); err != nil {
-			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
+	var songFound bool
+	for songRows.Next() {
+		var v voteVerify
+		if scanErr := songRows.Scan(&v.SongID, &v.LandID); scanErr != nil {
+			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", scanErr))
 			continue
 		}
-		if v.landId == ownCountry {
+		songFound = true
+		if v.LandID == ownCountry {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "cannot vote for your own country",
@@ -552,117 +567,124 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	query = `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
-	var exists bool
-	phoneErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&exists)
-
-	if phoneErr == sql.ErrNoRows {
-
-		query = `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
-
-		result, insertErr := db.ExecContext(ctx, query, phoneNum)
-
-		if insertErr != nil {
-			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to record vote",
-			})
-			return
-		}
-
-		affectedRows, err := result.RowsAffected()
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
-		}
-		if affectedRows == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Song not found",
-			})
-			return
-		}
-
-		const cookieName string = "vote_cookie"
-		const weightPublicVote int = 3
-
-		cookie, err := r.Cookie(cookieName)
-
-		if err == nil {
-			mu.Lock()
-			alreadyVoted := usedTokens[cookie.Value]
-			mu.Unlock()
-
-			if alreadyVoted == true {
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{
-					"message": "Vote has already been cast",
-				})
-			}
-		}
-
-		token, _ := generateToken()
-		http.SetCookie(w, &http.Cookie{
-			Name:     cookieName,
-			Value:    token,
-			Expires:  time.Now().Add(365 * 24 * time.Hour),
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
+	if songErr := songRows.Err(); songErr != nil {
+		logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", songErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to process Song details",
 		})
+		return
+	}
 
-		mu.Lock()
-		usedTokens[token] = true
-		mu.Unlock()
-
-		query = `UPDATE SONG
-				 SET PublikumsPunkte = PublikumsPunkte + ?
-				 WHERE ID = ?`
-
-		result, voteErr := db.ExecContext(ctx, query, weightPublicVote, songID)
-		if voteErr != nil {
-			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to record vote",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Song not found",
-			})
-			return
-		}
-
-		NotifyVote(songID, ownCountry, db)
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message":   "Success",
-			"voted_for": songID,
+	if !songFound {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Song not found",
 		})
+		return
+	}
 
-	} else if phoneErr != nil {
-		logger.ErrorContext(ctx, "error Querying DB", slog.Any("error", phoneErr))
+	query := `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
+	var alreadyVoted bool
+	if existsErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&alreadyVoted); existsErr != nil {
+		logger.ErrorContext(ctx, "error querying phone number", slog.Any("error", existsErr))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "error querying DB",
 		})
 		return
-	} else {
+	}
+
+	if alreadyVoted {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "your vote has already been cast",
 		})
-
+		return
 	}
 
+	query = `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
+	result, insertErr := db.ExecContext(ctx, query, phoneNum)
+	if insertErr != nil {
+		logger.ErrorContext(ctx, "failed to record vote", slog.Any("error", insertErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	if affectedRows, rowsErr := result.RowsAffected(); rowsErr != nil {
+		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", rowsErr))
+	} else if affectedRows == 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	const cookieName string = "vote_cookie"
+	const weightPublicVote int = 3
+
+	if cookie, cookieErr := r.Cookie(cookieName); cookieErr == nil {
+		mu.Lock()
+		alreadyVotedToken := usedTokens[cookie.Value]
+		mu.Unlock()
+
+		if alreadyVotedToken {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Vote has already been cast",
+			})
+			return
+		}
+	}
+
+	token, _ := generateToken()
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    token,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	mu.Lock()
+	usedTokens[token] = true
+	mu.Unlock()
+
+	query = `UPDATE SONG
+				 SET PublikumsPunkte = PublikumsPunkte + ?
+				 WHERE ID = ?`
+
+	voteResult, voteErr := db.ExecContext(ctx, query, weightPublicVote, songID)
+	if voteErr != nil {
+		logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", voteErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	if updatedRows, rowsErr := voteResult.RowsAffected(); rowsErr != nil {
+		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", rowsErr))
+	} else if updatedRows == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Song not found",
+		})
+		return
+	}
+
+	NotifyVote(songID, ownCountry, db)
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message":   "Success",
+		"voted_for": songID,
+	})
 }
 
 func getCountries(w http.ResponseWriter, r *http.Request) {
