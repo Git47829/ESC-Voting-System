@@ -3,8 +3,6 @@ target: all
 server:
   http_listen_port: 3200
 
-search_enabled: true
-
 distributor:
   receivers:
     otlp:
@@ -19,10 +17,8 @@ ingester:
   lifecycler:
     ring:
       replication_factor: 1
-
-memberlist:
-  join_members:
-    - 127.0.0.1
+      kvstore:
+        store: inmemory
 
 storage:
   trace:
