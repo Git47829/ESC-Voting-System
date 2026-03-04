@@ -1,16 +1,21 @@
 target: all
+stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
+  log_level: warn
+
+usage_report:
+  reporting_enabled: false
 
 distributor:
   receivers:
     otlp:
       protocols:
-        http:
-          endpoint: 0.0.0.0:4418
         grpc:
-          endpoint: 0.0.0.0:4417
+          endpoint: "0.0.0.0:4417"
+        http:
+          endpoint: "0.0.0.0:4418"
 
 ingester:
   max_block_duration: 5m
@@ -18,23 +23,16 @@ ingester:
     ring:
       replication_factor: 1
       kvstore:
-        store: inmemory
-
-querier:
-  search:
-    prefer_self: 10
-
-query_frontend:
-  search:
-    prefer_self: 10
-
-ingester_client:
-  grpc_client_config:
-    grpc_compression: gzip
+        store: memberlist
 
 memberlist:
-  bind_addr: ["0.0.0.0"]
-  join_members: []
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members:
+    - tempo:7946
+
+query_frontend:
+  rf1_after: "1999-01-01T00:00:00Z" # Kritisch für v2.10!
 
 storage:
   trace:
