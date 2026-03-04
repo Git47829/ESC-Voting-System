@@ -497,9 +497,9 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	defer statusRows.Close()
 
 	type voteStatus struct {
-		VotingID   int  `json:"votingId"`
-		IsOpen     bool `json:"isOpen"`
-		LastChange int  `json:"lastChange,omitempty"`
+		VotingID   int        `json:"votingId"`
+		IsOpen     bool       `json:"isOpen"`
+		LastChange *time.Time `json:"lastChange,omitempty"`
 	}
 
 	for statusRows.Next() {
