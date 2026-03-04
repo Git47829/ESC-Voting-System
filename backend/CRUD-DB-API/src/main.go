@@ -161,9 +161,14 @@ var (
 func initTracer() (*sdktrace.TracerProvider, error) {
 	// Create OTLP exporter
 
+	otlpEndpoint := getEnvOrDefault("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "localhost:4318")
+	// WithEndpoint expects only host:port, so strip any http:// or https:// scheme
+	if parsed, err := url.Parse(otlpEndpoint); err == nil && parsed.Host != "" {
+		otlpEndpoint = parsed.Host
+	}
 	exporter, err := otlptracehttp.New(
 		context.Background(),
-		otlptracehttp.WithEndpoint("localhost:4318"), // Default OTLP Endpoint
+		otlptracehttp.WithEndpoint(otlpEndpoint),
 		otlptracehttp.WithInsecure(),
 	)
 
