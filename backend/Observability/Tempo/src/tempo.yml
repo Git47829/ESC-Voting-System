@@ -3,14 +3,14 @@ stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
-  log_level: warn
+  grpc_listen_port: 9095 # Explizit setzen
 
 usage_report:
   reporting_enabled: false
 
 distributor:
-  ingester_write_path_enabled: true # Explizit alten Pfad aktivieren
-  kafka_write_path_enabled: false # Kafka deaktivieren
+  ingester_write_path_enabled: true
+  kafka_write_path_enabled: false
   receivers:
     otlp:
       protocols:
@@ -35,10 +35,6 @@ memberlist:
 
 query_frontend:
   rf1_after: "1999-01-01T00:00:00Z"
-
-querier:
-  frontend_worker:
-    frontend_address: "localhost:9095"
 
 storage:
   trace:
