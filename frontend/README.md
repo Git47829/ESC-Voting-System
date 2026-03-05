@@ -1,6 +1,6 @@
 # ESC Voting System — Frontend
 
-Flask + Jinja2 + Tailwind CSS (CDN) frontend for the Eurovision Song Contest Voting System.
+Flask + Jinja2 + Tailwind CSS (CDN) frontend for the Eurovision Song Contest Voting System. Served in production by Gunicorn with 2 workers and full OpenTelemetry instrumentation.
 
 ## Design Tokens
 
@@ -16,22 +16,25 @@ Flask + Jinja2 + Tailwind CSS (CDN) frontend for the Eurovision Song Contest Vot
 
 ## Pages
 
-| Route      | Page            | Auth         | Description                                          |
-|------------|-----------------|--------------|------------------------------------------------------|
-| `/`        | Vote            | Public       | Country cards grid; click to open vote modal          |
-| `/results` | Live Results    | Public       | Horizontal bar chart, auto-refreshes every 10s        |
-| `/login`   | Login           | Public       | Token + role selector; redirects to `/admin` or `/jury` |
-| `/admin`   | Admin Dashboard | Admin token  | Toggle voting, reset votes, add country/artist/song   |
-| `/jury`    | Jury Vote       | Jury token   | Eurovision-style point selector (1–8, 10, 12)         |
-| `/*`       | Error Pages     | —            | 403, 404, 500 with [http.cat](https://http.cat) images |
+| Route          | Page            | Auth         | Description                                                   |
+|----------------|-----------------|--------------|---------------------------------------------------------------|
+| `/`            | Vote            | Public       | Country cards grid; click to open vote modal                  |
+| `/results`     | Live Results    | Public       | Horizontal bar chart, auto-refreshes every 10 s               |
+| `/login`       | Login           | Public       | Token + role selector; redirects to `/admin` or `/jury`       |
+| `/admin`       | Admin Dashboard | Admin token  | Toggle voting, reset votes, add country / artist / song       |
+| `/jury`        | Jury Vote       | Jury token   | Eurovision-style point selector (1–8, 10, 12)                 |
+| `/health`      | Health Check    | Public       | Returns `200 OK` — used by Docker Compose healthcheck         |
+| `/api/results` | Results JSON    | Public       | JSON endpoint polled by the results page every 10 s           |
+| `/*`           | Error Pages     | —            | 403, 404, 500 with [http.cat](https://http.cat) images        |
 
 ## Tech Stack
 
 - **Python 3.12** + **Flask 3.x**
 - **Jinja2** templates
 - **Tailwind CSS** via CDN (`cdn.tailwindcss.com`)
-- **Gunicorn** for production serving
+- **Gunicorn** — 2 workers, 4 threads, `--preload` (production server)
 - **requests** library for backend API communication
+- **OpenTelemetry** — distributed tracing + custom metrics via `telemetry.py`
 
 ## Project Structure
 
@@ -41,10 +44,11 @@ frontend/
 ├── README.md
 └── src/
     ├── main.py              # Flask application (routes, API helpers)
+    ├── telemetry.py         # OpenTelemetry tracing, metrics, and instrumentation setup
     ├── requirements.txt     # Python dependencies
     ├── static/
-    │   ├── css/             # Custom stylesheets (if needed)
-    │   └── js/              # Custom scripts (if needed)
+    │   ├── css/             # Custom stylesheets
+    │   └── js/              # Custom scripts
     └── templates/
         ├── base.html        # Shared layout: navbar, flash messages, footer
         ├── vote.html        # Home / public vote page
@@ -55,52 +59,50 @@ frontend/
         └── error.html       # Error page (403, 404, 500)
 ```
 
-## Running Locally
 
-### With Docker Compose 
+## Observability
 
-From the project root:
+Telemetry is initialised in `telemetry.py` immediately after the Flask app object is created (before any routes are registered), ensuring all requests are instrumented:
 
-```sh
-docker compose up --build
-```
-
-The frontend will be available at [http://localhost:5000](http://localhost:5000).
-
-
-The app will start on [http://localhost:5000](http://localhost:5000).
-
-## Environment Variables
-
-| Variable           | Default                    | Description                              |
-|--------------------|----------------------------|------------------------------------------|
-| `FLASK_SECRET_KEY` | `esc-voting-secret-key-change-me` | Secret key for session signing    |
-| `API_BASE_URL`     | `http://db-crud-api:8000`  | Backend CRUD API base URL                |
-| `API_TIMEOUT`      | `10`                       | Timeout in seconds for backend API calls |
-| `FLASK_PORT`       | `5000`                     | Port the Flask app listens on            |
-| `FLASK_DEBUG`      | `false`                    | Enable debug mode (`true` / `false`)     |
+- **Distributed Tracing** — `FlaskInstrumentor` and `RequestsInstrumentor` auto-instrument inbound requests and outbound backend calls. Traces are exported to the OTel Collector via OTLP/HTTP.
+- **Custom Metrics** — the following application-level metrics are recorded:
+  - `backend_call_duration_seconds` — duration of each backend API call, labelled by endpoint and status code
+  - `votes_total` — counter of votes cast, labelled by type (`public` or `jury`)
+  - `active_sessions` — gauge tracking the number of currently logged-in sessions
+- **Prometheus** — metrics are exposed in multiprocess-safe mode (via `PROMETHEUS_MULTIPROC_DIR`) so all Gunicorn workers contribute to the same counters.
 
 ## Backend API Endpoints Used
 
-| Method   | Endpoint               | Used By     | Purpose                    |
-|----------|------------------------|-------------|----------------------------|
-| `GET`    | `/songs/`              | Vote, Admin, Jury | Fetch all songs with details |
-| `GET`    | `/votes/`              | Results     | Fetch vote totals          |
-| `GET`    | `/countries/`          | Admin       | Fetch registered countries |
-| `POST`   | `/vote/`               | Vote        | Cast a public vote         |
-| `POST`   | `/jury/vote/`          | Jury        | Cast a jury vote           |
-| `POST`   | `/admin/open/`         | Admin       | Open voting                |
-| `POST`   | `/admin/close`         | Admin       | Close voting               |
-| `DELETE` | `/admin/deleteVotes/`  | Admin       | Reset all votes to zero    |
-| `POST`   | `/admin/addCountry/`   | Admin       | Add a new country          |
-| `POST`   | `/admin/addArtist/`    | Admin       | Add a new artist           |
-| `POST`   | `/admin/addSong/`      | Admin       | Add a new song             |
+| Method   | Endpoint               | Used By            | Purpose                       |
+|----------|------------------------|--------------------|-------------------------------|
+| `GET`    | `/songs/`              | Vote, Admin, Jury  | Fetch all songs with details  |
+| `GET`    | `/votes/`              | Results            | Fetch vote totals             |
+| `GET`    | `/countries/`          | Admin              | Fetch registered countries    |
+| `POST`   | `/vote/`               | Vote               | Cast a public vote            |
+| `POST`   | `/jury/vote/`          | Jury               | Cast a jury vote              |
+| `POST`   | `/admin/open/`         | Admin              | Open voting                   |
+| `POST`   | `/admin/close`         | Admin              | Close voting                  |
+| `DELETE` | `/admin/deleteVotes/`  | Admin              | Reset all votes to zero       |
+| `POST`   | `/admin/addCountry/`   | Admin              | Add a new country             |
+| `POST`   | `/admin/addArtist/`    | Admin              | Add a new artist              |
+| `POST`   | `/admin/addSong/`      | Admin              | Add a new song                |
 
 ## Shared Components
 
-- **Navbar** — Logo left, nav links right, voting status pill (OPEN/CLOSED)
+- **Navbar** — Logo left, nav links right, voting status pill (OPEN / CLOSED)
 - **StatusBadge** — Animated yellow pill when voting is open; grey when closed
 - **CountryCard** — Flag image (via flagcdn.com), country name, song title, points badge
 - **Modal** — Vote form overlay with phone number input
-- **Flash Messages** — Auto-dismissing toast notifications for success/error feedback
-- **ProtectedRoute** — Server-side session check with role-based redirects
+- **Flash Messages** — Auto-dismissing toast notifications for success / error feedback
+- **ProtectedRoute** — Server-side session check with role-based redirects (via `login_required` decorator)
+
+## Authentication & Session
+
+Roles are stored in the Flask server-side session after a successful login:
+
+| Role    | Access                          |
+|---------|---------------------------------|
+| `admin` | Admin dashboard + Jury pages    |
+| `jury`  | Jury voting page only           |
+
+Tokens are passed through to the backend API via query parameters on protected requests. The frontend does **not** validate tokens itself — validation is delegated entirely to the CRUD API.

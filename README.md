@@ -1,171 +1,174 @@
 # ESC Voting System
 
-A distributed voting system for the Eurovision Song Contest, featuring a modern frontend, microservices architecture, and comprehensive observability stack with production-ready features including rate limiting, authentication, and distributed tracing.
+A distributed voting system for the Eurovision Song Contest, featuring a modern web frontend, a Go REST + gRPC backend, real-time vote streaming, and a full observability stack with tracing, metrics, and log aggregation.
 
 ## 🏗️ System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         Frontend Layer                          │
-│                      Flask + HTML + CSS                         │
-│                  Port 5000 (User Interface)                     │
+│                Flask + Jinja2 + Tailwind CSS                    │
+│               Port 5000 — served by Gunicorn                    │
 └────────────────────────────────┬────────────────────────────────┘
-                                 │ REST API
-                                 │
-┌────────────────────────────────▼────────────────────────────────┐
+                                 │ REST (HTTP)
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
 │                       Backend Services                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────────┐  ┌──────────────────────────┐   │
-│  │   CRUD API (Go)            │  │  EuroStats (Python)      │   │
-│  │   • Port 8000              │  │  • Real-time Stats       │   │
-│  │   • Rate Limiting          │◄─┤  • gRPC Consumer         │   │
-│  │   • Token Auth             │  │  • Vote Aggregation      │   │
-│  │   • OpenTelemetry Traces   │  │  • NumPy Analytics       │   │
-│  └───────────┬────────────────┘  └──────────────────────────┘   │
-│              │                                                  │
-│  ┌───────────▼────────────────┐                                 │
-│  │   MySQL Database           │                                 │
-│  │   • Port 3306              │                                 │
-│  │   • ESC Data Model         │                                 │
-│  │   • Vote Persistence       │                                 │
-│  └────────────────────────────┘                                 │
+│  ┌──────────────────────────────────┐                           │
+│  │   CRUD DB API (Go)               │                           │
+│  │   • Port 8000  — REST API        │                           │
+│  │   • Port 50051 — gRPC streaming  │                           │
+│  │   • Rate limiting (token bucket) │                           │
+│  │   • bcrypt token auth            │                           │
+│  │   • OpenTelemetry tracing        │                           │
+│  │   • Prometheus metrics           │                           │
+│  └──────────┬───────────────────────┘                           │
+│             │ SQL                    │ gRPC StreamVotes         │
+│  ┌──────────▼────────────┐  ┌───────▼────────────────────────┐  │
+│  │   MySQL 8.0           │  │   EuroStats (Python/FastAPI)   │  │
+│  │   Port 3306           │  │   Port 8880 (8881 on host)     │  │
+│  │   ESC data model      │  │   REST + WebSocket endpoints   │  │
+│  │   Vote persistence    │  │   Real-time vote consumer      │  │
+│  └───────────────────────┘  └────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
-                                 │
-┌────────────────────────────────▼────────────────────────────────┐
+                                 │ OTLP
+                                 ▼
+┌─────────────────────────────────────────────────────────────────┐
 │                    Observability Stack                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ OTel Collector   │  │ Prometheus   │  │ Grafana          │   │
-│  │ Port 4317/4318   │─►│ Port 9090    │─►│ Port 3000        │   │
-│  └──────────────────┘  └──────────────┘  └──────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │ Loki (Log Aggregation)                                   │   │
-│  │ Port 3100                                                │   │
-│  └──────────────────────────────────────────────────────────┘   │
+│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌───────┐   │
+│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │ Loki  │   │
+│  │ 4317/4318/9464   │─►│   9090     │  │  3200   │  │ 3100  │   │
+│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └───┬───┘   │
+│                              └──────────────┼────────────┘      │
+│                                             ▼                   │
+│                                    ┌─────────────┐              │
+│                                    │   Grafana   │              │
+│                                    │    3000     │              │
+│                                    └─────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## ✨ Key Features
 
 ### 🔐 Security & Access Control
-- **Multi-tier Authentication**: Admin, Jury, and Public user roles
-- **bcrypt Password Hashing**: Secure credential storage
-- **Phone Number Verification**: One vote per phone number (hashed)
-- **Cookie-based Vote Tracking**: Prevents duplicate voting
-- **Rate Limiting**: Configurable per-endpoint request throttling
+- **Multi-tier Authentication** — Admin, Jury, and Public user roles
+- **bcrypt Password Hashing** — Secure credential storage and token validation
+- **Phone Number Verification** — One vote per phone number (bcrypt-hashed in DB)
+- **Cookie-based Vote Tracking** — Prevents duplicate voting from the same browser
+- **Token Replay Prevention** — Used tokens are tracked in-memory to block reuse
+- **Rate Limiting** — Per-IP token-bucket rate limiting on every endpoint
+
+### 📡 Real-time Vote Streaming
+- **gRPC VoteService** — The CRUD API exposes a `StreamVotes` server-side streaming RPC on port `50051`
+- **Historical + Live** — New subscribers optionally receive all current vote totals before live updates
+- **EuroStats Consumer** — FastAPI microservice that connects as a gRPC client and re-exposes votes via REST and WebSocket
 
 ### 📊 Observability & Monitoring
-- **Distributed Tracing**: Full request tracing with OpenTelemetry
-- **Metrics Collection**: Prometheus metrics for request duration, size, and counts
-- **Structured Logging**: JSON-formatted logs with context propagation
-- **Grafana Dashboards**: Visual monitoring and alerting
-- **Log Aggregation**: Centralized logging with Loki
+- **Distributed Tracing** — Full request tracing with OpenTelemetry, stored in Tempo
+- **Metrics Collection** — Prometheus metrics for request duration, size, counts, backend call latency, vote counts, and active sessions
+- **Structured Logging** — JSON-formatted logs from all services, aggregated in Loki
+- **Grafana Dashboards** — Auto-provisioned data sources (Prometheus, Loki, Tempo) with trace-to-log correlation
+- **Gunicorn Multiprocess Metrics** — Prometheus multiprocess mode ensures correct metric aggregation across all frontend workers
 
-### 🎯 Voting System Features
-- **Public Voting**: Weighted voting with phone number verification
-- **Jury Voting**: Professional jury votes with higher weights
-- **Real-time Statistics**: Live vote aggregation via gRPC
-- **Vote Status Control**: Admin controls to open/close voting periods
-- **Multi-country Support**: Vote for any country except your own
+### 🗳️ Voting System
+- **Public Voting** — Phone number verification, duplicate prevention via cookie + hashed phone registry
+- **Jury Voting** — Authenticated jury votes with configurable point values (Eurovision-style 1–8, 10, 12)
+- **Vote Status Control** — Admin open/close toggle; all endpoints respect the global voting state
+- **Multi-country Support** — Voters cannot vote for their own country
+- **Real-time Results** — Live results page polling every 10 s; WebSocket stream available via EuroStats
 
 ## 🛠️ Components
 
-### Frontend
-- **Technology**: Flask, HTML, CSS
-- **Location**: `/frontend`
-- **Purpose**: User-facing interface for voting and results
-- **Features**: 
-  - Responsive web design
-  - Real-time vote updates
-  - Country and song browsing
+| Service | Technology | Port | README |
+|---|---|---|---|
+| Frontend | Python 3.12, Flask 3.x, Gunicorn, Tailwind CSS | 5000 | [frontend/README.md](frontend/README.md) |
+| CRUD DB API | Go 1.24, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
+| EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8881 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
+| MySQL | MySQL 8.0 | 3306 | [backend/DB/README.md](backend/DB/README.md) |
+| Observability | OTel Collector, Prometheus, Grafana, Loki, Tempo | 4317–4318, 9090, 3000, 3100, 3200 | [backend/Observability/README.md](backend/Observability/README.md) |
 
-### Backend Services
+### Service URLs
 
-#### CRUD API (Go)
-- **Technology**: Go 1.21+, MySQL Driver, bcrypt
-- **Location**: `/backend/CRUD-DB-API`
-- **Port**: 8000
-- **Design Patterns**: 
-  - Middleware/Chain of Responsibility
-  - Singleton (DB, Logger, Tracer)
-  - Decorator (Response Writer)
-  - Factory (Rate Limiter)
-  - Repository (Data Access)
-  - Retry Pattern (DB Connection)
+| Service | URL |
+|---|---|
+| Frontend (Voting UI) | http://localhost:5000 |
+| CRUD DB API | http://localhost:8000 |
+| EuroStats | http://localhost:8881 |
+| Grafana | http://localhost:3000 |
+| Prometheus | http://localhost:9090 |
+| Loki | http://localhost:3100 |
+| Tempo | http://localhost:3200 |
 
-**API Endpoints**:
+### Default Grafana Login
+
 ```
-Public Endpoints:
-  GET  /health              - Health check
-  GET  /votes/              - Get all votes and rankings
-  GET  /countries/          - List all countries
-  GET  /countryByName/{ID}  - Get country by ID
-  GET  /songs/              - List all songs with details
-  GET  /songByID/{ID}       - Get song by ID
-  POST /vote/               - Cast a public vote
-  GET  /metrics/            - Prometheus metrics
-
-Admin Endpoints (Token Required):
-  POST   /admin/open/         - Open voting
-  POST   /admin/close         - Close voting
-  DELETE /admin/deleteVotes/  - Reset all votes
-  POST   /admin/addCountry/   - Add new country
-  POST   /admin/addSong/      - Add new song
-  POST   /admin/addArtist/    - Add new artist
-  POST   /admin/addInterpret/ - Add new composer
-
-Jury Endpoints (Token Required):
-  POST /jury/vote/  - Cast jury vote with points
+Username: admin
+Password: admin
 ```
 
-**Rate Limits**:
-- Health: 100 req/s
-- Public GET: 10 req/s
-- Public Vote: 1 req/s (burst: 1)
-- Jury Vote: 5 req/s
-- Admin: 2-5 req/s
-- Metrics: Unlimited
+## 🗄️ Database Schema
 
-#### EuroStats Microservice
-- **Technology**: Python 3.11+, gRPC, NumPy
-- **Location**: `/backend/EuroStats`
-- **Purpose**: Real-time statistical analysis and vote aggregation
-- **Features**:
-  - gRPC consumer for vote events
-  - Statistical computations
-  - Vote trend analysis
+| Table | Description |
+|---|---|
+| `Land` | Countries — ISO 3-letter ID, name, pot assignment |
+| `Kuenstler` | Artists — solo, duo, or group; linked to a country |
+| `Komponist` | Composers — first and last name |
+| `Song` | Songs — linked to country and artist; stores public, jury, and computed total points |
+| `Song_Komponist` | Many-to-many relationship between songs and composers |
+| `Voting_Status` | Single-row global flag controlling whether voting is open |
+| `Phone_Nums` | Registry of bcrypt-hashed phone numbers that have already voted |
 
-#### MySQL Database
-- **Technology**: MySQL 8.0+
-- **Location**: `/backend/DB`
-- **Port**: 3306
-- **Schema**:
-  - `Land` (Countries) - ID, Name, Pot
-  - `Song` - Songs with public/jury/total points
-  - `Kuenstler` (Artists) - Solo, duo, or group performers
-  - `Komponist` (Composers) - Song composers
-  - `Song_Komponist` - Many-to-many song-composer relationship
-  - `Voting_Status` - Global voting state control
-  - `Phone_Nums` - Hashed phone number registry
+## 📡 API Overview
 
-### Observability Stack
+### Public Endpoints (CRUD API — port 8000)
 
-#### OpenTelemetry Collector
-- **Version**: 0.94.0
-- **Ports**: 4317 (gRPC), 4318 (HTTP), 9464 (Prometheus)
-- **Purpose**: Centralized telemetry collection and export
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/votes/` | All songs ranked by total points |
+| `GET` | `/countries/` | List all countries |
+| `GET` | `/songs/` | Full song list with artist, country, composers, and voting status |
+| `POST` | `/vote/` | Cast a public vote |
+| `GET` | `/metrics/` | Prometheus metrics |
 
-#### Prometheus
-- **Version**: 2.51.1
-- **Port**: 9090
-- **Purpose**: Metrics storage and querying
+### Protected Endpoints
 
-#### Grafana
-- **Version**: 10.4.2
-- **Port**: 3000
-- **Purpose**: Visualization dashboards and alerting
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `POST` | `/admin/open/` | Admin token | Open voting |
+| `POST` | `/admin/close` | Admin token | Close voting |
+| `DELETE` | `/admin/deleteVotes/` | Admin token | Reset all votes |
+| `POST` | `/admin/addCountry/` | Admin token | Add a country |
+| `POST` | `/admin/addSong/` | Admin token | Add a song |
+| `POST` | `/admin/addArtist/` | Admin token | Add an artist |
+| `POST` | `/admin/addInterpret/` | Admin token | Add a composer |
+| `POST` | `/jury/vote/` | Jury token | Cast a jury vote |
 
-#### Loki
-- **Version**: 2.9.6
-- **Port**: 3100
-- **Purpose**: Log aggregation and querying
+### EuroStats Endpoints (port 8881)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/votes/subscribe` | Poll current vote snapshot (up to 100 entries) |
+| `WS` | `/ws/votes` | WebSocket — real-time vote event stream |
+
+## 🐳 Docker Networks
+
+| Network | Connected Services |
+|---|---|
+| `backend` | `db`, `api`, `eurostats` |
+| `frontend` | `api`, `frontend` |
+| `observability` | `api`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo` |
+
+## 🔭 Observability Pipeline
+
+```
+CRUD API  ──OTLP/HTTP──►
+Frontend  ──OTLP/HTTP──►  OTel Collector ──► Tempo      (traces)
+EuroStats ──OTLP/gRPC──►                 ──► Prometheus  (metrics)
+                                         ──► Loki        (logs)
+                                                │
+                                                └──► Grafana (unified view)
+```
