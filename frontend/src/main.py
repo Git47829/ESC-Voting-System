@@ -60,7 +60,7 @@ def api_get(endpoint):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_post(endpoint, params=None):
+def api_post(endpoint, params=None, cookies=None):
     """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
@@ -68,16 +68,17 @@ def api_post(endpoint, params=None):
         resp = requests.post(
             f"{API_BASE}{endpoint}",
             params=params or {},
+            cookies=cookies or {},
             timeout=API_TIMEOUT,
         )
         status_code = resp.status_code
-        return resp.status_code, resp.json()
+        return resp.status_code, resp.json(), resp.cookies
     except requests.exceptions.RequestException as e:
         app.logger.error(
             "backend POST failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 500, {"error": str(e)}
+        return 500, {"error": str(e)}, {}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -159,7 +160,8 @@ def vote_page():
             if s["songId"] not in seen_ids:
                 seen_ids.add(s["songId"])
                 songs.append(s)
-    return render_template("vote.html", songs=songs)
+    has_voted = request.cookies.get("vote_cookie") is not None
+    return render_template("vote.html", songs=songs, has_voted=has_voted)
 
 
 @app.route("/results")
@@ -187,13 +189,20 @@ def submit_vote():
     if not song_id or not phone:
         return jsonify({"error": "Song and phone number are required"}), 400
 
-    status, data = api_post(
+    # Forward the browser's vote_cookie to the Go API so it can check it
+    browser_cookies = {}
+    vote_cookie = request.cookies.get("vote_cookie")
+    if vote_cookie:
+        browser_cookies["vote_cookie"] = vote_cookie
+
+    status, data, api_cookies = api_post(
         "/vote/",
         params={
             "songID": song_id,
             "phoneNum": phone,
             "ownCountry": own_country,
         },
+        cookies=browser_cookies,
     )
 
     if status == 200:
@@ -203,7 +212,20 @@ def submit_vote():
             extra={"song_id": song_id, "own_country": own_country},
         )
 
-    return jsonify(data), status
+    flask_response = jsonify(data)
+    flask_response.status_code = status
+
+    # Forward the vote_cookie from the Go API back to the browser
+    if "vote_cookie" in api_cookies:
+        flask_response.set_cookie(
+            "vote_cookie",
+            api_cookies["vote_cookie"],
+            max_age=365 * 24 * 60 * 60,
+            httponly=True,
+            samesite="Strict",
+        )
+
+    return flask_response
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +305,7 @@ def admin_dashboard():
 def admin_open_vote():
     """Open voting."""
     token = session.get("token", "")
-    status, data = api_post("/admin/open/", params={"Token": token})
+    status, data, _ = api_post("/admin/open/", params={"Token": token})
     if status in (200, 202):
         app.logger.info("voting opened by admin")
         flash("Voting has been opened!", "success")
@@ -297,7 +319,7 @@ def admin_open_vote():
 def admin_close_vote():
     """Close voting."""
     token = session.get("token", "")
-    status, data = api_post("/admin/close", params={"Token": token})
+    status, data, _ = api_post("/admin/close", params={"Token": token})
     if status in (200, 202):
         app.logger.info("voting closed by admin")
         flash("Voting has been closed!", "success")
@@ -335,7 +357,7 @@ def admin_add_country():
         flash("Country ID and Name are required.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    status, data = api_post(
+    status, data, _ = api_post(
         "/admin/addCountry/",
         params={"Token": token, "ID": country_id, "Name": name, "Pot": pot},
     )
@@ -364,7 +386,7 @@ def admin_add_artist():
         flash("Artist ID, Last Name, and Country are required.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    status, data = api_post(
+    status, data, _ = api_post(
         "/admin/addArtist/",
         params={
             "Token": token,
@@ -399,7 +421,7 @@ def admin_add_song():
         flash("Song Name, Country, and Artist ID are required.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    status, data = api_post(
+    status, data, _ = api_post(
         "/admin/addSong/",
         params={"Token": token, "ID": artist_id, "Name": song_name, "Land": country},
     )
@@ -444,7 +466,7 @@ def jury_submit_vote():
     if not song_id or not points:
         return jsonify({"error": "Song and points are required"}), 400
 
-    status, data = api_post(
+    status, data, _ = api_post(
         "/jury/vote/",
         params={"Token": token, "songID": song_id, "points": points},
     )

@@ -15,6 +15,16 @@
         </p>
     </div>
 
+    {% if has_voted %}
+    <!-- Already voted banner -->
+    <div class="mx-auto max-w-xl mb-10 flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-5 py-4 text-sm text-green-400">
+        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Your vote has already been cast. Thank you for participating!</span>
+    </div>
+    {% endif %}
+
     <!-- Country Cards Grid -->
     {% if songs %}
     <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -24,13 +34,13 @@
             class="country-card group relative flex flex-col items-center gap-4 rounded-2xl border border-esc-surface bg-esc-surface/50 p-6 text-center
                    transition-all duration-200 hover:border-esc-yellow/50 hover:bg-esc-surface hover:shadow-lg hover:shadow-esc-yellow/5
                    focus:outline-none focus:ring-2 focus:ring-esc-yellow/40 focus:ring-offset-2 focus:ring-offset-esc-black
-                   {% if not voting_is_open %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}"
+                   {% if not voting_is_open or has_voted %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}"
             data-song-id="{{ song.songId }}"
             data-song-name="{{ song.songName }}"
             data-country-name="{{ song.countryName }}"
             data-country-id="{{ song.countryId }}"
             data-artist="{{ song.artistFirstName }} {{ song.artistLastName }}"
-            {% if not voting_is_open %}disabled{% endif %}
+            {% if not voting_is_open or has_voted %}disabled{% endif %}
             onclick="openVoteModal(this)"
         >
             <!-- Flag -->
@@ -155,11 +165,12 @@
                 <button
                     type="submit"
                     id="vote-submit-btn"
+                    {% if has_voted %}disabled{% endif %}
                     class="w-full flex items-center justify-center gap-2 rounded-lg bg-esc-yellow px-4 py-3 text-sm font-heading font-bold text-esc-black uppercase tracking-wider
                            hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black
                            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <span id="vote-btn-text">Submit Vote</span>
+                    <span id="vote-btn-text">{% if has_voted %}Vote Already Cast{% else %}Submit Vote{% endif %}</span>
                     <svg id="vote-spinner" class="hidden animate-spin h-4 w-4 text-esc-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
@@ -175,6 +186,8 @@
 
 {% block scripts %}
 <script>
+    const HAS_VOTED = {{ 'true' if has_voted else 'false' }};
+
     const countryIdToAlpha2 = {
         'DEU': 'de', 'SWE': 'se', 'FRA': 'fr', 'ESP': 'es', 'ITA': 'it',
         'GBR': 'gb', 'NOR': 'no', 'FIN': 'fi', 'AUT': 'at', 'BEL': 'be',
@@ -194,6 +207,7 @@
     }
 
     function openVoteModal(el) {
+        if (HAS_VOTED) return;
         const songId = el.dataset.songId;
         const songName = el.dataset.songName;
         const countryName = el.dataset.countryName;
@@ -232,6 +246,8 @@
 
     document.getElementById('vote-form').addEventListener('submit', async function (e) {
         e.preventDefault();
+
+        if (HAS_VOTED) return;
 
         const btn = document.getElementById('vote-submit-btn');
         const btnText = document.getElementById('vote-btn-text');
