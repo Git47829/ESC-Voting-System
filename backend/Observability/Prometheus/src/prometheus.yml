@@ -7,8 +7,30 @@ scrape_configs:
     static_configs:
       - targets: ["otel-collector:9464"]
 
+  - job_name: "otel-collector-internal"
+    static_configs:
+      - targets: ["otel-collector:8888"]
+
   - job_name: "esc-frontend"
     static_configs:
       - targets: ["esc-frontend:5000"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: "esc-crud-api"
+    static_configs:
+      - targets: ["db-crud-api:8000"]
+    metrics_path: /metrics/
+    scrape_interval: 15s
+
+  - job_name: "loki"
+    static_configs:
+      - targets: ["loki:3100"]
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: "tempo"
+    static_configs:
+      - targets: ["tempo:3200"]
     metrics_path: /metrics
     scrape_interval: 15s

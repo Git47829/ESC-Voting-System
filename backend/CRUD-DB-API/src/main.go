@@ -122,7 +122,7 @@ var (
 	//Prometheus metrics for request size
 	requestSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "http_request_size_bytes",
+			Name:    "esc_http_request_size_bytes",
 			Help:    "Size of HTTP request bodies in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 8), //100B to 100 MB
 		},
@@ -132,7 +132,7 @@ var (
 	// Response size
 	responseSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "http_response_size_bytes",
+			Name:    "esc_http_response_size_bytes",
 			Help:    "Size of HTTP response bodies in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 8),
 		},
@@ -142,7 +142,7 @@ var (
 	// Request Duration
 	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "http_request_duration_seconds",
+			Name:    "esc_http_request_duration_seconds",
 			Help:    "Duration of HTTP requests in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
@@ -151,7 +151,7 @@ var (
 
 	requestCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "http_requests_total",
+			Name: "esc_http_requests_total",
 			Help: "Total number of HTTP requests",
 		},
 		[]string{"method", "path", "status"},

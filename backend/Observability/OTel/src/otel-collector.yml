@@ -23,7 +23,17 @@ exporters:
       insecure: true
   logging: {}
 
+extensions:
+  health_check:
+  pprof:
+  zpages:
+
 service:
+  extensions: [health_check, pprof, zpages]
+  telemetry:
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
   pipelines:
     metrics:
       receivers: [otlp]
