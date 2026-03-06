@@ -97,6 +97,7 @@ services:
       - GRPC_HOST=db-crud-api
       - GRPC_PORT=50051
       - LOG_LEVEL=INFO
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       - api
     networks:
@@ -125,6 +126,7 @@ services:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
       - "9464:9464" # Prometheus scrape endpoint
+      - "8888:8888" # OTel collector internal metrics
     networks:
       - observability
     depends_on:
@@ -137,6 +139,7 @@ services:
     image: prom/prometheus:v2.51.1
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-remote-write-receiver"
     volumes:
       - ./backend/Observability/Prometheus/src/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:

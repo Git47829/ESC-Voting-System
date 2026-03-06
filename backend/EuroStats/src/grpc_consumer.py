@@ -28,9 +28,8 @@ class VoteStreamConsumer:
     async def connect(self) -> None:
         """Establish connection to the gRPC server"""
         try:
-            self.channel = grpc.aio.secure_channel(
+            self.channel = grpc.aio.insecure_channel(
                 f"{self.host}:{self.port}",
-                grpc.ssl_channel_credentials(),
             )
             self.stub = votes_pb2_grpc.VoteServiceStub(self.channel)
             logger.info(f"Connected to gRPC server at {self.host}:{self.port}")

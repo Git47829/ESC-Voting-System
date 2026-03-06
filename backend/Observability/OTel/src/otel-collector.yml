@@ -7,6 +7,25 @@ receivers:
 processors:
   batch:
 
+  # Promote resource attributes to Loki stream labels.
+  # loki.resource.labels tells the Loki exporter which resource-level
+  # attributes to index as labels rather than embedding in the log body.
+  resource/loki_labels:
+    attributes:
+      - action: insert
+        key: loki.resource.labels
+        value: service.name
+
+  # Promote log-level attributes to Loki stream labels.
+  # traceID and spanID become labels so that Grafana's tracesToLogsV2
+  # filterByTraceID link can issue an exact-match label query instead of
+  # a slow full-scan over the log body.
+  attributes/loki_labels:
+    actions:
+      - action: insert
+        key: loki.attribute.labels
+        value: traceID, spanID, level
+
 exporters:
   prometheus:
     endpoint: "0.0.0.0:9464"
@@ -15,15 +34,33 @@ exporters:
     metric_expiration: 180m
     resource_to_telemetry_conversion:
       enabled: true
+
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
+    default_labels_enabled:
+      exporter: false
+      job: true
+      instance: false
+      level: true
+
   otlp:
     endpoint: tempo:4417
     tls:
       insecure: true
+
   logging: {}
 
+extensions:
+  health_check:
+  pprof:
+  zpages:
+
 service:
+  extensions: [health_check, pprof, zpages]
+  telemetry:
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
   pipelines:
     metrics:
       receivers: [otlp]
@@ -35,5 +72,5 @@ service:
       exporters: [otlp, logging]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: [batch, resource/loki_labels, attributes/loki_labels]
       exporters: [loki]

@@ -20,6 +20,16 @@ ingester:
       kvstore:
         store: inmemory
 
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
 storage:
   trace:
     backend: local
@@ -27,3 +37,8 @@ storage:
       path: /tmp/tempo/blocks
     wal:
       path: /tmp/tempo/wal
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [local-blocks]

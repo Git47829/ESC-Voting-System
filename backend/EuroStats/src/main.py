@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -32,9 +33,11 @@ async def lifespan(app: FastAPI):
     # Startup
     global vote_consumer
     try:
+        grpc_host = os.getenv("GRPC_HOST", "db-crud-api")
+        grpc_port = int(os.getenv("GRPC_PORT", "50051"))
         vote_consumer = VoteStreamConsumer(
-            host="crud-db-api",
-            port=50051,
+            host=grpc_host,
+            port=grpc_port,
         )
         await vote_consumer.connect()
         logger.info("gRPC consumer initialized")
