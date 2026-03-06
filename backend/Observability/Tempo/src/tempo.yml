@@ -20,6 +20,24 @@ ingester:
       kvstore:
         store: inmemory
 
+metrics_generator:
+  ring:
+    kvstore:
+      store: inmemory
+  processor:
+    local_blocks:
+      max_live_traces: 50000
+      max_block_duration: 5m
+      max_block_bytes: 314572800 # 300 MiB
+      flush_check_period: 5s
+      trace_idle_period: 10s
+      complete_block_timeout: 15m
+  storage:
+    path: /tmp/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+
 storage:
   trace:
     backend: local
@@ -27,3 +45,10 @@ storage:
       path: /tmp/tempo/blocks
     wal:
       path: /tmp/tempo/wal
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - local-blocks
+      generate_native_histograms: both
