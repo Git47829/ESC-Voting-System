@@ -604,21 +604,20 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	defer statusRows.Close()
 
 	type voteStatus struct {
-		VotingID   int        `json:"votingId"`
-		IsOpen     bool       `json:"isOpen"`
-		LastChange *time.Time `json:"lastChange,omitempty"`
+		VotingID   int    `json:"votingId"`
+		IsOpen     bool   `json:"isOpen"`
+		LastChange string `json:"lastChange,omitempty"`
 	}
 
 	for statusRows.Next() {
 		var v voteStatus
-		var lastChange sql.NullTime
+		var lastChange sql.NullString
 		if scanErr := statusRows.Scan(&v.VotingID, &v.IsOpen, &lastChange); scanErr != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", scanErr))
 			continue
 		}
 		if lastChange.Valid {
-			t := lastChange.Time
-			v.LastChange = &t
+			v.LastChange = lastChange.String
 		}
 		if !v.IsOpen {
 			w.WriteHeader(http.StatusTooEarly)
