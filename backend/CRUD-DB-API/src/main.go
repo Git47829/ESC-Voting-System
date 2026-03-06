@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -706,29 +708,19 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	query := `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
-	var alreadyVoted bool
-	if existsErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&alreadyVoted); existsErr != nil {
-		logger.ErrorContext(ctx, "error querying phone number", slog.Any("error", existsErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "error querying DB",
-		})
-		return
-	}
-
-	if alreadyVoted {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "your vote has already been cast",
-		})
-		return
-	}
-
-	query = `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
+	query := `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
 	result, insertErr := db.ExecContext(ctx, query, phoneNum)
 	if insertErr != nil {
-		logger.ErrorContext(ctx, "failed to record vote", slog.Any("error", insertErr))
+		var mysqlErr *mysql.MySQLError
+		if errors.As(insertErr, &mysqlErr) && mysqlErr.Number == 1062 {
+			logger.WarnContext(ctx, "duplicate vote attempt blocked", slog.String("phone_hash", phoneNum))
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "your vote has already been cast",
+			})
+			return
+		}
+		logger.ErrorContext(ctx, "failed to record phone number", slog.Any("error", insertErr))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to record vote",

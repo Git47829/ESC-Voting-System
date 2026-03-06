@@ -62,5 +62,6 @@ CREATE TABLE Voting_Status (
 CREATE TABLE Phone_Nums (
     ID INT NOT NULL AUTO_INCREMENT,
     Phone_Number VARCHAR(200) NOT NULL,
-    PRIMARY KEY (ID)
+    PRIMARY KEY (ID),
+    UNIQUE (Phone_Number)
 );
