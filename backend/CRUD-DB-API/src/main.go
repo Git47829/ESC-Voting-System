@@ -500,44 +500,35 @@ var alpha3ToAlpha2 = map[string]string{
 	"UKR": "UA", // Ukraine
 }
 
-// checkPhoneNum validates a phone number against three criteria and returns:
-//   - (true,  nil)   — number is valid, is a European/ESC number, and does NOT belong to the voter's own country
-//   - (false, nil)   — number is structurally invalid
-//   - (false, error) — number is valid but either not European/ESC, or belongs to the voter's own country
+// checkPhoneNum validates a phone number and returns the alpha-3 country code
+// it belongs to (as used in the Land table), so the caller can enforce voting rules.
 //
-// country is the ISO 3166-1 alpha-3 code as stored in the Land table (e.g. "DEU").
-func checkPhoneNum(num string, country string) (bool, error) {
-	// Map the DB alpha-3 code to the alpha-2 code phonenumbers understands.
-	alpha2, known := alpha3ToAlpha2[country]
-	if !known {
-		return false, fmt.Errorf("country %q is not a valid European / ESC-participating country", country)
-	}
-
+// Returns:
+//   - (alpha3, nil)   — number is valid and from a European / ESC-participating country
+//   - ("",    nil)    — number is structurally invalid
+//   - ("",    error)  — number is valid but not from a European / ESC-participating country
+func checkPhoneNum(num string) (string, error) {
 	// Parse without a region hint so the region is derived purely from the
 	// number itself (requires E.164 or an explicit country prefix).
 	parsed, err := phonenumbers.Parse(num, "")
 	if err != nil {
 		// Could not be parsed at all — not a valid phone number.
-		return false, nil
+		return "", nil
 	}
 
 	// Check 1 — is the number itself structurally valid?
 	if !phonenumbers.IsValidNumber(parsed) {
-		return false, nil
+		return "", nil
 	}
 
 	// Check 2 — is the number from a European / ESC-participating country?
 	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
-	if _, isEuropean := alpha3ToAlpha2[regionAlpha2ToAlpha3(numRegion)]; !isEuropean {
-		return false, fmt.Errorf("phone number is not from a valid European / ESC-participating country (region: %q)", numRegion)
+	alpha3 := regionAlpha2ToAlpha3(numRegion)
+	if alpha3 == "" {
+		return "", fmt.Errorf("phone number is not from a valid European / ESC-participating country (region: %q)", numRegion)
 	}
 
-	// Check 3 — the number must NOT be from the voter's own country.
-	if numRegion == alpha2 {
-		return false, fmt.Errorf("phone number must not be from your own country (%q)", country)
-	}
-
-	return true, nil
+	return alpha3, nil
 }
 
 // regionAlpha2ToAlpha3 reverses alpha3ToAlpha2 for a single lookup.
@@ -685,20 +676,20 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
 
-	valid, phoneErr := checkPhoneNum(phone, ownCountry)
-	if !valid && phoneErr == nil {
+	phoneCountry, phoneErr := checkPhoneNum(phone)
+	if phoneErr != nil {
+		logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.Any("error", phoneErr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": phoneErr.Error(),
+		})
+		return
+	}
+	if phoneCountry == "" {
 		logger.WarnContext(ctx, "invalid phone number provided", slog.String("phone", phone))
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid phone number",
-		})
-		return
-	}
-	if !valid && phoneErr != nil {
-		logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.String("ownCountry", ownCountry), slog.Any("error", phoneErr))
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": phoneErr.Error(),
 		})
 		return
 	}
@@ -787,7 +778,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		songFound = true
-		if v.LandID == ownCountry {
+		if v.LandID == phoneCountry {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "cannot vote for your own country",
