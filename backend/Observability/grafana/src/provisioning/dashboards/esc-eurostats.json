@@ -9,19 +9,19 @@
     },
     {
       "type": "datasource",
-      "id": "prometheus",
+      "id": "PBFA97CFB",
       "name": "Prometheus",
       "version": "1.0.0"
     },
     {
       "type": "datasource",
       "id": "loki",
-      "name": "Loki",
+      "name": "P8E80F9AE",
       "version": "1.0.0"
     },
     {
       "type": "datasource",
-      "id": "tempo",
+      "id": "P214B5B846CF3925F",
       "name": "Tempo",
       "version": "1.0.0"
     }
