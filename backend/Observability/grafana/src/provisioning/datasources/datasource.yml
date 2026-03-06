@@ -28,6 +28,8 @@ datasources:
         spanEndTimeShift: "1m"
         filterByTraceID: true
         filterBySpanID: false
+        customQuery: true
+        query: '{service_name="${__span.tags.service.name}"} | json | traceID="${__trace.traceId}"'
       tracesToMetrics:
         datasourceUid: PBFA97CFB590B2093
         spanStartTimeShift: "-1m"

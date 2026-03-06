@@ -90,7 +90,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total[2m]))",
+          "expr": "sum(rate(http_requests_total[2m]))",
           "legendFormat": "req/s",
           "refId": "A"
         }
@@ -135,7 +135,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "A"
         }
@@ -180,7 +180,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m])) / sum(rate(esc_http_requests_total[2m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[2m])) / sum(rate(http_requests_total[2m]))",
           "legendFormat": "error rate",
           "refId": "A"
         }
@@ -225,7 +225,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m])) / sum(rate(esc_http_requests_total[2m]))",
+          "expr": "sum(rate(http_requests_total{status=\"429\"}[2m])) / sum(rate(http_requests_total[2m]))",
           "legendFormat": "rate-limited",
           "refId": "A"
         }
@@ -270,7 +270,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         }
@@ -315,7 +315,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.99, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "A"
         }
@@ -381,7 +381,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total[2m])) by (path)",
+          "expr": "sum(rate(http_requests_total[2m])) by (path)",
           "legendFormat": "{{path}}",
           "refId": "A"
         }
@@ -476,7 +476,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total[2m])) by (status)",
+          "expr": "sum(rate(http_requests_total[2m])) by (status)",
           "legendFormat": "HTTP {{status}}",
           "refId": "A"
         }
@@ -542,25 +542,25 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.90, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p90",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p95",
           "refId": "C"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.99, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[2m])) by (le))",
           "legendFormat": "p99",
           "refId": "D"
         }
@@ -618,7 +618,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le, path))",
           "legendFormat": "p95 {{path}}",
           "refId": "A"
         }
@@ -712,19 +712,19 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=~\"4..\"}[2m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[2m]))",
           "legendFormat": "4xx errors",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m]))",
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[2m]))",
           "legendFormat": "5xx errors",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m]))",
+          "expr": "sum(rate(http_requests_total{status=\"429\"}[2m]))",
           "legendFormat": "429 rate-limited",
           "refId": "C"
         }
@@ -801,13 +801,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[2m])) by (path)",
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[2m])) by (path)",
           "legendFormat": "5xx {{path}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=\"429\"}[2m])) by (path)",
+          "expr": "sum(rate(http_requests_total{status=\"429\"}[2m])) by (path)",
           "legendFormat": "429 {{path}}",
           "refId": "B"
         }
@@ -873,13 +873,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_size_bytes_bucket[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "req p50 {{path}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_size_bytes_bucket[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "req p95 {{path}}",
           "refId": "B"
         }
@@ -937,13 +937,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_response_size_bytes_bucket[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_response_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "resp p50 {{path}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_response_size_bytes_bucket[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_response_size_bytes_bucket[2m])) by (le, path))",
           "legendFormat": "resp p95 {{path}}",
           "refId": "B"
         }
@@ -1028,13 +1028,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{path=\"/vote/\", method=\"POST\", status=\"200\"}[2m]))",
+          "expr": "sum(rate(http_requests_total{path=\"/vote/\", method=\"POST\", status=\"200\"}[2m]))",
           "legendFormat": "public votes",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{path=\"/jury/vote/\", method=\"POST\", status=\"200\"}[2m]))",
+          "expr": "sum(rate(http_requests_total{path=\"/jury/vote/\", method=\"POST\", status=\"200\"}[2m]))",
           "legendFormat": "jury votes",
           "refId": "B"
         }
@@ -1092,13 +1092,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
           "legendFormat": "p95 {{path}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{path=~\"/vote/|/jury/vote/\"}[2m])) by (le, path))",
           "legendFormat": "p50 {{path}}",
           "refId": "B"
         }
@@ -1156,7 +1156,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{path=~\"/admin/.*\"}[2m])) by (path, method)",
+          "expr": "sum(rate(http_requests_total{path=~\"/admin/.*\"}[2m])) by (path, method)",
           "legendFormat": "{{method}} {{path}}",
           "refId": "A"
         }
@@ -1271,7 +1271,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total[5m])) by (path)",
+          "expr": "sum(rate(http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1279,7 +1279,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.50, sum(rate(esc_http_request_duration_seconds_bucket[5m])) by (le, path))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1287,7 +1287,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "histogram_quantile(0.95, sum(rate(esc_http_request_duration_seconds_bucket[5m])) by (le, path))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, path))",
           "format": "table",
           "instant": true,
           "legendFormat": "",
@@ -1295,7 +1295,7 @@
         },
         {
           "datasource": { "type": "prometheus", "uid": "PBFA97CFB590B2093" },
-          "expr": "sum(rate(esc_http_requests_total{status=~\"5..\"}[5m])) by (path) / sum(rate(esc_http_requests_total[5m])) by (path)",
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (path) / sum(rate(http_requests_total[5m])) by (path)",
           "format": "table",
           "instant": true,
           "legendFormat": "",

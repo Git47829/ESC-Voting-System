@@ -25,7 +25,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	otlploghttp "go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otellog "go.opentelemetry.io/otel/log"
+	"go.opentelemetry.io/otel/log/global"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
@@ -122,7 +126,7 @@ var (
 	//Prometheus metrics for request size
 	requestSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "esc_http_request_size_bytes",
+			Name:    "http_request_size_bytes",
 			Help:    "Size of HTTP request bodies in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 8), //100B to 100 MB
 		},
@@ -132,7 +136,7 @@ var (
 	// Response size
 	responseSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "esc_http_response_size_bytes",
+			Name:    "http_response_size_bytes",
 			Help:    "Size of HTTP response bodies in bytes",
 			Buckets: prometheus.ExponentialBuckets(100, 10, 8),
 		},
@@ -142,7 +146,7 @@ var (
 	// Request Duration
 	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "esc_http_request_duration_seconds",
+			Name:    "http_request_duration_seconds",
 			Help:    "Duration of HTTP requests in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
@@ -151,29 +155,30 @@ var (
 
 	requestCounter = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "esc_http_requests_total",
+			Name: "http_requests_total",
 			Help: "Total number of HTTP requests",
 		},
 		[]string{"method", "path", "status"},
 	)
 )
 
-func initTracer() (*sdktrace.TracerProvider, error) {
-	// Create OTLP exporter
-
+func otlpEndpointHostPort() string {
 	otlpEndpoint := getEnvOrDefault("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "localhost:4318")
 	// WithEndpoint expects only host:port, so strip any http:// or https:// scheme
 	if parsed, err := url.Parse(otlpEndpoint); err == nil && parsed.Host != "" {
-		otlpEndpoint = parsed.Host
+		return parsed.Host
 	}
+	return otlpEndpoint
+}
+
+func initTracer() (*sdktrace.TracerProvider, error) {
 	exporter, err := otlptracehttp.New(
 		context.Background(),
-		otlptracehttp.WithEndpoint(otlpEndpoint),
+		otlptracehttp.WithEndpoint(otlpEndpointHostPort()),
 		otlptracehttp.WithInsecure(),
 	)
-
 	if err != nil {
-		return nil, fmt.Errorf("failed to create OTLP exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
 
 	res, err := resource.New(
@@ -184,7 +189,6 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 			attribute.String("environment", "development"),
 		),
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
@@ -192,11 +196,122 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()), // Sample all Traces
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
 
 	otel.SetTracerProvider(tp)
 	return tp, nil
+}
+
+func initLogProvider() (*sdklog.LoggerProvider, error) {
+	exporter, err := otlploghttp.New(
+		context.Background(),
+		otlploghttp.WithEndpoint(otlpEndpointHostPort()),
+		otlploghttp.WithInsecure(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OTLP log exporter: %w", err)
+	}
+
+	res, err := resource.New(
+		context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceName("esc-voting-crud-api"),
+			semconv.ServiceVersion("0.1.0"),
+			attribute.String("environment", "development"),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource: %w", err)
+	}
+
+	lp := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
+		sdklog.WithResource(res),
+	)
+
+	global.SetLoggerProvider(lp)
+	return lp, nil
+}
+
+// otelSlogHandler wraps another slog.Handler and additionally emits each log
+// record as an OTLP log, embedding the active trace/span IDs so that Loki
+// can correlate logs with Tempo traces via the traceID label.
+type otelSlogHandler struct {
+	inner  slog.Handler
+	logger otellog.Logger
+}
+
+func newOtelSlogHandler(inner slog.Handler) *otelSlogHandler {
+	return &otelSlogHandler{
+		inner:  inner,
+		logger: global.GetLoggerProvider().Logger("esc-voting-crud-api"),
+	}
+}
+
+func (h *otelSlogHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.inner.Enabled(ctx, level)
+}
+
+func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
+	// Emit to the original handler (stdout) first.
+	if err := h.inner.Handle(ctx, r); err != nil {
+		return err
+	}
+
+	// Build an OTel log record.
+	var rec otellog.Record
+	rec.SetTimestamp(r.Time)
+	rec.SetBody(otellog.StringValue(r.Message))
+
+	// Map slog levels to OTel severity.
+	switch {
+	case r.Level >= slog.LevelError:
+		rec.SetSeverity(otellog.SeverityError)
+		rec.SetSeverityText("ERROR")
+	case r.Level >= slog.LevelWarn:
+		rec.SetSeverity(otellog.SeverityWarn)
+		rec.SetSeverityText("WARN")
+	case r.Level >= slog.LevelInfo:
+		rec.SetSeverity(otellog.SeverityInfo)
+		rec.SetSeverityText("INFO")
+	default:
+		rec.SetSeverity(otellog.SeverityDebug)
+		rec.SetSeverityText("DEBUG")
+	}
+
+	// Carry all slog attributes across as OTel log attributes.
+	attrs := make([]otellog.KeyValue, 0, r.NumAttrs()+2)
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
+		return true
+	})
+
+	// Explicitly attach traceID and spanID as log *attributes* (in addition
+	// to the OTel SDK automatically setting them as standard OTLP trace
+	// context fields from ctx). The Loki exporter in the OTel collector
+	// promotes attributes listed under loki.attribute.labels as Loki stream
+	// labels, which is what enables Grafana's tracesToLogsV2 filterByTraceID
+	// link to perform an efficient label-based query instead of a full scan.
+	if spanCtx := trace.SpanFromContext(ctx).SpanContext(); spanCtx.IsValid() {
+		attrs = append(attrs,
+			otellog.String("traceID", spanCtx.TraceID().String()),
+			otellog.String("spanID", spanCtx.SpanID().String()),
+		)
+	}
+
+	rec.AddAttributes(attrs...)
+
+	h.logger.Emit(ctx, rec)
+	return nil
+}
+
+func (h *otelSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &otelSlogHandler{inner: h.inner.WithAttrs(attrs), logger: h.logger}
+}
+
+func (h *otelSlogHandler) WithGroup(name string) slog.Handler {
+	return &otelSlogHandler{inner: h.inner.WithGroup(name), logger: h.logger}
 }
 
 type responseWriter struct {
@@ -1634,14 +1749,19 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 
 func main() {
 
-	logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	// Base JSON handler writing to stdout (keeps existing log lines intact).
+	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
-	}))
+	})
+
+	// Temporarily set a plain logger so that initLogProvider / initTracer
+	// failures can still be reported before the OTel handler is ready.
+	logger = slog.New(baseHandler)
 	slog.SetDefault(logger)
 
 	tp, erro := initTracer()
 	if erro != nil {
-		log.Printf("Warning: Failed to initialize tracer: %v. Continue without tracig", erro)
+		log.Printf("Warning: Failed to initialize tracer: %v. Continuing without tracing", erro)
 	} else {
 		defer func() {
 			if err := tp.Shutdown(context.Background()); err != nil {
@@ -1649,6 +1769,22 @@ func main() {
 			}
 		}()
 	}
+
+	lp, err := initLogProvider()
+	if err != nil {
+		log.Printf("Warning: Failed to initialize log provider: %v. Logs will not be forwarded via OTLP", err)
+	} else {
+		defer func() {
+			if err := lp.Shutdown(context.Background()); err != nil {
+				log.Printf("Error shutting down log provider: %v", err)
+			}
+		}()
+	}
+
+	// Replace the logger with one that emits to both stdout and the OTel
+	// collector (which forwards to Loki with traceID as an index label).
+	logger = slog.New(newOtelSlogHandler(baseHandler))
+	slog.SetDefault(logger)
 
 	tracer = otel.Tracer("esc-voting-crud-api")
 	log.Println("Listening and Serving on Port 8000")
@@ -1678,11 +1814,11 @@ func main() {
 
 	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
 
-	var err error
-	db, err = connectToDatabase(loadLocalConfig())
-	if err != nil {
+	var dbErr error
+	db, dbErr = connectToDatabase(loadLocalConfig())
+	if dbErr != nil {
 		logger.Error("Error Connecting the Database")
-		panic(err.Error())
+		panic(dbErr.Error())
 	}
 	defer db.Close()
 
