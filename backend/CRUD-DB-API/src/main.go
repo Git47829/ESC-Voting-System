@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -17,8 +18,6 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -446,14 +445,13 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 }
 
 func hashPassword(password string) (string, error) {
-	// The cost parameter controls how slow the hash is
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes), err
+	sum := sha256.Sum256([]byte(password))
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func checkPassword(password, hashedPassword string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	return err == nil
+	sum := sha256.Sum256([]byte(password))
+	return fmt.Sprintf("%x", sum) == hashedPassword
 }
 
 func checkAccessAdmin(input string) (bool, string) {
@@ -579,15 +577,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
-	phoneNum, err := hashPassword(phone)
-	if err != nil {
-		logger.ErrorContext(ctx, "error hashing phonenumber", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "error hashing password",
-		})
-		return
-	}
+	phoneNum, _ := hashPassword(phone)
 	ID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(ID)
 	if err != nil {
@@ -699,6 +689,23 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	const cookieName string = "vote_cookie"
+	const weightPublicVote int = 3
+
+	if cookie, cookieErr := r.Cookie(cookieName); cookieErr == nil {
+		mu.Lock()
+		alreadyVotedToken := usedTokens[cookie.Value]
+		mu.Unlock()
+
+		if alreadyVotedToken {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{
+				"message": "Vote has already been cast",
+			})
+			return
+		}
+	}
+
 	query := `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
 	var alreadyVoted bool
 	if existsErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&alreadyVoted); existsErr != nil {
@@ -737,23 +744,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			"error": "Failed to record vote",
 		})
 		return
-	}
-
-	const cookieName string = "vote_cookie"
-	const weightPublicVote int = 3
-
-	if cookie, cookieErr := r.Cookie(cookieName); cookieErr == nil {
-		mu.Lock()
-		alreadyVotedToken := usedTokens[cookie.Value]
-		mu.Unlock()
-
-		if alreadyVotedToken {
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
-				"message": "Vote has already been cast",
-			})
-			return
-		}
 	}
 
 	token, _ := generateToken()
