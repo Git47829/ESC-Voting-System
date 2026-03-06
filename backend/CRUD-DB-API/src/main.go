@@ -36,6 +36,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
+
+	"github.com/nyaruka/phonenumbers"
 )
 
 type Client struct {
@@ -446,6 +448,90 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// europeanCountryCodes holds the ISO 3166-1 alpha-2 codes of all countries
+// that participate in (or are eligible for) the Eurovision Song Contest.
+var europeanCountryCodes = map[string]bool{
+	"AL": true, // Albania
+	"AM": true, // Armenia
+	"AT": true, // Austria
+	"AZ": true, // Azerbaijan
+	"BA": true, // Bosnia and Herzegovina
+	"BE": true, // Belgium
+	"BG": true, // Bulgaria
+	"BY": true, // Belarus
+	"CH": true, // Switzerland
+	"CY": true, // Cyprus
+	"CZ": true, // Czech Republic
+	"DE": true, // Germany
+	"DK": true, // Denmark
+	"EE": true, // Estonia
+	"ES": true, // Spain
+	"FI": true, // Finland
+	"FR": true, // France
+	"GB": true, // United Kingdom
+	"GE": true, // Georgia
+	"GR": true, // Greece
+	"HR": true, // Croatia
+	"HU": true, // Hungary
+	"IE": true, // Ireland
+	"IL": true, // Israel
+	"IS": true, // Iceland
+	"IT": true, // Italy
+	"LT": true, // Lithuania
+	"LU": true, // Luxembourg
+	"LV": true, // Latvia
+	"MC": true, // Monaco
+	"MD": true, // Moldova
+	"ME": true, // Montenegro
+	"MK": true, // North Macedonia
+	"MT": true, // Malta
+	"NL": true, // Netherlands
+	"NO": true, // Norway
+	"PL": true, // Poland
+	"PT": true, // Portugal
+	"RO": true, // Romania
+	"RS": true, // Serbia
+	"RU": true, // Russia
+	"SE": true, // Sweden
+	"SI": true, // Slovenia
+	"SK": true, // Slovakia
+	"SM": true, // San Marino
+	"TR": true, // Turkey
+	"UA": true, // Ukraine
+}
+
+// checkPhoneNum validates a phone number against three criteria and returns:
+//   - (true,  nil)   — number is valid, matches the voter's country, and that country is European
+//   - (false, nil)   — number is invalid
+//   - (false, error) — number is valid but either belongs to a different country or the country is not European
+func checkPhoneNum(num string, country string) (bool, error) {
+	// Parse the number using the voter's country as the default region so that
+	// local (non-E.164) numbers are still understood correctly.
+	parsed, err := phonenumbers.Parse(num, country)
+	if err != nil {
+		// Could not be parsed at all — not a valid phone number.
+		return false, nil
+	}
+
+	// Check 1 — is the number itself structurally valid?
+	if !phonenumbers.IsValidNumber(parsed) {
+		return false, nil
+	}
+
+	// Check 2 — does the number belong to the same country the voter declared?
+	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
+	if numRegion != country {
+		return false, fmt.Errorf("phone number region %q does not match voter country %q", numRegion, country)
+	}
+
+	// Check 3 — is that country a European / ESC-participating nation?
+	if !europeanCountryCodes[numRegion] {
+		return false, fmt.Errorf("country %q is not a valid European / ESC-participating country", numRegion)
+	}
+
+	return true, nil
+}
+
 func hashPassword(password string) (string, error) {
 	sum := sha256.Sum256([]byte(password))
 	return fmt.Sprintf("%x", sum), nil
@@ -579,6 +665,25 @@ func vote(w http.ResponseWriter, r *http.Request) {
 
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
+
+	valid, phoneErr := checkPhoneNum(phone, ownCountry)
+	if !valid && phoneErr == nil {
+		logger.WarnContext(ctx, "invalid phone number provided", slog.String("phone", phone))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid phone number",
+		})
+		return
+	}
+	if !valid && phoneErr != nil {
+		logger.WarnContext(ctx, "phone number failed country/region check", slog.String("phone", phone), slog.Any("error", phoneErr))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": phoneErr.Error(),
+		})
+		return
+	}
+
 	phoneNum, _ := hashPassword(phone)
 	ID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(ID)
