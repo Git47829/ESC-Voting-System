@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -16,9 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
-
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -35,6 +36,8 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
+
+	"github.com/nyaruka/phonenumbers"
 )
 
 type Client struct {
@@ -445,15 +448,108 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// alpha3ToAlpha2 maps ISO 3166-1 alpha-3 codes (used as primary keys in the
+// Land table) to the alpha-2 codes expected by the phonenumbers library.
+var alpha3ToAlpha2 = map[string]string{
+	"ALB": "AL", // Albania
+	"ARM": "AM", // Armenia
+	"AUT": "AT", // Austria
+	"AZE": "AZ", // Azerbaijan
+	"BIH": "BA", // Bosnia and Herzegovina
+	"BEL": "BE", // Belgium
+	"BGR": "BG", // Bulgaria
+	"BLR": "BY", // Belarus
+	"CHE": "CH", // Switzerland
+	"CYP": "CY", // Cyprus
+	"CZE": "CZ", // Czech Republic
+	"DEU": "DE", // Germany
+	"DNK": "DK", // Denmark
+	"EST": "EE", // Estonia
+	"ESP": "ES", // Spain
+	"FIN": "FI", // Finland
+	"FRA": "FR", // France
+	"GBR": "GB", // United Kingdom
+	"GEO": "GE", // Georgia
+	"GRC": "GR", // Greece
+	"HRV": "HR", // Croatia
+	"HUN": "HU", // Hungary
+	"IRL": "IE", // Ireland
+	"ISR": "IL", // Israel
+	"ISL": "IS", // Iceland
+	"ITA": "IT", // Italy
+	"LTU": "LT", // Lithuania
+	"LUX": "LU", // Luxembourg
+	"LVA": "LV", // Latvia
+	"MCO": "MC", // Monaco
+	"MDA": "MD", // Moldova
+	"MNE": "ME", // Montenegro
+	"MKD": "MK", // North Macedonia
+	"MLT": "MT", // Malta
+	"NLD": "NL", // Netherlands
+	"NOR": "NO", // Norway
+	"POL": "PL", // Poland
+	"PRT": "PT", // Portugal
+	"ROU": "RO", // Romania
+	"SRB": "RS", // Serbia
+	"RUS": "RU", // Russia
+	"SWE": "SE", // Sweden
+	"SVN": "SI", // Slovenia
+	"SVK": "SK", // Slovakia
+	"SMR": "SM", // San Marino
+	"TUR": "TR", // Turkey
+	"UKR": "UA", // Ukraine
+}
+
+// checkPhoneNum validates a phone number and returns the alpha-3 country code
+// it belongs to (as used in the Land table), so the caller can enforce voting rules.
+//
+// Returns:
+//   - (alpha3, nil)   — number is valid and from a European / ESC-participating country
+//   - ("",    nil)    — number is structurally invalid
+//   - ("",    error)  — number is valid but not from a European / ESC-participating country
+func checkPhoneNum(num string) (string, error) {
+	// Parse without a region hint so the region is derived purely from the
+	// number itself (requires E.164 or an explicit country prefix).
+	parsed, err := phonenumbers.Parse(num, "")
+	if err != nil {
+		// Could not be parsed at all — not a valid phone number.
+		return "", nil
+	}
+
+	// Check 1 — is the number itself structurally valid?
+	if !phonenumbers.IsValidNumber(parsed) {
+		return "", nil
+	}
+
+	// Check 2 — is the number from a European / ESC-participating country?
+	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
+	alpha3 := regionAlpha2ToAlpha3(numRegion)
+	if alpha3 == "" {
+		return "", fmt.Errorf("phone number is not from a valid European / ESC-participating country (region: %q)", numRegion)
+	}
+
+	return alpha3, nil
+}
+
+// regionAlpha2ToAlpha3 reverses alpha3ToAlpha2 for a single lookup.
+// Returns an empty string if the alpha-2 code is not in the ESC map.
+func regionAlpha2ToAlpha3(alpha2 string) string {
+	for a3, a2 := range alpha3ToAlpha2 {
+		if a2 == alpha2 {
+			return a3
+		}
+	}
+	return ""
+}
+
 func hashPassword(password string) (string, error) {
-	// The cost parameter controls how slow the hash is
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	return string(bytes), err
+	sum := sha256.Sum256([]byte(password))
+	return fmt.Sprintf("%x", sum), nil
 }
 
 func checkPassword(password, hashedPassword string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
-	return err == nil
+	sum := sha256.Sum256([]byte(password))
+	return fmt.Sprintf("%x", sum) == hashedPassword
 }
 
 func checkAccessAdmin(input string) (bool, string) {
@@ -579,15 +675,26 @@ func vote(w http.ResponseWriter, r *http.Request) {
 
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
-	phoneNum, err := hashPassword(phone)
-	if err != nil {
-		logger.ErrorContext(ctx, "error hashing phonenumber", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
+
+	phoneCountry, phoneErr := checkPhoneNum(phone)
+	if phoneErr != nil {
+		logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.Any("error", phoneErr))
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "error hashing password",
+			"error": phoneErr.Error(),
 		})
 		return
 	}
+	if phoneCountry == "" {
+		logger.WarnContext(ctx, "invalid phone number provided", slog.String("phone", phone))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "invalid phone number",
+		})
+		return
+	}
+
+	phoneNum, _ := hashPassword(phone)
 	ID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(ID)
 	if err != nil {
@@ -612,21 +719,20 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	defer statusRows.Close()
 
 	type voteStatus struct {
-		VotingID   int        `json:"votingId"`
-		IsOpen     bool       `json:"isOpen"`
-		LastChange *time.Time `json:"lastChange,omitempty"`
+		VotingID   int    `json:"votingId"`
+		IsOpen     bool   `json:"isOpen"`
+		LastChange string `json:"lastChange,omitempty"`
 	}
 
 	for statusRows.Next() {
 		var v voteStatus
-		var lastChange sql.NullTime
+		var lastChange sql.NullString
 		if scanErr := statusRows.Scan(&v.VotingID, &v.IsOpen, &lastChange); scanErr != nil {
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", scanErr))
 			continue
 		}
 		if lastChange.Valid {
-			t := lastChange.Time
-			v.LastChange = &t
+			v.LastChange = lastChange.String
 		}
 		if !v.IsOpen {
 			w.WriteHeader(http.StatusTooEarly)
@@ -672,7 +778,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		songFound = true
-		if v.LandID == ownCountry {
+		if v.LandID == phoneCountry {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]any{
 				"error":   "cannot vote for your own country",
@@ -699,46 +805,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `SELECT EXISTS(SELECT 1 FROM Phone_Nums WHERE Phone_Number = ?)`
-	var alreadyVoted bool
-	if existsErr := db.QueryRowContext(ctx, query, phoneNum).Scan(&alreadyVoted); existsErr != nil {
-		logger.ErrorContext(ctx, "error querying phone number", slog.Any("error", existsErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "error querying DB",
-		})
-		return
-	}
-
-	if alreadyVoted {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "your vote has already been cast",
-		})
-		return
-	}
-
-	query = `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
-	result, insertErr := db.ExecContext(ctx, query, phoneNum)
-	if insertErr != nil {
-		logger.ErrorContext(ctx, "failed to record vote", slog.Any("error", insertErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to record vote",
-		})
-		return
-	}
-
-	if affectedRows, rowsErr := result.RowsAffected(); rowsErr != nil {
-		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", rowsErr))
-	} else if affectedRows == 0 {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to record vote",
-		})
-		return
-	}
-
 	const cookieName string = "vote_cookie"
 	const weightPublicVote int = 3
 
@@ -754,6 +820,36 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	query := `INSERT INTO Phone_Nums (Phone_Number) VALUES (?)`
+	result, insertErr := db.ExecContext(ctx, query, phoneNum)
+	if insertErr != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(insertErr, &mysqlErr) && mysqlErr.Number == 1062 {
+			logger.WarnContext(ctx, "duplicate vote attempt blocked", slog.String("phone_hash", phoneNum))
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "your vote has already been cast",
+			})
+			return
+		}
+		logger.ErrorContext(ctx, "failed to record phone number", slog.Any("error", insertErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	if affectedRows, rowsErr := result.RowsAffected(); rowsErr != nil {
+		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", rowsErr))
+	} else if affectedRows == 0 {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
 	}
 
 	token, _ := generateToken()
