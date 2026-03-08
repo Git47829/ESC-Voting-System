@@ -1,9 +1,10 @@
 # ESC Voting System – Caddy reverse proxy
-# Single HTTPS site on localhost with an internally-issued self-signed cert.
+# Listening on :443 (any hostname/IP) so Caddy issues a local cert for
+# whatever address the browser uses – hostname, IP, or localhost all work.
 # HTTP (port 80) redirects to HTTPS automatically.
 # OTel ingestion (4317/4318) is internal-only and not routed here.
 
-https://localhost {
+:443 {
 	tls internal
 
 	# ── Frontend (root) ───────────────────────────────────────────────────────
@@ -47,7 +48,7 @@ https://localhost {
 	}
 }
 
-# Redirect plain HTTP → HTTPS
-http://localhost {
-	redir https://localhost{uri} permanent
+# Redirect plain HTTP → HTTPS, preserving the host used by the client
+:80 {
+	redir https://{host}{uri} permanent
 }
