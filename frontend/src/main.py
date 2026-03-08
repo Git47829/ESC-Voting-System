@@ -60,6 +60,32 @@ def api_get(endpoint):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
+def api_get_auth(endpoint, params=None):
+    """GET the backend API with query params, returning (status_code, json_body).
+
+    Unlike api_get this never raises on non-2xx responses, making it suitable
+    for authentication endpoints where the status code carries meaning.
+    """
+    t0 = time.perf_counter()
+    status_code = 500
+    try:
+        resp = requests.get(
+            f"{API_BASE}{endpoint}",
+            params=params or {},
+            timeout=API_TIMEOUT,
+        )
+        status_code = resp.status_code
+        return resp.status_code, resp.json()
+    except requests.exceptions.RequestException as e:
+        app.logger.error(
+            "backend auth GET failed",
+            extra={"api.endpoint": endpoint, "error": str(e)},
+        )
+        return 500, {"error": str(e)}
+    finally:
+        record_backend_call(endpoint, status_code, time.perf_counter() - t0)
+
+
 def api_post(endpoint, params=None, cookies=None):
     """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
@@ -247,12 +273,22 @@ def login():
         return render_template("login.html"), 401
 
     if role == "admin":
+        status, data = api_get_auth("/admin/authenticate", params={"Token": token})
+        if status != 202:
+            app.logger.warning("failed admin login attempt")
+            flash(data.get("error", "Invalid token."), "error")
+            return render_template("login.html"), 401
         session["token"] = token
         session["role"] = "admin"
         set_active_sessions(1)
         app.logger.info("admin login", extra={"role": "admin"})
         return redirect(url_for("admin_dashboard"))
     elif role == "jury":
+        status, data = api_get_auth("/jury/authenticate", params={"Token": token})
+        if status != 202:
+            app.logger.warning("failed jury login attempt")
+            flash(data.get("error", "Invalid token."), "error")
+            return render_template("login.html"), 401
         session["token"] = token
         session["role"] = "jury"
         set_active_sessions(1)

@@ -9,7 +9,7 @@ The primary backend service for the ESC Voting System. A REST + gRPC server writ
 | Language | Go 1.24 |
 | HTTP Router | `net/http` (stdlib) |
 | Database Driver | `github.com/go-sql-driver/mysql` v1.9 |
-| Password Hashing | `golang.org/x/crypto` (bcrypt) |
+| Token Comparison | `crypto/subtle` (constant-time) |
 | Rate Limiting | `golang.org/x/time/rate` (token bucket) |
 | Tracing | OpenTelemetry SDK v1.40 — OTLP/HTTP exporter |
 | Metrics | `prometheus/client_golang` v1.23 (promauto) |
@@ -63,12 +63,14 @@ CRUD-DB-API/
 | `POST` | `/admin/addSong/` | Add a new song entry |
 | `POST` | `/admin/addArtist/` | Add a new artist (`Kuenstler`) |
 | `POST` | `/admin/addInterpret/` | Add a new composer (`Komponist`) |
+| `GET` | `/admin/authenticate` | Validate an admin token — returns `202` on success, `403` on failure |
 
 ### Jury (token required via `?Token=` query param)
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/jury/vote/` | Cast a jury vote with a specific point value |
+| `GET` | `/jury/authenticate` | Validate a jury token — returns `202` on success, `403` on failure |
 
 ## Rate Limits
 
@@ -80,6 +82,8 @@ Per-IP token-bucket rate limiting is applied globally via `RateLimitingMiddlewar
 | `GET /votes/`, `/countries/`, `/songs/` | 10 | 20 |
 | `POST /vote/` | 1 | 1 |
 | `POST /jury/vote/` | 5 | 5 |
+| `GET /admin/authenticate` | 5 | 5 |
+| `GET /jury/authenticate` | 5 | 5 |
 | `POST /admin/open/`, `/admin/close` | 2 | 2 |
 | `POST /admin/add*` | 5 | 5 |
 | `DELETE /admin/deleteVotes/` | 1 | 1 |
@@ -125,7 +129,22 @@ The [EuroStats](../EuroStats/README.md) service connects as a gRPC client and co
 
 ## Authentication
 
-Admin and jury endpoints verify a shared token passed as `?Token=<value>`. Tokens are checked against a bcrypt-hashed value and, once used (for certain operations), are stored in an in-memory set to prevent replay. Password hashing uses `bcrypt` with the default cost.
+Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The incoming token is compared against the corresponding environment variable using a **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks. The environment variables hold the **plaintext** token values.
+
+| Endpoint | Checked against | Environment variable(s) |
+|---|---|---|
+| `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (plaintext token) |
+| `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (plaintext tokens) |
+
+The dedicated authenticate endpoints (`GET /admin/authenticate`, `GET /jury/authenticate`) are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
+
+> **Example `.env` entries:**
+> ```
+> adminPassword=my-secret-admin-token
+> juryPassword1=jury-token-one
+> juryPassword2=jury-token-two
+> juryPassword3=jury-token-three
+> ```
 
 ## Voting Logic (`POST /vote/`)
 
@@ -145,4 +164,8 @@ Admin and jury endpoints verify a shared token passed as `?Token=<value>`. Token
 | `DB_NAME` | `esc_voting` | Database name |
 | `DB_USER` | `root` | Database user |
 | `DB_PASS` | *(empty)* | Database password |
+| `adminPassword` | *(required)* | Plaintext admin token |
+| `juryPassword1` | *(required)* | Plaintext jury token #1 |
+| `juryPassword2` | *(optional)* | Plaintext jury token #2 |
+| `juryPassword3` | *(optional)* | Plaintext jury token #3 |
 | `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` | `localhost:4318` | OTel Collector HTTP endpoint |

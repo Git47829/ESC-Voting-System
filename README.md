@@ -137,6 +137,7 @@ Password: admin
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
+| `GET` | `/admin/authenticate` | Admin token | Validate an admin token — `202` on success, `403` on failure |
 | `POST` | `/admin/open/` | Admin token | Open voting |
 | `POST` | `/admin/close` | Admin token | Close voting |
 | `DELETE` | `/admin/deleteVotes/` | Admin token | Reset all votes |
@@ -144,6 +145,7 @@ Password: admin
 | `POST` | `/admin/addSong/` | Admin token | Add a song |
 | `POST` | `/admin/addArtist/` | Admin token | Add an artist |
 | `POST` | `/admin/addInterpret/` | Admin token | Add a composer |
+| `GET` | `/jury/authenticate` | Jury token | Validate a jury token — `202` on success, `403` on failure |
 | `POST` | `/jury/vote/` | Jury token | Cast a jury vote |
 
 ### EuroStats Endpoints (port 8881)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -547,9 +548,8 @@ func hashPassword(password string) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func checkPassword(password, hashedPassword string) bool {
-	sum := sha256.Sum256([]byte(password))
-	return fmt.Sprintf("%x", sum) == hashedPassword
+func checkPassword(password, storedToken string) bool {
+	return subtle.ConstantTimeCompare([]byte(password), []byte(storedToken)) == 1
 }
 
 func checkAccessAdmin(input string) (bool, string) {
@@ -559,15 +559,11 @@ func checkAccessAdmin(input string) (bool, string) {
 	if input == "" {
 		return false, "Token has to be provided"
 	}
-	if checkPassword(input, adminPassword) != true {
-		return false, "Wrong Token provided"
+	if checkPassword(input, adminPassword) {
+		return true, "Authorized"
 	}
 
-	if checkPassword(input, adminPassword) == true {
-		return true, "Autorized"
-	}
-
-	return false, "Error Processing Token"
+	return false, "Wrong Token provided"
 }
 
 func checkAccessJury(input string) (bool, string) {
@@ -1786,6 +1782,58 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func adminLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+
+	authenticated, message := checkAccessAdmin(token)
+
+	if authenticated == true {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+		return
+	}
+	if authenticated == false {
+		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": message,
+		})
+		return
+	}
+}
+
+func juryLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+
+	authenticated, message := checkAccessJury(token)
+
+	if authenticated == true {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+		return
+	}
+	if authenticated == false {
+		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": message,
+		})
+		return
+	}
+}
+
 var (
 	maxDBAttempts  = 60
 	dbAttemptDelay = time.Second * 3
@@ -1905,6 +1953,8 @@ func main() {
 	router.HandleFunc("POST /admin/addArtist/", addArtist)
 	router.HandleFunc("POST /admin/addInterpret/", addInterpret)
 	router.HandleFunc("POST /jury/vote/", juryVote)
+	router.HandleFunc("GET /admin/authenticate", adminLogin)
+	router.HandleFunc("GET /jury/authenticate", juryLogin)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
