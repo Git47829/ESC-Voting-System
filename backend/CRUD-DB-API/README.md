@@ -20,8 +20,23 @@ The primary backend service for the ESC Voting System. A REST + gRPC server writ
 
 | Port | Protocol | Purpose |
 |---|---|---|
-| `8000` | HTTP | REST API + Prometheus metrics |
-| `50051` | gRPC | Vote streaming (`VoteService`) |
+| `8000` | HTTP | REST API + Prometheus metrics (internal only — not exposed to host) |
+| `50051` | gRPC | Vote streaming (`VoteService`) (internal only) |
+
+All external access is routed through Caddy. See the [root README](../../README.md) for URLs.
+
+## Container
+
+The service is built as a **multi-stage Docker image**:
+
+1. **Builder stage** — uses `golang:latest` to compile a fully static binary (`CGO_ENABLED=0`) and a small static healthcheck binary.
+2. **Runtime stage** — uses `gcr.io/distroless/static-debian12:nonroot`, a minimal image with no shell, no package manager, and no root user. The final image is ~5 MB.
+
+The container runs as UID `65532` (`nonroot`) and is never started as root.
+
+### Healthcheck
+
+A dedicated `/healthcheck` binary is compiled in the builder stage and copied into the distroless image. It performs an `http.Get` to `localhost:8000/health` and exits `0` on success or `1` on failure. This is necessary because `distroless` provides no shell utilities such as `curl` or `wget`.
 
 ## Project Structure
 
@@ -129,14 +144,14 @@ The [EuroStats](../EuroStats/README.md) service connects as a gRPC client and co
 
 ## Authentication
 
-Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The incoming token is compared against the corresponding environment variable using a **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks. The environment variables hold the **plaintext** token values.
+Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The incoming token is compared against the corresponding environment variable using a **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks.
 
 | Endpoint | Checked against | Environment variable(s) |
 |---|---|---|
 | `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (plaintext token) |
 | `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (plaintext tokens) |
 
-The dedicated authenticate endpoints (`GET /admin/authenticate`, `GET /jury/authenticate`) are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
+The dedicated authenticate endpoints are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
 
 > **Example `.env` entries:**
 > ```

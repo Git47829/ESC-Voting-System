@@ -1,12 +1,8 @@
-version: "3.3"
-
 services:
   db:
     build: ./backend/DB/
     container_name: escmysql
     restart: unless-stopped
-    ports:
-      - "3306:3306"
     env_file:
       - .env
     environment:
@@ -30,8 +26,6 @@ services:
     build: ./backend/CRUD-DB-API/
     container_name: db-crud-api
     restart: unless-stopped
-    ports:
-      - 8000
     env_file:
       - .env
     environment:
@@ -42,13 +36,16 @@ services:
       DB_PASS: esc_password
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "/healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - backend
       - frontend
@@ -58,14 +55,11 @@ services:
     build: ./frontend/
     container_name: esc-frontend
     restart: unless-stopped
-    ports:
-      - "5000:5000"
     environment:
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-esc-voting-secret-change-me}
       API_BASE_URL: http://db-crud-api:8000
       API_TIMEOUT: 10
       FLASK_PORT: 5000
-      # OpenTelemetry
       OTEL_SERVICE_NAME: esc-voting-frontend
       OTEL_SERVICE_VERSION: "1.0.0"
       OTEL_ENVIRONMENT: production
@@ -91,15 +85,16 @@ services:
       context: ./backend/EuroStats
       dockerfile: Dockerfile
     container_name: eurostats
-    ports:
-      - "8881:8880"
     environment:
       - GRPC_HOST=db-crud-api
       - GRPC_PORT=50051
       - LOG_LEVEL=INFO
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - backend
       - observability
@@ -122,17 +117,10 @@ services:
     command: ["--config=/etc/otel/otel-collector.yml"]
     volumes:
       - ./backend/Observability/OTel/src/otel-collector.yml:/etc/otel/otel-collector.yml:ro
-    ports:
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-      - "9464:9464" # Prometheus scrape endpoint
-      - "8888:8888" # OTel collector internal metrics
     networks:
       - observability
     depends_on:
       db:
-        condition: service_healthy
-      api:
         condition: service_healthy
 
   prometheus:
@@ -140,10 +128,9 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--web.enable-remote-write-receiver"
+      - "--web.route-prefix=/"
     volumes:
       - ./backend/Observability/Prometheus/src/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    ports:
-      - "9090:9090"
     networks:
       - observability
     depends_on:
@@ -151,11 +138,12 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.2
+    environment:
+      GF_SERVER_ROOT_URL: https://localhost/grafana
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./backend/Observability/grafana/src/provisioning:/etc/grafana/provisioning:ro
-    ports:
-      - "3000:3000"
     networks:
       - observability
     depends_on:
@@ -165,8 +153,6 @@ services:
   loki:
     image: grafana/loki:2.9.6
     command: -config.file=/etc/loki/local-config.yaml
-    ports:
-      - "3100:3100"
     networks:
       - observability
     volumes:
@@ -185,19 +171,43 @@ services:
     volumes:
       - ./backend/Observability/Tempo/src/tempo.yml:/etc/tempo.yaml:ro
       - tempo_data:/tmp/tempo
-    ports:
-      - "3200:3200"
     networks:
       - observability
     depends_on:
       tempo-init:
         condition: service_completed_successfully
 
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: caddy
+    restart: unless-stopped
+    volumes:
+      - ./backend/Caddy/src/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - frontend
+      - observability
+    depends_on:
+      - frontend
+      - api
+      - eurostats
+      - grafana
+      - prometheus
+      - tempo
+      - loki
+      - otel-collector
+
 volumes:
   mysql_data:
   grafana_data:
   loki_data:
   tempo_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   backend:

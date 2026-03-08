@@ -1,0 +1,63 @@
+# ESC Voting System – Caddy reverse proxy
+# https:// (bare scheme) matches all HTTPS connections regardless of hostname
+# or IP, and tls internal + on_demand issues a local CA cert at handshake
+# time for whatever identifier the client presents.
+# HTTP (port 80) redirects to HTTPS automatically.
+# OTel ingestion (4317/4318) is internal-only and not routed here.
+
+{
+	pki {
+		ca local {
+			name "ESC Voting Local CA"
+		}
+	}
+}
+
+https:// {
+	tls internal {
+		on_demand
+	}
+
+	# ── Frontend (root) ───────────────────────────────────────────────────────
+	# Catch-all, must be last so more specific handles below take priority.
+	handle {
+		reverse_proxy esc-frontend:5000
+	}
+
+	# ── CRUD REST API ─────────────────────────────────────────────────────────
+	handle_path /crud-api/* {
+		reverse_proxy db-crud-api:8000
+	}
+
+	# ── EuroStats ─────────────────────────────────────────────────────────────
+	handle_path /eurostats/* {
+		reverse_proxy eurostats:8880
+	}
+
+	# ── Grafana ───────────────────────────────────────────────────────────────
+	# No prefix strip – Grafana serves under /grafana via GF_SERVER_ROOT_URL.
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
+	# ── Prometheus ────────────────────────────────────────────────────────────
+	# Strip /prometheus prefix before forwarding – Prometheus serves at / internally.
+	handle_path /prometheus* {
+		reverse_proxy prometheus:9090
+	}
+
+	# ── Tempo ─────────────────────────────────────────────────────────────────
+	handle_path /tempo/* {
+		reverse_proxy tempo:3200
+	}
+
+	# ── Loki ──────────────────────────────────────────────────────────────────
+	handle_path /loki/* {
+		reverse_proxy loki:3100
+	}
+}
+
+# Redirect plain HTTP → HTTPS, preserving the host used by the client.
+http:// {
+	redir https://{host}{uri} permanent
+}
