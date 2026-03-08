@@ -84,6 +84,15 @@ Streams individual vote events as JSON objects:
 }
 ```
 
+## Accessing the Service
+
+EuroStats has **no port exposed directly to the host**. All external access goes through Caddy:
+
+| Access method | URL |
+|---|---|
+| Via Caddy (external) | `https://<host>/eurostats/votes/subscribe` |
+| Direct (internal Docker network only) | `http://eurostats:8880` |
+
 ## Project Structure
 
 ```
@@ -101,11 +110,17 @@ EuroStats/
     └── telemetry.py         # OpenTelemetry tracing + metrics setup
 ```
 
+## Docker
+
+The image is built in a single stage from `python:3.11-slim`. A dedicated non-root user (`appuser`, UID 1001) is created at build time and all application files are owned by that user. The container runs entirely as `appuser` — it never has root access at runtime.
+
+Port `8880` is not published to the host. The container is reachable only from other services on the shared Docker networks (`backend`, `observability`).
+
 ## gRPC Consumer
 
 `VoteStreamConsumer` manages the connection to the CRUD API's `VoteService` gRPC server:
 
-- **`connect()`** — opens a secure async gRPC channel to `crud-db-api:50051`
+- **`connect()`** — opens an async gRPC channel to `crud-db-api:50051`
 - **`subscribe_to_votes(include_historical)`** — async generator that yields `Vote` messages from the `StreamVotes` RPC
 - **`process_votes(fn)`** — convenience wrapper to apply an async callback to each incoming vote
 - **`disconnect()`** — gracefully closes the channel on shutdown

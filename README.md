@@ -1,64 +1,64 @@
 # ESC Voting System
 
-A distributed voting system for the Eurovision Song Contest, featuring a modern web frontend, a Go REST + gRPC backend, real-time vote streaming, and a full observability stack with tracing, metrics, and log aggregation.
+A distributed voting system for the Eurovision Song Contest, featuring a modern web frontend, a Go REST + gRPC backend, real-time vote streaming, a full observability stack with tracing, metrics, and log aggregation — all served through a Caddy HTTPS reverse proxy.
 
 ## 🏗️ System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Frontend Layer                          │
-│                Flask + Jinja2 + Tailwind CSS                    │
-│               Port 5000 — served by Gunicorn                    │
-└────────────────────────────────┬────────────────────────────────┘
-                                 │ REST (HTTP)
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       Backend Services                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────────────────────┐                           │
-│  │   CRUD DB API (Go)               │                           │
-│  │   • Port 8000  — REST API        │                           │
-│  │   • Port 50051 — gRPC streaming  │                           │
-│  │   • Rate limiting (token bucket) │                           │
-│  │   • bcrypt token auth            │                           │
-│  │   • OpenTelemetry tracing        │                           │
-│  │   • Prometheus metrics           │                           │
-│  └──────────┬───────────────────────┘                           │
-│             │ SQL                    │ gRPC StreamVotes         │
-│  ┌──────────▼────────────┐  ┌───────▼────────────────────────┐  │
-│  │   MySQL 8.0           │  │   EuroStats (Python/FastAPI)   │  │
-│  │   Port 3306           │  │   Port 8880 (8881 on host)     │  │
-│  │   ESC data model      │  │   REST + WebSocket endpoints   │  │
-│  │   Vote persistence    │  │   Real-time vote consumer      │  │
-│  └───────────────────────┘  └────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                                 │ OTLP
-                                 ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Observability Stack                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌───────┐   │
-│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │ Loki  │   │
-│  │ 4317/4318/9464   │─►│   9090     │  │  3200   │  │ 3100  │   │
-│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └───┬───┘   │
-│                              └──────────────┼────────────┘      │
-│                                             ▼                   │
-│                                    ┌─────────────┐              │
-│                                    │   Grafana   │              │
-│                                    │    3000     │              │
-│                                    └─────────────┘              │
-└─────────────────────────────────────────────────────────────────┘
+                         ┌─────────────────────────────┐
+                         │          Caddy              │
+                         │   HTTPS reverse proxy       │
+                         │   Ports 80 (→443) + 443     │
+                         │   tls internal (local CA)   │
+                         └──────────────┬──────────────┘
+                                        │ routes by subpath
+          ┌─────────────────────────────┼──────────────────────────────┐
+          │ /                           │ /crud-api/   /eurostats/     │
+          ▼                             ▼              ▼               │
+┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐   │
+│     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │   │
+│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │   │
+│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │   │
+└──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘   │
+           │                         │ SQL               │           │
+           │                         ▼                   │           │
+           │               ┌──────────────────┐          │           │
+           │               │   MySQL 8.0      │          │           │
+           │               │   Port 3306      │          │           │
+           │               └──────────────────┘          │           │
+           │                                             │           │
+           │  /grafana  /prometheus  /tempo  /loki       │           │
+           └─────────────────────────────────────────────┘           │
+                                        │                            │
+                                        ▼                            │
+┌───────────────────────────────────────────────────────────────────┐│
+│                        Observability Stack                        ││
+├───────────────────────────────────────────────────────────────────┤│
+│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌──────────┐  ││
+│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki    │  ││
+│  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100    │  ││
+│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬─────┘  ││
+│                              └──────────────┼─────────────┘        ││
+│                                             ▼                      ││
+│                                    ┌─────────────┐                 ││
+│                                    │   Grafana   │                 ││
+│                                    │    3000     │                 ││
+│                                    └─────────────┘                 ││
+└───────────────────────────────────────────────────────────────────┘│
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ## ✨ Key Features
 
 ### 🔐 Security & Access Control
+- **HTTPS everywhere** — Caddy is the sole external entry point; all services are unreachable directly from outside Docker. TLS is provided by Caddy's built-in local CA (`tls internal`).
 - **Multi-tier Authentication** — Admin, Jury, and Public user roles
 - **bcrypt Password Hashing** — Secure credential storage and token validation
 - **Phone Number Verification** — One vote per phone number (bcrypt-hashed in DB)
 - **Cookie-based Vote Tracking** — Prevents duplicate voting from the same browser
 - **Token Replay Prevention** — Used tokens are tracked in-memory to block reuse
 - **Rate Limiting** — Per-IP token-bucket rate limiting on every endpoint
+- **Non-root containers** — CRUD API runs in a minimal distroless image; EuroStats runs as a dedicated `appuser` (UID 1001)
 
 ### 📡 Real-time Vote Streaming
 - **gRPC VoteService** — The CRUD API exposes a `StreamVotes` server-side streaming RPC on port `50051`
@@ -81,31 +81,102 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 
 ## 🛠️ Components
 
-| Service | Technology | Port | README |
+| Service | Technology | Internal Port | README |
 |---|---|---|---|
+| Caddy | `caddy:2.8-alpine` | 80, 443 | — |
 | Frontend | Python 3.12, Flask 3.x, Gunicorn, Tailwind CSS | 5000 | [frontend/README.md](frontend/README.md) |
 | CRUD DB API | Go 1.24, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
-| EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8881 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
-| MySQL | MySQL 8.0 | 3306 | [backend/DB/README.md](backend/DB/README.md) |
+| EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8880 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
+| MySQL | MySQL 8.0 | 3306 | — |
 | Observability | OTel Collector, Prometheus, Grafana, Loki, Tempo | 4317–4318, 9090, 3000, 3100, 3200 | [backend/Observability/README.md](backend/Observability/README.md) |
 
-### Service URLs
+## 🌐 Service URLs
+
+All services are accessed through Caddy on a single HTTPS host. Replace `<host>` with the IP address or hostname of the machine running Docker.
 
 | Service | URL |
 |---|---|
-| Frontend (Voting UI) | http://localhost:5000 |
-| CRUD DB API | http://localhost:8000 |
-| EuroStats | http://localhost:8881 |
-| Grafana | http://localhost:3000 |
-| Prometheus | http://localhost:9090 |
-| Loki | http://localhost:3100 |
-| Tempo | http://localhost:3200 |
+| Frontend (Voting UI) | `https://<host>/` |
+| CRUD DB API (direct access) | `https://<host>/crud-api/` |
+| EuroStats | `https://<host>/eurostats/` |
+| Grafana | `https://<host>/grafana/` |
+| Prometheus | `https://<host>/prometheus/` |
+| Tempo | `https://<host>/tempo/` |
+| Loki | `https://<host>/loki/` |
+
+> **Note:** Plain HTTP (`http://<host>`) redirects automatically to HTTPS.
+
+### HTTPS / Certificate Trust
+
+Caddy uses its built-in local CA to issue a self-signed certificate. Your browser will show a security warning until you trust the CA cert. To install it:
+
+```bash
+# Copy the CA cert out of the running Caddy container
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-local-ca.crt
+
+# macOS
+sudo security add-trusted-cert -d -r trustRoot \
+  -k /Library/Keychains/System.keychain ./caddy-local-ca.crt
+
+# Linux (Debian/Ubuntu)
+sudo cp caddy-local-ca.crt /usr/local/share/ca-certificates/
+sudo update-ca-certificates
+
+# Windows: double-click caddy-local-ca.crt →
+#   Install Certificate → Local Machine →
+#   Trusted Root Certification Authorities
+```
+
+Firefox maintains its own trust store — go to **Settings → Privacy & Security → Certificates → View Certificates → Authorities → Import**.
 
 ### Default Grafana Login
 
 ```
 Username: admin
 Password: admin
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Docker + Docker Compose v2
+- A `.env` file in the project root (see below)
+
+### Environment Variables (`.env`)
+
+```env
+# MySQL
+MYSQL_ROOT_PASSWORD=secretroot
+
+# Admin / Jury tokens — change these before deploying
+adminPassword=change-me-admin
+juryPassword1=change-me-jury-1
+juryPassword2=change-me-jury-2
+juryPassword3=change-me-jury-3
+
+# Flask
+FLASK_SECRET_KEY=change-me-flask-secret
+```
+
+### Running
+
+```bash
+docker compose up -d --build
+```
+
+Then open `https://<host>/` in your browser (accept or trust the certificate on first visit).
+
+### Stopping
+
+```bash
+docker compose down
+```
+
+To also remove all persistent data volumes:
+
+```bash
+docker compose down -v
 ```
 
 ## 🗄️ Database Schema
@@ -122,7 +193,9 @@ Password: admin
 
 ## 📡 API Overview
 
-### Public Endpoints (CRUD API — port 8000)
+All API paths below are relative to the CRUD API's internal address (`db-crud-api:8000`). When accessed externally via Caddy, prefix them with `/crud-api/` — e.g. `https://<host>/crud-api/votes/`.
+
+### Public Endpoints
 
 | Method | Path | Description |
 |---|---|---|
@@ -148,7 +221,9 @@ Password: admin
 | `GET` | `/jury/authenticate` | Jury token | Validate a jury token — `202` on success, `403` on failure |
 | `POST` | `/jury/vote/` | Jury token | Cast a jury vote |
 
-### EuroStats Endpoints (port 8881)
+### EuroStats Endpoints
+
+Accessible externally at `https://<host>/eurostats/`.
 
 | Method | Path | Description |
 |---|---|---|
@@ -158,11 +233,13 @@ Password: admin
 
 ## 🐳 Docker Networks
 
+Services communicate over isolated Docker networks. No service other than Caddy has ports bound on the host.
+
 | Network | Connected Services |
 |---|---|
 | `backend` | `db`, `api`, `eurostats` |
-| `frontend` | `api`, `frontend` |
-| `observability` | `api`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo` |
+| `frontend` | `api`, `frontend`, `caddy` |
+| `observability` | `api`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo`, `caddy` |
 
 ## 🔭 Observability Pipeline
 
@@ -173,4 +250,4 @@ EuroStats ──OTLP/gRPC──►                 ──► Prometheus  (metric
                                          ──► Loki        (logs)
                                                 │
                                                 └──► Grafana (unified view)
-```
+                                                     https://<host>/grafana/

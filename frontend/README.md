@@ -14,6 +14,20 @@ Flask + Jinja2 + Tailwind CSS (CDN) frontend for the Eurovision Song Contest Vot
 
 **Fonts:** Syne (headings) + DM Mono (body/labels) — loaded from Google Fonts.
 
+## Access
+
+The frontend is not exposed directly. All traffic is routed through the Caddy reverse proxy:
+
+| URL | Description |
+|-----|-------------|
+| `https://<host>/` | Main voting UI |
+| `https://<host>/results` | Live results page |
+| `https://<host>/login` | Login page |
+| `https://<host>/admin` | Admin dashboard |
+| `https://<host>/jury` | Jury voting page |
+
+Caddy handles TLS termination using its internal CA. See the [Caddy README](../Caddy/README.md) for instructions on trusting the certificate.
+
 ## Pages
 
 | Route          | Page            | Auth         | Description                                                   |
@@ -24,8 +38,10 @@ Flask + Jinja2 + Tailwind CSS (CDN) frontend for the Eurovision Song Contest Vot
 | `/admin`       | Admin Dashboard | Admin token  | Toggle voting, reset votes, add country / artist / song       |
 | `/jury`        | Jury Vote       | Jury token   | Eurovision-style point selector (1–8, 10, 12)                 |
 | `/health`      | Health Check    | Public       | Returns `200 OK` — used by Docker Compose healthcheck         |
-| `/api/results` | Results JSON    | Public       | JSON endpoint polled by the results page every 10 s           |
+| `/api/results` | Results JSON    | Public       | JSON endpoint polled by the results page every 10 s. Served by the frontend itself — **not** proxied to the CRUD API. |
 | `/*`           | Error Pages     | —            | 403, 404, 500 with [http.cat](https://http.cat) images        |
+
+> **Note:** `/api/results` is a frontend-internal route. Caddy's `/crud-api/*` proxy rule targets the CRUD DB API and uses a different prefix specifically to avoid colliding with this namespace.
 
 ## Tech Stack
 
@@ -59,7 +75,6 @@ frontend/
         └── error.html       # Error page (403, 404, 500)
 ```
 
-
 ## Observability
 
 Telemetry is initialised in `telemetry.py` immediately after the Flask app object is created (before any routes are registered), ensuring all requests are instrumented:
@@ -89,6 +104,8 @@ Telemetry is initialised in `telemetry.py` immediately after the Flask app objec
 | `POST`   | `/admin/addArtist/`    | Admin              | Add a new artist              |
 | `POST`   | `/admin/addSong/`      | Admin              | Add a new song                |
 
+All backend calls go directly to `db-crud-api:8000` over the internal Docker `frontend` network — they do not go through Caddy.
+
 ## Shared Components
 
 - **Navbar** — Logo left, nav links right, voting status pill (OPEN / CLOSED)
@@ -115,3 +132,7 @@ On login form submission, the token is verified against the backend **before** a
 The backend returns `HTTP 202` on success or `HTTP 403` with an error message on failure. Only a `202` response causes the session to be established; any other response surfaces the backend's error message to the user via a flash notification and leaves the session untouched.
 
 Tokens are passed through to the backend API via query parameters on subsequent protected requests (e.g. open/close voting, jury vote submission).
+
+## Container Security
+
+The frontend container runs as a **non-root user** (`appuser`, UID 1001). The container has no exposed ports — all external traffic is routed through Caddy.

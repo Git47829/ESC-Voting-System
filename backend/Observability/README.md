@@ -2,15 +2,17 @@
 
 Full observability stack for the ESC Voting System, providing distributed tracing, metrics collection, log aggregation, and dashboards.
 
+All observability services are **internal-only** — no ports are exposed directly to the host. Access is provided exclusively through the Caddy reverse proxy over HTTPS.
+
 ## Components
 
-| Service | Image | Port(s) | Purpose |
-|---|---|---|---|
-| OTel Collector | `otel/opentelemetry-collector-contrib:0.94.0` | 4317 (gRPC), 4318 (HTTP), 9464 (Prometheus) | Receives telemetry from all services and fans it out to backends |
-| Prometheus | `prom/prometheus:v2.51.1` | 9090 | Scrapes metrics from the OTel Collector; stores and queries them |
-| Grafana | `grafana/grafana:10.4.2` | 3000 | Dashboards, alerting, and unified querying of all data sources |
-| Loki | `grafana/loki:2.9.6` | 3100 | Log aggregation and querying |
-| Tempo | `grafana/tempo:2.4.2` | 3200 | Distributed trace storage and querying |
+| Service | Image | Internal Port | Caddy Subpath | Purpose |
+|---|---|---|---|---|
+| OTel Collector | `otel/opentelemetry-collector-contrib:0.94.0` | 4317 (gRPC), 4318 (HTTP) | Internal only | Receives telemetry from all services and fans it out to backends |
+| Prometheus | `prom/prometheus:v2.51.1` | 9090 | `/prometheus` | Scrapes metrics from the OTel Collector; stores and queries them |
+| Grafana | `grafana/grafana:10.4.2` | 3000 | `/grafana` | Dashboards, alerting, and unified querying of all data sources |
+| Loki | `grafana/loki:2.9.6` | 3100 | `/loki` | Log aggregation and querying |
+| Tempo | `grafana/tempo:2.4.2` | 3200 | `/tempo` | Distributed trace storage and querying |
 
 ## Architecture
 
@@ -26,21 +28,49 @@ Full observability stack for the ESC Voting System, providing distributed tracin
               │    OTel Collector      │
               │    4317 (gRPC)         │
               │    4318 (HTTP)         │
-              │    9464 (scrape)       │
+              │    (internal only)     │
               └───────────┬────────────┘
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
    ┌────────────┐  ┌────────────┐  ┌────────────┐
    │ Prometheus │  │   Tempo    │  │    Loki    │
-   │   9090     │  │   3200     │  │   3100     │
+   │  (9090)    │  │  (3200)    │  │  (3100)    │
+   │ /prometheus│  │  /tempo    │  │  /loki     │
    └─────┬──────┘  └─────┬──────┘  └─────┬──────┘
          └───────────────┼────────────────┘
                          ▼
                  ┌───────────────┐
                  │    Grafana    │
-                 │    3000       │
+                 │    (3000)     │
+                 │   /grafana    │
+                 └───────┬───────┘
+                         │ HTTPS (via Caddy)
+                         ▼
+                 ┌───────────────┐
+                 │     Caddy     │
+                 │  443 / 80     │
                  └───────────────┘
+```
+
+## Accessing the Stack
+
+All URLs are relative to the server's hostname or IP address. Replace `<host>` with `localhost` or your LAN IP.
+
+| Service | URL |
+|---|---|
+| Grafana | `https://<host>/grafana` |
+| Prometheus | `https://<host>/prometheus` |
+| Tempo | `https://<host>/tempo` |
+| Loki | `https://<host>/loki` |
+
+> **Note:** The OTel Collector's ingestion ports (4317/4318) are not exposed externally. Application services push telemetry directly to `otel-collector:4317` / `otel-collector:4318` over the internal `observability` Docker network.
+
+### Default Grafana Login
+
+```
+Username: admin
+Password: admin
 ```
 
 ## Service Details
@@ -51,31 +81,44 @@ Configured via `OTel/src/otel-collector.yml`. Acts as the central telemetry hub:
 
 - **Receivers** — accepts OTLP over gRPC (`:4317`) and HTTP (`:4318`)
 - **Exporters** — forwards traces to Tempo, metrics to Prometheus (scraped at `:9464`), and logs to Loki
-- **Processors** — batch processor for efficient downstream delivery
+- **Processors** — `batch` processor for efficient downstream delivery; `resource/loki_labels` and `attributes/loki_labels` processors promote `service.name`, `traceID`, `spanID`, and `level` to Loki stream labels for efficient querying and trace-to-log correlation
 
 ### Prometheus
 
-Configured via `Prometheus/src/prometheus.yml`. Scrapes the OTel Collector's Prometheus endpoint (`:9464`) to ingest metrics from all instrumented services. Accessible at [http://localhost:9090](http://localhost:9090).
+Configured via `Prometheus/src/prometheus.yml`. Scrapes the following targets every 15 s:
+
+| Job | Target |
+|---|---|
+| `otel-collector` | `otel-collector:9464` — application metrics forwarded by the collector |
+| `otel-collector-internal` | `otel-collector:8888` — collector self-metrics |
+| `esc-frontend` | `esc-frontend:5000/metrics` |
+| `esc-crud-api` | `db-crud-api:8000/metrics/` |
+| `loki` | `loki:3100/metrics` |
+| `tempo` | `tempo:3200/metrics` |
+
+Accessible via Caddy at `https://<host>/prometheus`.
 
 ### Grafana
 
 Configured via `grafana/src/provisioning/`. Data sources and dashboards are provisioned automatically on startup:
 
-- **Prometheus** — metrics queries
-- **Loki** — log queries
-- **Tempo** — trace queries and trace-to-log correlation
+- **Prometheus** — metrics queries (`http://prometheus:9090`)
+- **Loki** — log queries (`http://loki:3100`)
+- **Tempo** — trace queries and trace-to-log correlation (`http://tempo:3200`)
 
-Accessible at [http://localhost:3000](http://localhost:3000). Default credentials: `admin` / `admin`.
+Grafana is configured with `GF_SERVER_ROOT_URL=https://<host>/grafana` and `GF_SERVER_SERVE_FROM_SUB_PATH=true` so it functions correctly behind the `/grafana` subpath.
+
+Accessible via Caddy at `https://<host>/grafana`.
 
 ### Loki
 
-Stores and indexes structured log output from all services. Uses a local filesystem volume (`loki_data`) for persistence. Queried directly from Grafana using LogQL.
+Stores and indexes structured log output pushed by the OTel Collector. Uses a local filesystem volume (`loki_data`) for persistence. Queried directly from Grafana using LogQL.
 
 ### Tempo
 
-Configured via `Tempo/src/tempo.yml`. Receives trace spans forwarded by the OTel Collector and stores them in a local volume (`tempo_data`). Supports trace lookup by trace ID and integration with Loki for log correlation.
+Configured via `Tempo/src/tempo.yml`. Receives trace spans forwarded by the OTel Collector and stores them in a local volume (`tempo_data`). The metrics generator is enabled with the `span-metrics` and `service-graphs` processors, which write RED metrics and service graph metrics to Prometheus via remote write.
 
-A `tempo-init` helper container runs first to set the correct permissions on the data volume before Tempo starts.
+A `tempo-init` helper container runs first to set the correct ownership (`10001:10001`) on the data volume before Tempo starts.
 
 ## Volumes
 
@@ -85,14 +128,16 @@ A `tempo-init` helper container runs first to set the correct permissions on the
 | `loki_data` | Loki | Persisted log chunks and index |
 | `tempo_data` | Tempo | Persisted trace data |
 
-## Network
+## Networks
 
 All observability services are attached to the `observability` Docker network. Application services (`api`, `frontend`, `eurostats`) are also connected to this network so they can reach the OTel Collector at `otel-collector:4317` / `otel-collector:4318`.
+
+Caddy is attached to both the `frontend` and `observability` networks, making it the sole external entry point for the entire stack.
 
 ## Instrumented Services
 
 | Service | Exporter | Signals |
 |---|---|---|
-| CRUD DB API (Go) | OTLP/HTTP → `:4318` | Traces, Metrics (Prometheus) |
-| Frontend (Flask) | OTLP/HTTP → `:4318` | Traces, Metrics |
-| EuroStats (Python) | OTLP/gRPC → `:4317` | Traces, Metrics |
+| CRUD DB API (Go) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics/`) |
+| Frontend (Flask) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics`) |
+| EuroStats (Python) | OTLP/gRPC → `otel-collector:4317` | Traces, Metrics |
