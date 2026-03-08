@@ -1786,6 +1786,31 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func adminLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+
+	authenticated, message := checkAccessAdmin(token)
+
+	if authenticated == true {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+		return
+	} else {
+		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": message,
+		})
+		return
+	}
+}
+
 var (
 	maxDBAttempts  = 60
 	dbAttemptDelay = time.Second * 3
