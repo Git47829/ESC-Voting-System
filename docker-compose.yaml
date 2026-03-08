@@ -46,6 +46,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - backend
       - frontend
@@ -91,7 +93,10 @@ services:
       - LOG_LEVEL=INFO
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
     networks:
       - backend
       - observability
@@ -118,8 +123,6 @@ services:
       - observability
     depends_on:
       db:
-        condition: service_healthy
-      api:
         condition: service_healthy
 
   prometheus:
