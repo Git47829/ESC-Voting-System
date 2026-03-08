@@ -37,12 +37,6 @@ services:
       DB_USER: esc_user
       DB_PASS: esc_password
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
