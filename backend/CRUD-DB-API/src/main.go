@@ -1801,7 +1801,8 @@ func adminLogin(w http.ResponseWriter, r *http.Request) {
 			"message": message,
 		})
 		return
-	} else {
+	}
+	if authenticated == false {
 		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -1826,7 +1827,8 @@ func juryLogin(w http.ResponseWriter, r *http.Request) {
 			"message": message,
 		})
 		return
-	} else {
+	}
+	if authenticated == false {
 		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{
