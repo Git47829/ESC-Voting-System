@@ -1,6 +1,7 @@
 # ESC Voting System – Caddy reverse proxy
-# Uses Caddy's local CA to pre-provision a cert that covers both localhost
-# and the LAN IP set via the CADDY_LOCAL_IP environment variable.
+# https:// (bare scheme) matches all HTTPS connections regardless of hostname
+# or IP, and tls internal + on_demand issues a local CA cert at handshake
+# time for whatever identifier the client presents.
 # HTTP (port 80) redirects to HTTPS automatically.
 # OTel ingestion (4317/4318) is internal-only and not routed here.
 
@@ -12,14 +13,13 @@
 	}
 }
 
-:443 {
+https:// {
 	tls internal {
-		san {$CADDY_LOCAL_IP}
-		san localhost
+		on_demand
 	}
 
 	# ── Frontend (root) ───────────────────────────────────────────────────────
-	# Must be last / least-specific so the more explicit handles below win.
+	# Catch-all, must be last so more specific handles below take priority.
 	handle {
 		reverse_proxy esc-frontend:5000
 	}
@@ -35,15 +35,13 @@
 	}
 
 	# ── Grafana ───────────────────────────────────────────────────────────────
-	# Grafana is told its root is /grafana via GF_SERVER_ROOT_URL in compose,
-	# so it already emits assets and redirects with that prefix – no strip needed.
+	# No prefix strip – Grafana serves under /grafana via GF_SERVER_ROOT_URL.
 	handle /grafana* {
 		reverse_proxy grafana:3000
 	}
 
 	# ── Prometheus ────────────────────────────────────────────────────────────
-	# Prometheus is started with --web.route-prefix=/prometheus so it serves
-	# everything under that prefix internally – no strip needed.
+	# No prefix strip – Prometheus serves under /prometheus via --web.route-prefix.
 	handle /prometheus* {
 		reverse_proxy prometheus:9090
 	}
@@ -59,7 +57,7 @@
 	}
 }
 
-# Redirect plain HTTP → HTTPS, preserving the host used by the client
-:80 {
+# Redirect plain HTTP → HTTPS, preserving the host used by the client.
+http:// {
 	redir https://{host}{uri} permanent
 }
