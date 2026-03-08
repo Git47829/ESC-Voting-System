@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -547,9 +548,8 @@ func hashPassword(password string) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
-func checkPassword(password, hashedPassword string) bool {
-	sum := sha256.Sum256([]byte(password))
-	return fmt.Sprintf("%x", sum) == hashedPassword
+func checkPassword(password, storedToken string) bool {
+	return subtle.ConstantTimeCompare([]byte(password), []byte(storedToken)) == 1
 }
 
 func checkAccessAdmin(input string) (bool, string) {
@@ -559,15 +559,11 @@ func checkAccessAdmin(input string) (bool, string) {
 	if input == "" {
 		return false, "Token has to be provided"
 	}
-	if checkPassword(input, adminPassword) != true {
-		return false, "Wrong Token provided"
+	if checkPassword(input, adminPassword) {
+		return true, "Authorized"
 	}
 
-	if checkPassword(input, adminPassword) == true {
-		return true, "Autorized"
-	}
-
-	return false, "Error Processing Token"
+	return false, "Wrong Token provided"
 }
 
 func checkAccessJury(input string) (bool, string) {

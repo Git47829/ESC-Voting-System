@@ -9,7 +9,7 @@ The primary backend service for the ESC Voting System. A REST + gRPC server writ
 | Language | Go 1.24 |
 | HTTP Router | `net/http` (stdlib) |
 | Database Driver | `github.com/go-sql-driver/mysql` v1.9 |
-| Password Hashing | `golang.org/x/crypto` (bcrypt) |
+| Token Comparison | `crypto/subtle` (constant-time) |
 | Rate Limiting | `golang.org/x/time/rate` (token bucket) |
 | Tracing | OpenTelemetry SDK v1.40 — OTLP/HTTP exporter |
 | Metrics | `prometheus/client_golang` v1.23 (promauto) |
@@ -129,14 +129,22 @@ The [EuroStats](../EuroStats/README.md) service connects as a gRPC client and co
 
 ## Authentication
 
-Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The token is hashed with **SHA-256** and compared against the corresponding pre-hashed environment variable value.
+Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The incoming token is compared against the corresponding environment variable using a **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks. The environment variables hold the **plaintext** token values.
 
 | Endpoint | Checked against | Environment variable(s) |
 |---|---|---|
-| `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (SHA-256 hex digest) |
-| `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (SHA-256 hex digests) |
+| `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (plaintext token) |
+| `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (plaintext tokens) |
 
 The dedicated authenticate endpoints (`GET /admin/authenticate`, `GET /jury/authenticate`) are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
+
+> **Example `.env` entries:**
+> ```
+> adminPassword=my-secret-admin-token
+> juryPassword1=jury-token-one
+> juryPassword2=jury-token-two
+> juryPassword3=jury-token-three
+> ```
 
 ## Voting Logic (`POST /vote/`)
 
@@ -156,4 +164,8 @@ The dedicated authenticate endpoints (`GET /admin/authenticate`, `GET /jury/auth
 | `DB_NAME` | `esc_voting` | Database name |
 | `DB_USER` | `root` | Database user |
 | `DB_PASS` | *(empty)* | Database password |
+| `adminPassword` | *(required)* | Plaintext admin token |
+| `juryPassword1` | *(required)* | Plaintext jury token #1 |
+| `juryPassword2` | *(optional)* | Plaintext jury token #2 |
+| `juryPassword3` | *(optional)* | Plaintext jury token #3 |
 | `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` | `localhost:4318` | OTel Collector HTTP endpoint |
