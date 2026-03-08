@@ -1811,6 +1811,31 @@ func adminLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func juryLogin(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	token := query.Get("Token")
+
+	authenticated, message := checkAccessJury(token)
+
+	if authenticated == true {
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{
+			"message": message,
+		})
+		return
+	} else {
+		logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": message,
+		})
+		return
+	}
+}
+
 var (
 	maxDBAttempts  = 60
 	dbAttemptDelay = time.Second * 3
@@ -1930,6 +1955,8 @@ func main() {
 	router.HandleFunc("POST /admin/addArtist/", addArtist)
 	router.HandleFunc("POST /admin/addInterpret/", addInterpret)
 	router.HandleFunc("POST /jury/vote/", juryVote)
+	router.HandleFunc("GET /admin/authenticate", adminLogin)
+	router.HandleFunc("GET /jury/authenticate", juryLogin)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
