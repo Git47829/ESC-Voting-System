@@ -79,6 +79,8 @@ Telemetry is initialised in `telemetry.py` immediately after the Flask app objec
 | `GET`    | `/votes/`              | Results            | Fetch vote totals             |
 | `GET`    | `/countries/`          | Admin              | Fetch registered countries    |
 | `POST`   | `/vote/`               | Vote               | Cast a public vote            |
+| `GET`    | `/admin/authenticate`  | Login              | Validate an admin token       |
+| `GET`    | `/jury/authenticate`   | Login              | Validate a jury token         |
 | `POST`   | `/jury/vote/`          | Jury               | Cast a jury vote              |
 | `POST`   | `/admin/open/`         | Admin              | Open voting                   |
 | `POST`   | `/admin/close`         | Admin              | Close voting                  |
@@ -105,4 +107,11 @@ Roles are stored in the Flask server-side session after a successful login:
 | `admin` | Admin dashboard + Jury pages    |
 | `jury`  | Jury voting page only           |
 
-Tokens are passed through to the backend API via query parameters on protected requests. The frontend does **not** validate tokens itself — validation is delegated entirely to the CRUD API.
+On login form submission, the token is verified against the backend **before** a session is created:
+
+- `POST /login` with `role=admin` calls `GET /admin/authenticate?Token=<value>` on the CRUD API.
+- `POST /login` with `role=jury` calls `GET /jury/authenticate?Token=<value>` on the CRUD API.
+
+The backend returns `HTTP 202` on success or `HTTP 403` with an error message on failure. Only a `202` response causes the session to be established; any other response surfaces the backend's error message to the user via a flash notification and leaves the session untouched.
+
+Tokens are passed through to the backend API via query parameters on subsequent protected requests (e.g. open/close voting, jury vote submission).

@@ -63,12 +63,14 @@ CRUD-DB-API/
 | `POST` | `/admin/addSong/` | Add a new song entry |
 | `POST` | `/admin/addArtist/` | Add a new artist (`Kuenstler`) |
 | `POST` | `/admin/addInterpret/` | Add a new composer (`Komponist`) |
+| `GET` | `/admin/authenticate` | Validate an admin token — returns `202` on success, `403` on failure |
 
 ### Jury (token required via `?Token=` query param)
 
 | Method | Path | Description |
 |---|---|---|
 | `POST` | `/jury/vote/` | Cast a jury vote with a specific point value |
+| `GET` | `/jury/authenticate` | Validate a jury token — returns `202` on success, `403` on failure |
 
 ## Rate Limits
 
@@ -80,6 +82,8 @@ Per-IP token-bucket rate limiting is applied globally via `RateLimitingMiddlewar
 | `GET /votes/`, `/countries/`, `/songs/` | 10 | 20 |
 | `POST /vote/` | 1 | 1 |
 | `POST /jury/vote/` | 5 | 5 |
+| `GET /admin/authenticate` | 5 | 5 |
+| `GET /jury/authenticate` | 5 | 5 |
 | `POST /admin/open/`, `/admin/close` | 2 | 2 |
 | `POST /admin/add*` | 5 | 5 |
 | `DELETE /admin/deleteVotes/` | 1 | 1 |
@@ -125,7 +129,14 @@ The [EuroStats](../EuroStats/README.md) service connects as a gRPC client and co
 
 ## Authentication
 
-Admin and jury endpoints verify a shared token passed as `?Token=<value>`. Tokens are checked against a bcrypt-hashed value and, once used (for certain operations), are stored in an in-memory set to prevent replay. Password hashing uses `bcrypt` with the default cost.
+Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The token is hashed with **SHA-256** and compared against the corresponding pre-hashed environment variable value.
+
+| Endpoint | Checked against | Environment variable(s) |
+|---|---|---|
+| `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (SHA-256 hex digest) |
+| `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (SHA-256 hex digests) |
+
+The dedicated authenticate endpoints (`GET /admin/authenticate`, `GET /jury/authenticate`) are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
 
 ## Voting Logic (`POST /vote/`)
 
