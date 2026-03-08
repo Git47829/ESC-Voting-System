@@ -41,8 +41,8 @@ https:// {
 	}
 
 	# ── Prometheus ────────────────────────────────────────────────────────────
-	# No prefix strip – Prometheus serves under /prometheus via --web.route-prefix.
-	handle /prometheus* {
+	# Strip /prometheus prefix before forwarding – Prometheus serves at / internally.
+	handle_path /prometheus* {
 		reverse_proxy prometheus:9090
 	}
 
