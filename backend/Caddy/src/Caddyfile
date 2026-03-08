@@ -1,0 +1,53 @@
+# ESC Voting System – Caddy reverse proxy
+# Single HTTPS site on localhost with an internally-issued self-signed cert.
+# HTTP (port 80) redirects to HTTPS automatically.
+# OTel ingestion (4317/4318) is internal-only and not routed here.
+
+https://localhost {
+	tls internal
+
+	# ── Frontend (root) ───────────────────────────────────────────────────────
+	# Must be last / least-specific so the more explicit handles below win.
+	handle {
+		reverse_proxy esc-frontend:5000
+	}
+
+	# ── CRUD REST API ─────────────────────────────────────────────────────────
+	handle_path /api/* {
+		reverse_proxy db-crud-api:8000
+	}
+
+	# ── EuroStats ─────────────────────────────────────────────────────────────
+	handle_path /eurostats/* {
+		reverse_proxy eurostats:8880
+	}
+
+	# ── Grafana ───────────────────────────────────────────────────────────────
+	# Grafana is told its root is /grafana via GF_SERVER_ROOT_URL in compose,
+	# so it already emits assets and redirects with that prefix – no strip needed.
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
+	# ── Prometheus ────────────────────────────────────────────────────────────
+	# Prometheus is started with --web.route-prefix=/prometheus so it serves
+	# everything under that prefix internally – no strip needed.
+	handle /prometheus* {
+		reverse_proxy prometheus:9090
+	}
+
+	# ── Tempo ─────────────────────────────────────────────────────────────────
+	handle_path /tempo/* {
+		reverse_proxy tempo:3200
+	}
+
+	# ── Loki ──────────────────────────────────────────────────────────────────
+	handle_path /loki/* {
+		reverse_proxy loki:3100
+	}
+}
+
+# Redirect plain HTTP → HTTPS
+http://localhost {
+	redir https://localhost{uri} permanent
+}

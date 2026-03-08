@@ -6,6 +6,9 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid 1001 appgroup && \
+    useradd --uid 1001 --gid appgroup --no-create-home appuser
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
@@ -20,6 +23,10 @@ RUN chmod +x ./scripts/generate_proto.sh && \
     ./scripts/generate_proto.sh
 
 COPY src ./src
+
+RUN chown -R appuser:appgroup /app
+
+USER appuser
 
 ENV PYTHONPATH=/app/src:$PYTHONPATH
 
