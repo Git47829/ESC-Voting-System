@@ -25,7 +25,7 @@ https:// {
 	}
 
 	# ── CRUD REST API ─────────────────────────────────────────────────────────
-	handle_path /api/* {
+	handle_path /crud-api/* {
 		reverse_proxy db-crud-api:8000
 	}
 
