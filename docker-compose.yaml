@@ -1,5 +1,3 @@
-version: "3.3"
-
 services:
   db:
     build: ./backend/DB/
@@ -184,6 +182,8 @@ services:
     image: caddy:2.8-alpine
     container_name: caddy
     restart: unless-stopped
+    environment:
+      CADDY_LOCAL_IP: ${CADDY_LOCAL_IP:-127.0.0.1}
     volumes:
       - ./backend/Caddy/src/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

@@ -1,15 +1,10 @@
 # ESC Voting System – Caddy reverse proxy
-# Listening on :443 for any hostname or IP.
-# on_demand TLS issues a cert from the local CA on the first connection
-# for whatever identifier the client presents (hostname or IP).
+# Uses Caddy's local CA to pre-provision a cert that covers both localhost
+# and the LAN IP set via the CADDY_LOCAL_IP environment variable.
 # HTTP (port 80) redirects to HTTPS automatically.
 # OTel ingestion (4317/4318) is internal-only and not routed here.
 
 {
-	on_demand_tls {
-		interval 1m
-		burst    5
-	}
 	pki {
 		ca local {
 			name "ESC Voting Local CA"
@@ -19,7 +14,8 @@
 
 :443 {
 	tls internal {
-		on_demand
+		san {$CADDY_LOCAL_IP}
+		san localhost
 	}
 
 	# ── Frontend (root) ───────────────────────────────────────────────────────
