@@ -9,13 +9,13 @@
     },
     {
       "type": "datasource",
-      "id": "prometheus",
+      "id": "PBFA97CFB",
       "name": "Prometheus",
       "version": "1.0.0"
     },
     {
       "type": "datasource",
-      "id": "loki",
+      "id": "P8E80F9AE",
       "name": "Loki",
       "version": "1.0.0"
     }
@@ -40,7 +40,6 @@
   "id": null,
   "links": [],
   "panels": [
-
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
@@ -421,23 +420,48 @@
         "overrides": [
           {
             "matcher": { "id": "byRegexp", "options": "1.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#73BF69", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": "2.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#56A64B", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#56A64B", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": "3.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#F2CC0C", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#F2CC0C", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": "4.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#FF7833", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#FF7833", "mode": "fixed" }
+              }
+            ]
           },
           {
             "matcher": { "id": "byRegexp", "options": "5.." },
-            "properties": [{ "id": "color", "value": { "fixedColor": "#E02F44", "mode": "fixed" } }]
+            "properties": [
+              {
+                "id": "color",
+                "value": { "fixedColor": "#E02F44", "mode": "fixed" }
+              }
+            ]
           }
         ]
       },
@@ -1028,7 +1052,6 @@
       "title": "Caddy Error Logs (4xx / 5xx)",
       "type": "logs"
     }
-
   ],
   "refresh": "30s",
   "schemaVersion": 39,
