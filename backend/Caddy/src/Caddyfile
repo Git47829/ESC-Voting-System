@@ -6,6 +6,10 @@
 # OTel ingestion (4317/4318) is internal-only and not routed here.
 
 {
+	# Expose the admin API on all interfaces inside the container so that
+	# Prometheus can scrape the /metrics endpoint on port 2019.
+	admin 0.0.0.0:2019
+
 	pki {
 		ca local {
 			name "ESC Voting Local CA"
@@ -13,10 +17,28 @@
 	}
 }
 
+# ── Access log (written once at the global/snippet level) ─────────────────────
+# A named log sink that every virtual host below can reference by name.
+# Writes newline-delimited JSON to a file that is bind-mounted into the
+# OTel Collector container so the filelog receiver can tail it.
+(access_log) {
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size        100MiB
+			roll_keep        5
+			roll_keep_for    168h
+			mode             0644
+		}
+		format json
+	}
+}
+
 https:// {
 	tls internal {
 		on_demand
 	}
+
+	import access_log
 
 	# ── Frontend (root) ───────────────────────────────────────────────────────
 	# Catch-all, must be last so more specific handles below take priority.

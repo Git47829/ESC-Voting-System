@@ -117,11 +117,14 @@ services:
     command: ["--config=/etc/otel/otel-collector.yml"]
     volumes:
       - ./backend/Observability/OTel/src/otel-collector.yml:/etc/otel/otel-collector.yml:ro
+      - caddy_logs:/var/log/caddy:ro
     networks:
       - observability
     depends_on:
       db:
         condition: service_healthy
+      caddy-log-init:
+        condition: service_completed_successfully
 
   prometheus:
     image: prom/prometheus:v2.51.1
@@ -158,6 +161,13 @@ services:
     volumes:
       - loki_data:/loki
 
+  caddy-log-init:
+    image: busybox
+    user: root
+    command: chown -R 10001:10001 /var/log/caddy
+    volumes:
+      - caddy_logs:/var/log/caddy
+
   tempo-init:
     image: busybox
     user: root
@@ -185,6 +195,7 @@ services:
       - ./backend/Caddy/src/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - caddy_logs:/var/log/caddy
     ports:
       - "80:80"
       - "443:443"
@@ -200,6 +211,7 @@ services:
       - tempo
       - loki
       - otel-collector
+      - caddy-log-init
 
 volumes:
   mysql_data:
@@ -208,6 +220,7 @@ volumes:
   tempo_data:
   caddy_data:
   caddy_config:
+  caddy_logs:
 
 networks:
   backend:

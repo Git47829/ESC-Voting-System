@@ -4,6 +4,61 @@ receivers:
       grpc:
       http:
 
+  # Tail Caddy's newline-delimited JSON access log from the shared Docker
+  # volume.  Each line is a self-contained JSON object emitted by Caddy's
+  # built-in log directive (format json).
+  filelog:
+    include:
+      - /var/log/caddy/access.log
+    # Pick up lines written before the collector started (e.g. after a
+    # collector restart) so no entries are silently lost.
+    start_at: beginning
+    operators:
+      # ── 1. Parse the JSON line into structured log attributes ──────────────
+      - type: json_parser
+        timestamp:
+          parse_from: attributes.ts
+          layout_type: epoch
+          layout: s
+
+      # ── 2. Derive OTel severity from the HTTP status code ──────────────────
+      #   100–399 → INFO
+      #   400–499 → WARN
+      #   500–599 → ERROR
+      - type: severity_parser
+        parse_from: attributes.status
+        mapping:
+          info:
+            min: 100
+            max: 399
+          warn:
+            min: 400
+            max: 499
+          error:
+            min: 500
+            max: 599
+        on_error: send
+
+      # ── 3. Write a plain-string "level" attribute ──────────────────────────
+      # The attributes/loki_labels processor promotes attributes.level to a
+      # Loki stream label so log lines are queryable by severity in Grafana.
+      # We default to INFO here; 4xx/5xx lines already carry the right OTel
+      # SeverityNumber from step 2 and will be filterable via Loki's
+      # structured-metadata support.
+      - type: add
+        field: attributes.level
+        value: INFO
+
+      # ── 4. Tag the resource with service.name = caddy ─────────────────────
+      # The resource/loki_labels processor (see processors section) promotes
+      # resource attributes listed in loki.resource.labels to Loki stream
+      # labels.  service.name is already in that list, so every Caddy log
+      # line will appear under {service_name="caddy"} in Loki — exactly like
+      # the other services in the stack.
+      - type: add
+        field: resource["service.name"]
+        value: caddy
+
 processors:
   batch:
 
@@ -71,6 +126,6 @@ service:
       processors: [batch]
       exporters: [otlp, logging]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, filelog]
       processors: [batch, resource/loki_labels, attributes/loki_labels]
       exporters: [loki]
