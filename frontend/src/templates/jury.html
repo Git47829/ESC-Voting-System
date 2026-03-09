@@ -68,9 +68,44 @@ endblock %} {% block head %}
             >
             {% for p in [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] %}
             <span
-                class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold {% if p == 12 %} bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40 {% elif p == 10 %} bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20 {% else %} bg-esc-surface text-esc-muted border border-esc-surface {% endif %}"
+                class="relative inline-flex items-center justify-center"
+                id="legend-badge-{{ p }}"
             >
-                {{ p }}
+                <span
+                    class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold {% if p == 12 %} bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40 {% elif p == 10 %} bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20 {% else %} bg-esc-surface text-esc-muted border border-esc-surface {% endif %} {% if p in used_points %}opacity-40{% endif %}"
+                >
+                    {{ p }}
+                </span>
+                {% if p in used_points %}
+                <span
+                    class="legend-used-overlay pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                    <svg
+                        class="w-5 h-5 text-red-500"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                    >
+                        <path
+                            d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+                        />
+                    </svg>
+                </span>
+                {% else %}
+                <span
+                    class="legend-used-overlay pointer-events-none absolute inset-0 items-center justify-center hidden"
+                    id="legend-used-{{ p }}"
+                >
+                    <svg
+                        class="w-5 h-5 text-red-500"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                    >
+                        <path
+                            d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+                        />
+                    </svg>
+                </span>
+                {% endif %}
             </span>
             {% endfor %}
         </div>
@@ -81,7 +116,7 @@ endblock %} {% block head %}
         {% for song in songs %}
         <div
             id="jury-card-{{ song.songId }}"
-            class="jury-card group rounded-2xl border border-esc-surface bg-esc-surface/30 overflow-hidden transition-all duration-300 hover:border-esc-surface"
+            class="jury-card group rounded-2xl border border-esc-surface bg-esc-surface/30 overflow-hidden transition-all duration-300 hover:border-esc-surface {% if song.songId in voted_songs %}voted{% endif %}"
             data-song-id="{{ song.songId }}"
         >
             <div class="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
@@ -137,13 +172,22 @@ endblock %} {% block head %}
                                    {% else %}
                                        w-9 h-9 sm:w-10 sm:h-10 border-esc-surface bg-esc-black/50 text-esc-muted hover:bg-esc-surface hover:text-esc-text
                                    {% endif %}
-                                   {% if not voting_is_open %}opacity-40 cursor-not-allowed{% endif %}"
+                                   {% if not voting_is_open or p in used_points or song.songId in voted_songs %}opacity-40 cursor-not-allowed{% endif %}"
                             data-points="{{ p }}"
                             data-song-id="{{ song.songId }}"
+                            data-globally-used="{{ 'true' if p in used_points else 'false' }}"
                             {%
                             if
                             not
                             voting_is_open
+                            or
+                            p
+                            in
+                            used_points
+                            or
+                            song.songId
+                            in
+                            voted_songs
                             %}disabled{%
                             endif
                             %}
@@ -176,7 +220,7 @@ endblock %} {% block head %}
                     <button
                         type="button"
                         id="submit-btn-{{ song.songId }}"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed {% if song.songId in voted_songs %}hidden{% endif %}"
                         disabled
                         onclick="submitJuryVote({{ song.songId }})"
                     >
@@ -198,7 +242,7 @@ endblock %} {% block head %}
 
                     <!-- Voted Status Icon (hidden until voted) -->
                     <div
-                        class="vote-status-icon hidden items-center gap-1.5 text-green-400"
+                        class="vote-status-icon {% if song.songId in voted_songs %}flex{% else %}hidden{% endif %} items-center gap-1.5 text-green-400"
                         id="voted-icon-{{ song.songId }}"
                     >
                         <svg
@@ -279,10 +323,63 @@ endblock %} {% block head %}
 <script>
 
     const selectedPoints = {};
-    const votedSongs = new Set();
+    // Pre-populate from server so voted state survives a page refresh.
+    const votedSongs = new Set({{ voted_songs | tojson }});
     const totalSongs = {{ songs|length }};
 
+    // Point values already used by this jury member (from server-side cookie read).
+    // A point value used here cannot be selected for any song.
+    const usedPointValues = new Set({{ used_points | tojson }});
+
+    /**
+     * Disable the given point value button across ALL song cards and
+     * mark it with a strikethrough title so the jury member knows why.
+     */
+    function disablePointValueGlobally(points) {
+        usedPointValues.add(points);
+
+        // Mark the legend badge with a red X.
+        const legendOverlay = document.getElementById('legend-used-' + points);
+        if (legendOverlay) {
+            legendOverlay.classList.remove('hidden');
+            legendOverlay.classList.add('flex');
+            const badge = legendOverlay.previousElementSibling;
+            if (badge) badge.classList.add('opacity-40');
+        }
+
+        document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
+            const songId = parseInt(btn.dataset.songId);
+
+            // If this card has this point value currently selected, clear that
+            // selection so the submit button can't fire a duplicate vote.
+            if (!votedSongs.has(songId) && selectedPoints[songId] === points) {
+                delete selectedPoints[songId];
+
+                const display = document.getElementById('selected-display-' + songId);
+                if (display) {
+                    display.classList.add('hidden');
+                    display.classList.remove('flex');
+                }
+
+                const submitBtn = document.getElementById('submit-btn-' + songId);
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                }
+
+                // Remove the visual selected state from this button.
+                btn.classList.remove('selected');
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-40', 'cursor-not-allowed');
+            btn.title = points + ' pts already awarded to another entry';
+        });
+    }
+
     function selectPoints(btn, songId, points) {
+        // Do not allow selecting a globally-used point value.
+        if (usedPointValues.has(points)) return;
+
         const group = document.getElementById('points-group-' + songId);
         const buttons = group.querySelectorAll('.point-btn');
         buttons.forEach(function (b) {
@@ -343,12 +440,15 @@ endblock %} {% block head %}
 
                 submitBtn.classList.add('hidden');
 
+                // Lock all buttons on this card.
                 const group = document.getElementById('points-group-' + songId);
-                const buttons = group.querySelectorAll('.point-btn');
-                buttons.forEach(function (b) {
+                group.querySelectorAll('.point-btn').forEach(function (b) {
                     b.disabled = true;
                     b.classList.add('opacity-40', 'cursor-not-allowed');
                 });
+
+                // Disable this point value across every other card too.
+                disablePointValueGlobally(points);
 
                 updateVoteCount();
 
@@ -356,6 +456,16 @@ endblock %} {% block head %}
                     responseDiv.classList.add('hidden');
                 }, 3000);
 
+            } else if (resp.status === 409) {
+                // Point value was already used — disable it globally and tell the user.
+                disablePointValueGlobally(points);
+                delete selectedPoints[songId];
+                const display = document.getElementById('selected-display-' + songId);
+                display.classList.add('hidden');
+                responseDiv.className = 'border-t border-red-500/20 px-5 py-3 text-sm text-red-400 bg-red-500/5';
+                responseDiv.textContent = data.error || 'That point value has already been used.';
+                submitBtn.classList.add('hidden');
+                submitText.textContent = 'Vote';
             } else {
                 responseDiv.className = 'border-t border-red-500/20 px-5 py-3 text-sm text-red-400 bg-red-500/5';
                 responseDiv.textContent = data.error || data.message || 'Failed to submit vote.';
@@ -381,5 +491,18 @@ endblock %} {% block head %}
             allDoneMsg.classList.add('flex');
         }
     }
+
+    // On page load, apply tooltip titles to all already-used/voted point buttons
+    // (their disabled state is already rendered server-side, this just adds
+    // the helpful title attribute via JS).
+    document.addEventListener('DOMContentLoaded', function () {
+        usedPointValues.forEach(function (points) {
+            document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
+                btn.title = points + ' pts already awarded to another entry';
+            });
+        });
+        // Sync the vote counter with the server-restored state.
+        updateVoteCount();
+    });
 </script>
 {% endblock %}
