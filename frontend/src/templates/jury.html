@@ -68,9 +68,44 @@ endblock %} {% block head %}
             >
             {% for p in [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] %}
             <span
-                class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold {% if p == 12 %} bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40 {% elif p == 10 %} bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20 {% else %} bg-esc-surface text-esc-muted border border-esc-surface {% endif %}"
+                class="relative inline-flex items-center justify-center"
+                id="legend-badge-{{ p }}"
             >
-                {{ p }}
+                <span
+                    class="inline-flex items-center justify-center w-7 h-7 rounded-full text-[11px] font-heading font-bold {% if p == 12 %} bg-esc-yellow/20 text-esc-yellow border border-esc-yellow/40 {% elif p == 10 %} bg-esc-yellow/10 text-esc-yellow/80 border border-esc-yellow/20 {% else %} bg-esc-surface text-esc-muted border border-esc-surface {% endif %} {% if p in used_points %}opacity-40{% endif %}"
+                >
+                    {{ p }}
+                </span>
+                {% if p in used_points %}
+                <span
+                    class="legend-used-overlay pointer-events-none absolute inset-0 flex items-center justify-center"
+                >
+                    <svg
+                        class="w-5 h-5 text-red-500"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                    >
+                        <path
+                            d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+                        />
+                    </svg>
+                </span>
+                {% else %}
+                <span
+                    class="legend-used-overlay pointer-events-none absolute inset-0 items-center justify-center hidden"
+                    id="legend-used-{{ p }}"
+                >
+                    <svg
+                        class="w-5 h-5 text-red-500"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                    >
+                        <path
+                            d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z"
+                        />
+                    </svg>
+                </span>
+                {% endif %}
             </span>
             {% endfor %}
         </div>
@@ -302,6 +337,16 @@ endblock %} {% block head %}
      */
     function disablePointValueGlobally(points) {
         usedPointValues.add(points);
+
+        // Mark the legend badge with a red X.
+        const legendOverlay = document.getElementById('legend-used-' + points);
+        if (legendOverlay) {
+            legendOverlay.classList.remove('hidden');
+            legendOverlay.classList.add('flex');
+            const badge = legendOverlay.previousElementSibling;
+            if (badge) badge.classList.add('opacity-40');
+        }
+
         document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
             const songId = parseInt(btn.dataset.songId);
 
