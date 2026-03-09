@@ -81,7 +81,7 @@ endblock %} {% block head %}
         {% for song in songs %}
         <div
             id="jury-card-{{ song.songId }}"
-            class="jury-card group rounded-2xl border border-esc-surface bg-esc-surface/30 overflow-hidden transition-all duration-300 hover:border-esc-surface"
+            class="jury-card group rounded-2xl border border-esc-surface bg-esc-surface/30 overflow-hidden transition-all duration-300 hover:border-esc-surface {% if song.songId in voted_songs %}voted{% endif %}"
             data-song-id="{{ song.songId }}"
         >
             <div class="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
@@ -137,7 +137,7 @@ endblock %} {% block head %}
                                    {% else %}
                                        w-9 h-9 sm:w-10 sm:h-10 border-esc-surface bg-esc-black/50 text-esc-muted hover:bg-esc-surface hover:text-esc-text
                                    {% endif %}
-                                   {% if not voting_is_open or p in used_points %}opacity-40 cursor-not-allowed{% endif %}"
+                                   {% if not voting_is_open or p in used_points or song.songId in voted_songs %}opacity-40 cursor-not-allowed{% endif %}"
                             data-points="{{ p }}"
                             data-song-id="{{ song.songId }}"
                             data-globally-used="{{ 'true' if p in used_points else 'false' }}"
@@ -149,6 +149,10 @@ endblock %} {% block head %}
                             p
                             in
                             used_points
+                            or
+                            song.songId
+                            in
+                            voted_songs
                             %}disabled{%
                             endif
                             %}
@@ -181,7 +185,7 @@ endblock %} {% block head %}
                     <button
                         type="button"
                         id="submit-btn-{{ song.songId }}"
-                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed"
+                        class="inline-flex items-center gap-1.5 rounded-lg bg-esc-yellow px-4 py-2.5 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-all active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed {% if song.songId in voted_songs %}hidden{% endif %}"
                         disabled
                         onclick="submitJuryVote({{ song.songId }})"
                     >
@@ -203,7 +207,7 @@ endblock %} {% block head %}
 
                     <!-- Voted Status Icon (hidden until voted) -->
                     <div
-                        class="vote-status-icon hidden items-center gap-1.5 text-green-400"
+                        class="vote-status-icon {% if song.songId in voted_songs %}flex{% else %}hidden{% endif %} items-center gap-1.5 text-green-400"
                         id="voted-icon-{{ song.songId }}"
                     >
                         <svg
@@ -284,7 +288,8 @@ endblock %} {% block head %}
 <script>
 
     const selectedPoints = {};
-    const votedSongs = new Set();
+    // Pre-populate from server so voted state survives a page refresh.
+    const votedSongs = new Set({{ voted_songs | tojson }});
     const totalSongs = {{ songs|length }};
 
     // Point values already used by this jury member (from server-side cookie read).
@@ -442,7 +447,7 @@ endblock %} {% block head %}
         }
     }
 
-    // On page load, apply tooltip titles to all already-used point buttons
+    // On page load, apply tooltip titles to all already-used/voted point buttons
     // (their disabled state is already rendered server-side, this just adds
     // the helpful title attribute via JS).
     document.addEventListener('DOMContentLoaded', function () {
@@ -451,6 +456,8 @@ endblock %} {% block head %}
                 btn.title = points + ' pts already awarded to another entry';
             });
         });
+        // Sync the vote counter with the server-restored state.
+        updateVoteCount();
     });
 </script>
 {% endblock %}

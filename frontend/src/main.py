@@ -491,17 +491,28 @@ def jury_page():
                 seen_ids.add(s["songId"])
                 songs.append(s)
 
-    # Read the already-used point values for this jury member from their cookie.
+    # Read the already-cast votes for this jury member from their cookie.
+    # Cookie format: { "songId": points, ... }  (both keys and values are ints)
     token = session.get("token", "")
     cookie_name = f"jury_votes_{token}"
     try:
-        used_points = json.loads(request.cookies.get(cookie_name, "[]"))
-        if not isinstance(used_points, list):
-            used_points = []
+        raw = json.loads(request.cookies.get(cookie_name, "{}"))
+        votes_map = (
+            {int(k): int(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+        )
     except (ValueError, TypeError):
-        used_points = []
+        votes_map = {}
 
-    return render_template("jury.html", songs=songs, used_points=used_points)
+    used_points = list(votes_map.values())  # point values already awarded
+    voted_songs = list(votes_map.keys())  # song IDs already voted on
+
+    return render_template(
+        "jury.html",
+        songs=songs,
+        used_points=used_points,
+        voted_songs=voted_songs,
+        votes_map=votes_map,
+    )
 
 
 @app.route("/jury/submit", methods=["POST"])
@@ -520,18 +531,24 @@ def jury_submit_vote():
     except (ValueError, TypeError):
         return jsonify({"error": "Invalid points value"}), 400
 
-    # --- Cookie-based duplicate point-value guard ---
-    # Cookie name is scoped to the jury member's token so each member
-    # has their own independent tracking even if the browser is shared.
+    # --- Cookie-based duplicate guard ---
+    # Cookie format: { "songId": points, ... }
     cookie_name = f"jury_votes_{token}"
     try:
-        used_points = json.loads(request.cookies.get(cookie_name, "[]"))
-        if not isinstance(used_points, list):
-            used_points = []
+        raw = json.loads(request.cookies.get(cookie_name, "{}"))
+        votes_map = (
+            {int(k): int(v) for k, v in raw.items()} if isinstance(raw, dict) else {}
+        )
     except (ValueError, TypeError):
-        used_points = []
+        votes_map = {}
 
-    if points_int in used_points:
+    # Reject if this song has already been voted on.
+    song_id_int = int(song_id)
+    if song_id_int in votes_map:
+        return jsonify({"error": f"You have already voted for this entry."}), 409
+
+    # Reject if this point value has already been used for another song.
+    if points_int in votes_map.values():
         return jsonify(
             {
                 "error": f"{points_int} points have already been awarded. Each point value can only be used once."
@@ -549,12 +566,12 @@ def jury_submit_vote():
             "jury vote cast",
             extra={"song_id": song_id, "points": points},
         )
-        # Persist the updated used-points list in the cookie.
-        used_points.append(points_int)
+        # Persist the updated votes map in the cookie.
+        votes_map[song_id_int] = points_int
         response = make_response(jsonify(data), status)
         response.set_cookie(
             cookie_name,
-            json.dumps(used_points),
+            json.dumps({str(k): v for k, v in votes_map.items()}),
             httponly=True,
             samesite="Strict",
             max_age=60 * 60 * 24 * 7,  # 7 days
