@@ -34,3 +34,9 @@ scrape_configs:
       - targets: ["tempo:3200"]
     metrics_path: /metrics
     scrape_interval: 15s
+
+  - job_name: "caddy"
+    static_configs:
+      - targets: ["caddy:2019"]
+    metrics_path: /metrics
+    scrape_interval: 15s
