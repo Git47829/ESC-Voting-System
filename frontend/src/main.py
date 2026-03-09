@@ -1,3 +1,4 @@
+import json
 import os
 import time
 from functools import wraps
@@ -8,6 +9,7 @@ from flask import (
     abort,
     flash,
     jsonify,
+    make_response,
     redirect,
     render_template,
     request,
@@ -488,7 +490,18 @@ def jury_page():
             if s["songId"] not in seen_ids:
                 seen_ids.add(s["songId"])
                 songs.append(s)
-    return render_template("jury.html", songs=songs)
+
+    # Read the already-used point values for this jury member from their cookie.
+    token = session.get("token", "")
+    cookie_name = f"jury_votes_{token}"
+    try:
+        used_points = json.loads(request.cookies.get(cookie_name, "[]"))
+        if not isinstance(used_points, list):
+            used_points = []
+    except (ValueError, TypeError):
+        used_points = []
+
+    return render_template("jury.html", songs=songs, used_points=used_points)
 
 
 @app.route("/jury/submit", methods=["POST"])
@@ -502,6 +515,29 @@ def jury_submit_vote():
     if not song_id or not points:
         return jsonify({"error": "Song and points are required"}), 400
 
+    try:
+        points_int = int(points)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid points value"}), 400
+
+    # --- Cookie-based duplicate point-value guard ---
+    # Cookie name is scoped to the jury member's token so each member
+    # has their own independent tracking even if the browser is shared.
+    cookie_name = f"jury_votes_{token}"
+    try:
+        used_points = json.loads(request.cookies.get(cookie_name, "[]"))
+        if not isinstance(used_points, list):
+            used_points = []
+    except (ValueError, TypeError):
+        used_points = []
+
+    if points_int in used_points:
+        return jsonify(
+            {
+                "error": f"{points_int} points have already been awarded. Each point value can only be used once."
+            }
+        ), 409
+
     status, data, _ = api_post(
         "/jury/vote/",
         params={"Token": token, "songID": song_id, "points": points},
@@ -513,6 +549,17 @@ def jury_submit_vote():
             "jury vote cast",
             extra={"song_id": song_id, "points": points},
         )
+        # Persist the updated used-points list in the cookie.
+        used_points.append(points_int)
+        response = make_response(jsonify(data), status)
+        response.set_cookie(
+            cookie_name,
+            json.dumps(used_points),
+            httponly=True,
+            samesite="Strict",
+            max_age=60 * 60 * 24 * 7,  # 7 days
+        )
+        return response
 
     return jsonify(data), status
 

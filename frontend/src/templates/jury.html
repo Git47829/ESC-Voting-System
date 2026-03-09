@@ -137,13 +137,18 @@ endblock %} {% block head %}
                                    {% else %}
                                        w-9 h-9 sm:w-10 sm:h-10 border-esc-surface bg-esc-black/50 text-esc-muted hover:bg-esc-surface hover:text-esc-text
                                    {% endif %}
-                                   {% if not voting_is_open %}opacity-40 cursor-not-allowed{% endif %}"
+                                   {% if not voting_is_open or p in used_points %}opacity-40 cursor-not-allowed{% endif %}"
                             data-points="{{ p }}"
                             data-song-id="{{ song.songId }}"
+                            data-globally-used="{{ 'true' if p in used_points else 'false' }}"
                             {%
                             if
                             not
                             voting_is_open
+                            or
+                            p
+                            in
+                            used_points
                             %}disabled{%
                             endif
                             %}
@@ -282,7 +287,27 @@ endblock %} {% block head %}
     const votedSongs = new Set();
     const totalSongs = {{ songs|length }};
 
+    // Point values already used by this jury member (from server-side cookie read).
+    // A point value used here cannot be selected for any song.
+    const usedPointValues = new Set({{ used_points | tojson }});
+
+    /**
+     * Disable the given point value button across ALL song cards and
+     * mark it with a strikethrough title so the jury member knows why.
+     */
+    function disablePointValueGlobally(points) {
+        usedPointValues.add(points);
+        document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-40', 'cursor-not-allowed');
+            btn.title = points + ' pts already awarded to another entry';
+        });
+    }
+
     function selectPoints(btn, songId, points) {
+        // Do not allow selecting a globally-used point value.
+        if (usedPointValues.has(points)) return;
+
         const group = document.getElementById('points-group-' + songId);
         const buttons = group.querySelectorAll('.point-btn');
         buttons.forEach(function (b) {
@@ -343,12 +368,15 @@ endblock %} {% block head %}
 
                 submitBtn.classList.add('hidden');
 
+                // Lock all buttons on this card.
                 const group = document.getElementById('points-group-' + songId);
-                const buttons = group.querySelectorAll('.point-btn');
-                buttons.forEach(function (b) {
+                group.querySelectorAll('.point-btn').forEach(function (b) {
                     b.disabled = true;
                     b.classList.add('opacity-40', 'cursor-not-allowed');
                 });
+
+                // Disable this point value across every other card too.
+                disablePointValueGlobally(points);
 
                 updateVoteCount();
 
@@ -356,6 +384,16 @@ endblock %} {% block head %}
                     responseDiv.classList.add('hidden');
                 }, 3000);
 
+            } else if (resp.status === 409) {
+                // Point value was already used — disable it globally and tell the user.
+                disablePointValueGlobally(points);
+                delete selectedPoints[songId];
+                const display = document.getElementById('selected-display-' + songId);
+                display.classList.add('hidden');
+                responseDiv.className = 'border-t border-red-500/20 px-5 py-3 text-sm text-red-400 bg-red-500/5';
+                responseDiv.textContent = data.error || 'That point value has already been used.';
+                submitBtn.classList.add('hidden');
+                submitText.textContent = 'Vote';
             } else {
                 responseDiv.className = 'border-t border-red-500/20 px-5 py-3 text-sm text-red-400 bg-red-500/5';
                 responseDiv.textContent = data.error || data.message || 'Failed to submit vote.';
@@ -381,5 +419,16 @@ endblock %} {% block head %}
             allDoneMsg.classList.add('flex');
         }
     }
+
+    // On page load, apply tooltip titles to all already-used point buttons
+    // (their disabled state is already rendered server-side, this just adds
+    // the helpful title attribute via JS).
+    document.addEventListener('DOMContentLoaded', function () {
+        usedPointValues.forEach(function (points) {
+            document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
+                btn.title = points + ' pts already awarded to another entry';
+            });
+        });
+    });
 </script>
 {% endblock %}
