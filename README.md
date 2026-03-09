@@ -15,42 +15,43 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
           ┌─────────────────────────────┼──────────────────────────────┐
           │ /                           │ /crud-api/   /eurostats/     │
           ▼                             ▼              ▼               │
-┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐   │
-│     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │   │
-│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │   │
-│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │   │
-└──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘   │
-           │                         │ SQL               │           │
-           │                         ▼                   │           │
-           │               ┌──────────────────┐          │           │
-           │               │   MySQL 8.0      │          │           │
-           │               │   Port 3306      │          │           │
-           │               └──────────────────┘          │           │
-           │                                             │           │
-           │  /grafana  /prometheus  /tempo  /loki       │           │
-           └─────────────────────────────────────────────┘           │
-                                        │                            │
-                                        ▼                            │
-┌───────────────────────────────────────────────────────────────────┐│
-│                        Observability Stack                        ││
-├───────────────────────────────────────────────────────────────────┤│
-│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌──────────┐  ││
-│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki    │  ││
-│  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100    │  ││
-│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬─────┘  ││
-│                              └──────────────┼─────────────┘        ││
-│                                             ▼                      ││
-│                                    ┌─────────────┐                 ││
-│                                    │   Grafana   │                 ││
-│                                    │    3000     │                 ││
-│                                    └─────────────┘                 ││
-└───────────────────────────────────────────────────────────────────┘│
-└────────────────────────────────────────────────────────────────────┘
+┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐     │
+│     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │     │
+│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │     │
+│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │     │
+└──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘     │
+           │                         │ SQL               │             │
+           │                         ▼                   │             │
+           │               ┌──────────────────┐          │             │
+           │               │   MySQL 8.0      │          │             │
+           │               │   Port 3306      │          │             │
+           │               └──────────────────┘          │             │
+           │                                             │             │
+           │  /grafana  /prometheus  /tempo  /loki       │             │
+           └─────────────────────────────────────────────┘             │
+                                        │                              │
+                                        ▼                              │
+┌───────────────────────────────────────────────────────────────────┐  │
+│                        Observability Stack                        │  │
+├───────────────────────────────────────────────────────────────────┤  │  
+│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌──────────┐  │  │
+│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki    │  │  │
+│  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100    │  │  │
+│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬─────┘  │  │
+│                              └──────────────┼─────────────┘       │  │
+│                                             ▼                     │  │
+│                                    ┌─────────────┐                │  │
+│                                    │   Grafana   │                │  │
+│                                    │    3000     │                │  │
+│                                    └─────────────┘                │  │
+└───────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────--┘
 ```
 
 ## ✨ Key Features
 
 ### 🔐 Security & Access Control
+
 - **HTTPS everywhere** — Caddy is the sole external entry point; all services are unreachable directly from outside Docker. TLS is provided by Caddy's built-in local CA (`tls internal`).
 - **Multi-tier Authentication** — Admin, Jury, and Public user roles
 - **bcrypt Password Hashing** — Secure credential storage and token validation
@@ -61,11 +62,13 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 - **Non-root containers** — CRUD API runs in a minimal distroless image; EuroStats runs as a dedicated `appuser` (UID 1001)
 
 ### 📡 Real-time Vote Streaming
+
 - **gRPC VoteService** — The CRUD API exposes a `StreamVotes` server-side streaming RPC on port `50051`
 - **Historical + Live** — New subscribers optionally receive all current vote totals before live updates
 - **EuroStats Consumer** — FastAPI microservice that connects as a gRPC client and re-exposes votes via REST and WebSocket
 
 ### 📊 Observability & Monitoring
+
 - **Distributed Tracing** — Full request tracing with OpenTelemetry, stored in Tempo
 - **Metrics Collection** — Prometheus metrics for request duration, size, counts, backend call latency, vote counts, and active sessions
 - **Structured Logging** — JSON-formatted logs from all services, aggregated in Loki
@@ -73,6 +76,7 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 - **Gunicorn Multiprocess Metrics** — Prometheus multiprocess mode ensures correct metric aggregation across all frontend workers
 
 ### 🗳️ Voting System
+
 - **Public Voting** — Phone number verification, duplicate prevention via cookie + hashed phone registry
 - **Jury Voting** — Authenticated jury votes with configurable point values (Eurovision-style 1–8, 10, 12)
 - **Vote Status Control** — Admin open/close toggle; all endpoints respect the global voting state
@@ -251,3 +255,4 @@ EuroStats ──OTLP/gRPC──►                 ──► Prometheus  (metric
                                                 │
                                                 └──► Grafana (unified view)
                                                      https://<host>/grafana/
+
