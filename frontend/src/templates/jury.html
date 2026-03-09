@@ -298,6 +298,28 @@ endblock %} {% block head %}
     function disablePointValueGlobally(points) {
         usedPointValues.add(points);
         document.querySelectorAll('.point-btn[data-points="' + points + '"]').forEach(function (btn) {
+            const songId = parseInt(btn.dataset.songId);
+
+            // If this card has this point value currently selected, clear that
+            // selection so the submit button can't fire a duplicate vote.
+            if (!votedSongs.has(songId) && selectedPoints[songId] === points) {
+                delete selectedPoints[songId];
+
+                const display = document.getElementById('selected-display-' + songId);
+                if (display) {
+                    display.classList.add('hidden');
+                    display.classList.remove('flex');
+                }
+
+                const submitBtn = document.getElementById('submit-btn-' + songId);
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                }
+
+                // Remove the visual selected state from this button.
+                btn.classList.remove('selected');
+            }
+
             btn.disabled = true;
             btn.classList.add('opacity-40', 'cursor-not-allowed');
             btn.title = points + ' pts already awarded to another entry';
