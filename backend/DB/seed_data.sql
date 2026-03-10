@@ -19,7 +19,7 @@ INSERT INTO Kuenstler (Vorname, Name, Typ, Land_ID) VALUES
 
 INSERT INTO Song (ID, Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte, YoutubeURL) VALUES
     (1, 'Satellite Reprise', 'DEU', 1, 120, 105, 'https://www.youtube.com/embed/Pfo-8z86x80'),
-    (2, 'Northern Lights', 'SWE', 2, 110, 118, 'https://www.youtube.com/embed/NAB4NRFgxmg'),
+    (2, 'Northern Lights', 'SWE', 2, 110, 118, 'https://www.youtube.com/embed/Pfo-8z86x80'),
     (3, 'Parisian Nights', 'FRA', 3, 98, 112, NULL);
 
 INSERT INTO Song_Komponist (Song_ID, Komponist_ID) VALUES
