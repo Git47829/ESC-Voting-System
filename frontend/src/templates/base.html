@@ -130,6 +130,20 @@
                             >
                                 Results
                             </a>
+                            <a
+                                href="/now"
+                                class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors flex items-center gap-1.5 {% if request.path == '/now' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
+                            >
+                                <span class="relative flex h-2 w-2">
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-2 w-2 rounded-full bg-red-400"
+                                    ></span>
+                                </span>
+                                Running Now
+                            </a>
                             {% if session.get('role') == 'admin' %}
                             <a
                                 href="/admin"
@@ -230,6 +244,20 @@
                         class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors {% if request.path == '/results' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
                     >
                         Results
+                    </a>
+                    <a
+                        href="/now"
+                        class="flex items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors {% if request.path == '/now' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
+                    >
+                        <span class="relative flex h-2 w-2">
+                            <span
+                                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"
+                            ></span>
+                            <span
+                                class="relative inline-flex h-2 w-2 rounded-full bg-red-400"
+                            ></span>
+                        </span>
+                        Running Now
                     </a>
                     {% if session.get('role') == 'admin' %}
                     <a
