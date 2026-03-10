@@ -475,7 +475,7 @@ async function submitVote() {
     formData.append("points",     currentPoints);
 
     try {
-        const resp = await fetch("/vote", {
+        const resp = await fetch("/vote/submit", {
             method: "POST",
             body:   formData,
         });
