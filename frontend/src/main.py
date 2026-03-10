@@ -177,6 +177,29 @@ def inject_voting_status():
 # ---------------------------------------------------------------------------
 
 
+TOTAL_VOTE_POINTS = 20
+
+
+def decode_vote_state_cookie(cookie_value):
+    """
+    Best-effort decode of the vote_state cookie written by the Go backend.
+    The cookie is: hex( JSON . hex(HMAC-SHA256) )
+    We only need the JSON payload for display purposes — signature verification
+    happens authoritatively in the Go API on every POST, so we just try to
+    parse the inner JSON and fall back gracefully on any error.
+    """
+    try:
+        raw = bytes.fromhex(cookie_value)
+        # Find the last '.' which separates JSON from the hex signature
+        sep = raw.rfind(b".")
+        if sep == -1:
+            return None
+        payload_bytes = raw[:sep]
+        return json.loads(payload_bytes.decode("utf-8"))
+    except Exception:
+        return None
+
+
 @app.route("/")
 def vote_page():
     """Home / Vote page — shows country cards grid."""
@@ -188,8 +211,29 @@ def vote_page():
             if s["songId"] not in seen_ids:
                 seen_ids.add(s["songId"])
                 songs.append(s)
-    has_voted = request.cookies.get("vote_cookie") is not None
-    return render_template("vote.html", songs=songs, has_voted=has_voted)
+
+    vote_state = None
+    raw_cookie = request.cookies.get("vote_state")
+    if raw_cookie:
+        vote_state = decode_vote_state_cookie(raw_cookie)
+
+    if vote_state is not None:
+        votes_remaining = vote_state.get("votes_remaining", 0)
+        votes_cast = vote_state.get("votes_cast", {})
+    else:
+        votes_remaining = TOTAL_VOTE_POINTS
+        votes_cast = {}
+
+    out_of_points = votes_remaining == 0
+
+    return render_template(
+        "vote.html",
+        songs=songs,
+        votes_remaining=votes_remaining,
+        votes_cast=votes_cast,
+        out_of_points=out_of_points,
+        total_vote_points=TOTAL_VOTE_POINTS,
+    )
 
 
 @app.route("/results")
@@ -213,15 +257,25 @@ def submit_vote():
     song_id = request.form.get("songID")
     phone = request.form.get("phoneNum")
     own_country = request.form.get("ownCountry", "")
+    points = request.form.get("points", "1")
 
     if not song_id or not phone:
         return jsonify({"error": "Song and phone number are required"}), 400
 
-    # Forward the browser's vote_cookie to the Go API so it can check it
+    try:
+        points_int = int(points)
+        if points_int < 1 or points_int > TOTAL_VOTE_POINTS:
+            return jsonify(
+                {"error": f"Points must be between 1 and {TOTAL_VOTE_POINTS}"}
+            ), 400
+    except ValueError:
+        return jsonify({"error": "Points must be an integer"}), 400
+
+    # Forward the browser's vote_state cookie to the Go API
     browser_cookies = {}
-    vote_cookie = request.cookies.get("vote_cookie")
-    if vote_cookie:
-        browser_cookies["vote_cookie"] = vote_cookie
+    vote_state_cookie = request.cookies.get("vote_state")
+    if vote_state_cookie:
+        browser_cookies["vote_state"] = vote_state_cookie
 
     status, data, api_cookies = api_post(
         "/vote/",
@@ -229,6 +283,7 @@ def submit_vote():
             "songID": song_id,
             "phoneNum": phone,
             "ownCountry": own_country,
+            "points": points,
         },
         cookies=browser_cookies,
     )
@@ -237,17 +292,17 @@ def submit_vote():
         record_vote("public")
         app.logger.info(
             "public vote cast",
-            extra={"song_id": song_id, "own_country": own_country},
+            extra={"song_id": song_id, "own_country": own_country, "points": points},
         )
 
     flask_response = jsonify(data)
     flask_response.status_code = status
 
-    # Forward the vote_cookie from the Go API back to the browser
-    if "vote_cookie" in api_cookies:
+    # Forward the vote_state cookie from the Go API back to the browser
+    if "vote_state" in api_cookies:
         flask_response.set_cookie(
-            "vote_cookie",
-            api_cookies["vote_cookie"],
+            "vote_state",
+            api_cookies["vote_state"],
             max_age=365 * 24 * 60 * 60,
             httponly=True,
             samesite="Strict",
@@ -545,7 +600,7 @@ def jury_submit_vote():
     # Reject if this song has already been voted on.
     song_id_int = int(song_id)
     if song_id_int in votes_map:
-        return jsonify({"error": f"You have already voted for this entry."}), 409
+        return jsonify({"error": "You have already voted for this entry."}), 409
 
     # Reject if this point value has already been used for another song.
     if points_int in votes_map.values():

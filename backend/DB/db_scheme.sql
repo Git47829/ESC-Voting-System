@@ -60,8 +60,10 @@ CREATE TABLE Voting_Status (
 );
 
 CREATE TABLE Phone_Nums (
-    ID INT NOT NULL AUTO_INCREMENT,
-    Phone_Number VARCHAR(200) NOT NULL,
+    ID              INT          NOT NULL AUTO_INCREMENT,
+    Phone_Number    VARCHAR(200) NOT NULL,
+    votes_remaining TINYINT UNSIGNED NOT NULL DEFAULT 20,
+    votes_cast      JSON,
     PRIMARY KEY (ID),
     UNIQUE (Phone_Number)
 );
