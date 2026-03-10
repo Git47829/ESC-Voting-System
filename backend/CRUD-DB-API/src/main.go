@@ -856,8 +856,8 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			votes_remaining = votes_remaining - ?,
 			votes_cast = JSON_SET(
 				COALESCE(votes_cast, JSON_OBJECT()),
-				CONCAT('$.', ?),
-				COALESCE(JSON_EXTRACT(votes_cast, CONCAT('$.', ?)), 0) + ?
+				CONCAT('$."', ?, '"'),
+				COALESCE(JSON_EXTRACT(votes_cast, CONCAT('$."', ?, '"')), 0) + ?
 			)
 		WHERE Phone_Number = ? AND votes_remaining >= ?`
 	deductResult, deductErr := db.ExecContext(ctx, deductQuery,
