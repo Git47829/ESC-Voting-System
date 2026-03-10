@@ -732,23 +732,26 @@ endblock %} {% block content %}
                             for="song-youtube-url"
                             class="block text-[10px] font-medium text-esc-muted mb-1 uppercase tracking-wider"
                         >
-                            YouTube Embed URL
+                            YouTube URL
                             <span class="normal-case text-esc-muted/50 ml-1"
                                 >(optional)</span
                             >
                         </label>
                         <input
-                            type="url"
+                            type="text"
                             id="song-youtube-url"
                             name="youtubeUrl"
-                            placeholder="https://www.youtube.com/embed/VIDEO_ID"
+                            placeholder="https://www.youtube.com/watch?v=… or youtu.be/…"
+                            oninput="normalizeYoutubeInput(this)"
                             class="w-full rounded-lg border border-esc-surface bg-esc-black/50 px-3 py-2 text-sm text-esc-text placeholder-esc-muted/40 focus:border-esc-yellow focus:ring-1 focus:ring-esc-yellow focus:outline-none transition-colors"
                         />
-                        <p class="mt-1 text-[10px] text-esc-muted/60">
-                            Use the embed format:
-                            <span class="text-esc-muted font-mono"
-                                >youtube.com/embed/VIDEO_ID</span
-                            >. Shown on the Running Now page.
+                        <p
+                            id="song-youtube-url-hint"
+                            class="mt-1 text-[10px] text-esc-muted/60"
+                        >
+                            Paste any YouTube link — watch, share, or embed. It
+                            will be converted automatically. Shown on the
+                            Running Now page.
                         </p>
                     </div>
 
@@ -936,6 +939,55 @@ endblock %} {% block content %}
 </div>
 {% endblock %} {% block scripts %}
 <script>
+    // -----------------------------------------------------------------------
+    // YouTube URL normalizer — converts any YouTube link to embed format
+    // -----------------------------------------------------------------------
+    function extractYoutubeId(url) {
+        if (!url) return null;
+        const patterns = [
+            /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
+            /youtu\.be\/([A-Za-z0-9_-]{11})/,
+            /youtube\.com\/watch\?(?:.*&)?v=([A-Za-z0-9_-]{11})/,
+            /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+        ];
+        for (const re of patterns) {
+            const m = url.match(re);
+            if (m) return m[1];
+        }
+        return null;
+    }
+
+    function normalizeYoutubeInput(input) {
+        const hint = document.getElementById("song-youtube-url-hint");
+        const id = extractYoutubeId(input.value.trim());
+        if (input.value.trim() === "") {
+            input.classList.remove("border-green-500/60", "border-red-500/60");
+            if (hint)
+                hint.textContent =
+                    "Paste any YouTube link — watch, share, or embed. It will be converted automatically. Shown on the Running Now page.";
+            return;
+        }
+        if (id) {
+            input.value = "https://www.youtube.com/embed/" + id;
+            input.classList.remove("border-red-500/60");
+            input.classList.add("border-green-500/60");
+            if (hint) {
+                hint.textContent = "✓ Embed URL ready: " + input.value;
+                hint.classList.add("text-green-400/70");
+                hint.classList.remove("text-esc-muted/60", "text-red-400/70");
+            }
+        } else {
+            input.classList.remove("border-green-500/60");
+            input.classList.add("border-red-500/60");
+            if (hint) {
+                hint.textContent =
+                    "⚠ Could not recognise a YouTube video ID. Paste a watch, share, or embed link.";
+                hint.classList.add("text-red-400/70");
+                hint.classList.remove("text-esc-muted/60", "text-green-400/70");
+            }
+        }
+    }
+
     let pendingResetForm = null;
     let pendingStartContestForm = null;
 

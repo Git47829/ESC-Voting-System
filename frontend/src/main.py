@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from functools import wraps
 
@@ -131,6 +132,39 @@ def api_delete(endpoint, params=None):
         return 500, {"error": str(e)}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
+
+
+def normalize_youtube_url(url: str) -> str:
+    """Convert any YouTube URL format to the embeddable /embed/VIDEO_ID form.
+
+    Handles:
+      - https://www.youtube.com/watch?v=VIDEO_ID
+      - https://youtu.be/VIDEO_ID
+      - https://www.youtube.com/embed/VIDEO_ID   (already correct)
+      - https://youtube.com/shorts/VIDEO_ID
+    Returns the original string unchanged if no video ID can be extracted.
+    """
+    if not url:
+        return url
+
+    # Already an embed URL — return as-is
+    embed_match = re.search(r"youtube\.com/embed/([A-Za-z0-9_-]{11})", url)
+    if embed_match:
+        return f"https://www.youtube.com/embed/{embed_match.group(1)}"
+
+    # youtu.be/VIDEO_ID
+    short_match = re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", url)
+    if short_match:
+        return f"https://www.youtube.com/embed/{short_match.group(1)}"
+
+    # youtube.com/watch?v=VIDEO_ID  or  youtube.com/shorts/VIDEO_ID
+    watch_match = re.search(
+        r"youtube\.com/(?:watch\?(?:.*&)?v=|shorts/)([A-Za-z0-9_-]{11})", url
+    )
+    if watch_match:
+        return f"https://www.youtube.com/embed/{watch_match.group(1)}"
+
+    return url
 
 
 def get_voting_status():
@@ -583,6 +617,8 @@ def now_playing():
         )
 
     song = data.get("payload")
+    if song and song.get("youtubeUrl"):
+        song["youtubeUrl"] = normalize_youtube_url(song["youtubeUrl"])
     vote_state = None
     raw_cookie = request.cookies.get("vote_state")
     if raw_cookie:
