@@ -91,8 +91,8 @@ Configured via `Prometheus/src/prometheus.yml`. Scrapes the following targets ev
 |---|---|
 | `otel-collector` | `otel-collector:9464` — application metrics forwarded by the collector |
 | `otel-collector-internal` | `otel-collector:8888` — collector self-metrics |
-| `esc-frontend` | `esc-frontend:5000/metrics` |
-| `esc-crud-api` | `db-crud-api:8000/metrics/` |
+| `esc-frontend` | `esc-frontend:5000/metrics` — multiprocess-safe Prometheus metrics via `PROMETHEUS_MULTIPROC_DIR` |
+| `esc-crud-api` | `db-crud-api:8000/metrics/` — request duration, size, count histograms + contest and vote counters |
 | `loki` | `loki:3100/metrics` |
 | `tempo` | `tempo:3200/metrics` |
 
@@ -139,5 +139,26 @@ Caddy is attached to both the `frontend` and `observability` networks, making it
 | Service | Exporter | Signals |
 |---|---|---|
 | CRUD DB API (Go) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics/`) |
-| Frontend (Flask) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics`) |
+| Frontend (Flask) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics`); custom metrics: `backend_call_duration_seconds`, `votes_total`, `active_sessions` |
 | EuroStats (Python) | OTLP/gRPC → `otel-collector:4317` | Traces, Metrics |
+
+## Application Metrics (Frontend)
+
+The Flask frontend exposes the following custom Prometheus metrics at `/metrics`:
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `backend_call_duration_seconds` | Histogram | `endpoint`, `status_code` | Duration of each call from the frontend to the CRUD API |
+| `votes_total` | Counter | `type` (`public` or `jury`) | Total votes cast, broken down by voter type |
+| `active_sessions` | Gauge | — | Number of currently logged-in admin/jury sessions |
+
+## Application Metrics (CRUD DB API)
+
+The Go CRUD API exposes the following Prometheus metrics at `/metrics/`:
+
+| Metric | Type | Labels | Description |
+|---|---|---|---|
+| `http_request_size_bytes` | Histogram | `method`, `path` | Request body size per endpoint |
+| `http_response_size_bytes` | Histogram | `method`, `path`, `status` | Response body size per endpoint and status code |
+| `http_request_duration_seconds` | Histogram | `method`, `path`, `status` | Request latency per endpoint and status code |
+| `http_requests_total` | Counter | `method`, `path`, `status` | Total request count per endpoint and status code |

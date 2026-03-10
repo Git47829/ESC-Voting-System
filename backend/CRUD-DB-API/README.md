@@ -61,31 +61,102 @@ CRUD-DB-API/
 | `GET` | `/health` | Health check — returns `200 OK` |
 | `GET` | `/votes/` | All songs ranked by total points |
 | `GET` | `/countries/` | List all registered countries |
-| `GET` | `/countryByName/{NAME}` | Fetch a single country by ID |
+| `GET` | `/countryByName/{NAME}` | Fetch a single country by name |
 | `GET` | `/songs/` | Full song list with artist, country, composer, and voting status |
 | `GET` | `/songByID/{ID}` | Single song detail by ID |
 | `POST` | `/vote/` | Cast a public vote (phone number + cookie deduplication) |
+| `GET` | `/contest/current/` | Current song in the active contest run, with full details and progress |
 | `GET` | `/metrics/` | Prometheus metrics scrape endpoint |
 
 ### Admin (token required via `?Token=` query param)
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/admin/authenticate` | Validate an admin token — returns `202` on success, `403` on failure |
 | `POST` | `/admin/open/` | Open the voting period |
 | `POST` | `/admin/close` | Close the voting period |
 | `DELETE` | `/admin/deleteVotes/` | Reset all vote counts to zero |
 | `POST` | `/admin/addCountry/` | Register a new country |
-| `POST` | `/admin/addSong/` | Add a new song entry |
+| `POST` | `/admin/addSong/` | Add a new song entry (accepts optional `YoutubeURL` parameter) |
 | `POST` | `/admin/addArtist/` | Add a new artist (`Kuenstler`) |
 | `POST` | `/admin/addInterpret/` | Add a new composer (`Komponist`) |
-| `GET` | `/admin/authenticate` | Validate an admin token — returns `202` on success, `403` on failure |
+| `POST` | `/admin/startContest/` | Fetch all songs, shuffle into a random order, and start a new contest run |
+| `POST` | `/admin/advanceContest/` | Advance the active contest to the next song |
 
 ### Jury (token required via `?Token=` query param)
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/jury/vote/` | Cast a jury vote with a specific point value |
 | `GET` | `/jury/authenticate` | Validate a jury token — returns `202` on success, `403` on failure |
+| `POST` | `/jury/vote/` | Cast a jury vote with a specific point value |
+
+## Contest Run
+
+The contest run feature allows an admin to run through all registered songs one by one in a randomised order, with each song displayed on the live **Running Now** page (`/now`).
+
+### Flow
+
+1. Admin presses **Start Contest** in the admin panel → `POST /admin/startContest/`
+   - All song IDs are fetched from the database.
+   - They are shuffled using a Fisher-Yates shuffle seeded with `crypto/rand`.
+   - Any previously active `Contest_Run` row is deactivated.
+   - A new `Contest_Run` row is inserted with the shuffled order (stored as a JSON array), `CurrentIndex = 0`, and `IsActive = TRUE`.
+2. Viewers visit `/now` → frontend calls `GET /contest/current/`
+   - Returns full song details for the song at the current index, plus `currentIndex` and `totalSongs` for the progress bar.
+3. Admin presses **Next Song** → `POST /admin/advanceContest/`
+   - `CurrentIndex` is incremented by 1.
+   - If the index would exceed the total number of songs, the run is marked `IsActive = FALSE` and a `finished: true` response is returned.
+4. The `/now` page polls `/api/contest/current` every 5 seconds and reloads automatically when the song changes.
+
+### `GET /contest/current/` Response
+
+```json
+{
+  "message": "Success",
+  "payload": {
+    "runId": 1,
+    "currentIndex": 0,
+    "totalSongs": 3,
+    "songId": 2,
+    "songName": "Northern Lights",
+    "youtubeUrl": "https://www.youtube.com/embed/VIDEO_ID",
+    "countryId": "SWE",
+    "countryName": "Sweden",
+    "artistId": 2,
+    "artistFirstName": "Alice",
+    "artistLastName": "Lindgren",
+    "artistType": "duo",
+    "publicVotes": 110,
+    "juryVotes": 118,
+    "totalVotes": 228,
+    "votingIsOpen": true
+  }
+}
+```
+
+Returns `404` when no contest is active, `410 Gone` when the contest has finished.
+
+### `POST /admin/startContest/` Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `Token` | Yes | Admin token |
+
+### `POST /admin/advanceContest/` Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `Token` | Yes | Admin token |
+
+### `POST /admin/addSong/` Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `Token` | Yes | Admin token |
+| `Name` | Yes | Song title |
+| `Land` | Yes | Country ID (alpha-3) |
+| `ID` | Yes | Artist (`Kuenstler`) ID |
+| `YoutubeURL` | No | YouTube embed URL — any YouTube URL format is accepted; the frontend normalizes it to `youtube.com/embed/VIDEO_ID` before submission |
 
 ## Rate Limits
 
@@ -95,11 +166,13 @@ Per-IP token-bucket rate limiting is applied globally via `RateLimitingMiddlewar
 |---|---|---|
 | `GET /health` | 100 | 100 |
 | `GET /votes/`, `/countries/`, `/songs/` | 10 | 20 |
+| `GET /contest/current/` | 10 | 20 |
 | `POST /vote/` | 1 | 1 |
 | `POST /jury/vote/` | 5 | 5 |
 | `GET /admin/authenticate` | 5 | 5 |
 | `GET /jury/authenticate` | 5 | 5 |
 | `POST /admin/open/`, `/admin/close` | 2 | 2 |
+| `POST /admin/startContest/`, `/admin/advanceContest/` | 2 | 2 |
 | `POST /admin/add*` | 5 | 5 |
 | `DELETE /admin/deleteVotes/` | 1 | 1 |
 | `GET /metrics/` | unlimited | — |
@@ -166,9 +239,32 @@ The dedicated authenticate endpoints are used by the frontend login flow to vali
 1. Verifies that voting is currently open (`Voting_Status.isOpen = true`).
 2. Checks the song exists and belongs to a different country than the voter's own.
 3. Hashes the provided phone number and checks it against `Phone_Nums` — one vote per number.
-4. Sets a cookie (`voted`) to prevent double-voting from the same browser session.
-5. Increments `Song.PublikumsPunkte` by the public vote weight.
+4. Sets a signed cookie (`vote_state`) tracking remaining points and votes cast per song.
+5. Increments `Song.PublikumsPunkte` by the allocated point value weighted by the public vote weight.
 6. Calls `NotifyVote()` to push the update to all gRPC subscribers.
+
+## Database Tables
+
+| Table | Description |
+|---|---|
+| `Land` | Countries — ISO alpha-3 ID, name, pot assignment |
+| `Kuenstler` | Artists — solo, duo, or group; linked to a country |
+| `Komponist` | Composers — first and last name |
+| `Song` | Songs — linked to country and artist; stores public, jury, and computed total points; optional `YoutubeURL` |
+| `Song_Komponist` | Many-to-many join between songs and composers |
+| `Voting_Status` | Single-row global flag controlling whether voting is open |
+| `Phone_Nums` | Registry of bcrypt-hashed phone numbers that have already voted |
+| `Contest_Run` | Active contest state — JSON array of shuffled song IDs, current index, start timestamp, and active flag |
+
+### `Contest_Run` Schema
+
+| Column | Type | Notes |
+|---|---|---|
+| `ID` | `INT` PK AI | Auto-increment |
+| `SongOrder` | `JSON` | Shuffled array of song IDs, e.g. `[3, 1, 2]` |
+| `CurrentIndex` | `INT` | Index into `SongOrder` for the song currently on stage |
+| `StartedAt` | `DATETIME` | Set to `CURRENT_TIMESTAMP` on insert |
+| `IsActive` | `BOOL` | `TRUE` for the current run; set to `FALSE` on finish or when a new contest starts |
 
 ## Environment Variables
 
