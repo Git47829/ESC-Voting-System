@@ -78,13 +78,15 @@ All routes live inside a single `https://` site block. Requests are matched top-
 
 | Incoming path | Handler | Strip prefix? | Upstream |
 |---|---|---|---|
-| `/crud-api/*` | `handle_path` | ✅ yes — `/crud-api` stripped | `db-crud-api:8000` |
-| `/eurostats/*` | `handle_path` | ✅ yes — `/eurostats` stripped | `eurostats:8880` |
-| `/grafana*` | `handle` | ❌ no | `grafana:3000` |
-| `/prometheus*` | `handle_path` | ✅ yes — `/prometheus` stripped | `prometheus:9090` |
-| `/tempo/*` | `handle_path` | ✅ yes — `/tempo` stripped | `tempo:3200` |
-| `/loki/*` | `handle_path` | ✅ yes — `/loki` stripped | `loki:3100` |
-| `*` (catch-all) | `handle` | ❌ no | `esc-frontend:5000` |
+| `/crud-api/*` | `handle_path` | yes — `/crud-api` stripped | `db-crud-api:8000` |
+| `/eurostats/*` | `handle_path` | yes — `/eurostats` stripped | `eurostats:8880` |
+| `/grafana*` | `handle` | no | `grafana:3000` |
+| `/prometheus*` | `handle_path` | yes — `/prometheus` stripped | `prometheus:9090` |
+| `/tempo/*` | `handle_path` | yes — `/tempo` stripped | `tempo:3200` |
+| `/loki/*` | `handle_path` | yes — `/loki` stripped | `loki:3100` |
+| `*` (catch-all) | `handle` | no | `esc-frontend:5000` |
+
+All frontend routes (`/`, `/now`, `/results`, `/login`, `/admin`, `/jury`, `/vote/submit`, `/api/*`) are served by the catch-all rule and forwarded to the Flask frontend at `esc-frontend:5000`.
 
 ### Why some routes strip and others do not
 

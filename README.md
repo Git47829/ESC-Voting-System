@@ -15,40 +15,49 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
           ┌─────────────────────────────┼──────────────────────────────┐
           │ /                           │ /crud-api/   /eurostats/     │
           ▼                             ▼              ▼               │
-┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐     │
-│     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │     │
-│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │     │
-│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │     │
-└──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘     │
-           │                         │ SQL               │             │
-           │                         ▼                   │             │
-           │               ┌──────────────────┐          │             │
-           │               │   MySQL 8.0      │          │             │
-           │               │   Port 3306      │          │             │
-           │               └──────────────────┘          │             │
-           │                                             │             │
-           │  /grafana  /prometheus  /tempo  /loki       │             │
-           └─────────────────────────────────────────────┘             │
-                                        │                              │
-                                        ▼                              │
-┌───────────────────────────────────────────────────────────────────┐  │
-│                        Observability Stack                        │  │
-├───────────────────────────────────────────────────────────────────┤  │  
-│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌──────────┐  │  │
-│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki    │  │  │
-│  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100    │  │  │
-│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬─────┘  │  │
+┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐    │
+│     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │    │
+│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │    │
+│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │    │
+└──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘    │
+           │                         │ SQL               │            │
+           │                         ▼                   │            │
+           │               ┌──────────────────┐          │            │
+           │               │   MySQL 8.0      │          │            │
+           │               │   Port 3306      │          │            │
+           │               └──────────────────┘          │            │
+           │                                             │            │
+           │  /grafana  /prometheus  /tempo  /loki       │            │
+           └─────────────────────────────────────────────┘            │
+                                        │                             │
+                                        ▼                             │
+┌──────────────────────────────────────────────────────────────────┐  │
+│                        Observability Stack                       │  │
+├──────────────────────────────────────────────────────────────────┤  │
+│  ┌──────────────────┐  ┌────────────┐  ┌─────────┐  ┌─────────┐  │  │
+│  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki   │  │  │
+│  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100   │  │  │
+│  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬────┘  │  │
 │                              └──────────────┼─────────────┘       │  │
 │                                             ▼                     │  │
 │                                    ┌─────────────┐                │  │
 │                                    │   Grafana   │                │  │
 │                                    │    3000     │                │  │
 │                                    └─────────────┘                │  │
-└───────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────--┘
+└──────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## ✨ Key Features
+
+### 🎤 Running Now — Live Contest Stage
+
+- **Start Contest button** in the admin panel fetches all songs from the database, shuffles them into a random order using a Fisher-Yates shuffle, and persists the result as an active `Contest_Run` row.
+- **Running Now page (`/now`)** shows the currently performing song with a full-width **YouTube embed**, song and artist details, a live score counter, and a contest progress bar.
+- **Inline voting panel** — viewers cast points directly below the video without leaving the page. Includes a point stepper (+/−), phone number input, and country selector.
+- **Auto-advance** — the admin clicks "Next Song" to move to the next entry; all viewers on `/now` detect the change within 5 seconds and reload automatically.
+- **Contest-end banner** — when the last song finishes, a banner appears linking to the results page.
+- **YouTube URL normalization** — any YouTube URL format (watch, share, short, embed) is automatically converted to the correct embed format before storage and rendering.
 
 ### 🔐 Security & Access Control
 
@@ -87,11 +96,11 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 
 | Service | Technology | Internal Port | README |
 |---|---|---|---|
-| Caddy | `caddy:2.8-alpine` | 80, 443 | — |
+| Caddy | `caddy:2.8-alpine` | 80, 443 | [backend/Caddy/README.md](backend/Caddy/README.md) |
 | Frontend | Python 3.12, Flask 3.x, Gunicorn, Tailwind CSS | 5000 | [frontend/README.md](frontend/README.md) |
 | CRUD DB API | Go 1.24, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
 | EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8880 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
-| MySQL | MySQL 8.0 | 3306 | — |
+| MySQL | MySQL 8.0 | 3306 | [backend/DB/README.md](backend/DB/README.md) |
 | Observability | OTel Collector, Prometheus, Grafana, Loki, Tempo | 4317–4318, 9090, 3000, 3100, 3200 | [backend/Observability/README.md](backend/Observability/README.md) |
 
 ## 🌐 Service URLs
@@ -100,7 +109,11 @@ All services are accessed through Caddy on a single HTTPS host. Replace `<host>`
 
 | Service | URL |
 |---|---|
-| Frontend (Voting UI) | `https://<host>/` |
+| Frontend — Vote | `https://<host>/` |
+| Frontend — Running Now | `https://<host>/now` |
+| Frontend — Live Results | `https://<host>/results` |
+| Frontend — Admin Dashboard | `https://<host>/admin` |
+| Frontend — Jury Voting | `https://<host>/jury` |
 | CRUD DB API (direct access) | `https://<host>/crud-api/` |
 | EuroStats | `https://<host>/eurostats/` |
 | Grafana | `https://<host>/grafana/` |
@@ -190,10 +203,11 @@ docker compose down -v
 | `Land` | Countries — ISO 3-letter ID, name, pot assignment |
 | `Kuenstler` | Artists — solo, duo, or group; linked to a country |
 | `Komponist` | Composers — first and last name |
-| `Song` | Songs — linked to country and artist; stores public, jury, and computed total points |
+| `Song` | Songs — linked to country and artist; stores public, jury, and computed total points; optional YouTube embed URL |
 | `Song_Komponist` | Many-to-many relationship between songs and composers |
 | `Voting_Status` | Single-row global flag controlling whether voting is open |
 | `Phone_Nums` | Registry of bcrypt-hashed phone numbers that have already voted |
+| `Contest_Run` | Active contest state — shuffled song order (JSON), current index, start timestamp, and active flag |
 
 ## 📡 API Overview
 
@@ -207,7 +221,9 @@ All API paths below are relative to the CRUD API's internal address (`db-crud-ap
 | `GET` | `/votes/` | All songs ranked by total points |
 | `GET` | `/countries/` | List all countries |
 | `GET` | `/songs/` | Full song list with artist, country, composers, and voting status |
+| `GET` | `/songByID/{ID}` | Single song detail by ID |
 | `POST` | `/vote/` | Cast a public vote |
+| `GET` | `/contest/current/` | Current song in the active contest run with full details and progress |
 | `GET` | `/metrics/` | Prometheus metrics |
 
 ### Protected Endpoints
@@ -219,9 +235,11 @@ All API paths below are relative to the CRUD API's internal address (`db-crud-ap
 | `POST` | `/admin/close` | Admin token | Close voting |
 | `DELETE` | `/admin/deleteVotes/` | Admin token | Reset all votes |
 | `POST` | `/admin/addCountry/` | Admin token | Add a country |
-| `POST` | `/admin/addSong/` | Admin token | Add a song |
+| `POST` | `/admin/addSong/` | Admin token | Add a song (accepts optional `YoutubeURL` parameter) |
 | `POST` | `/admin/addArtist/` | Admin token | Add an artist |
 | `POST` | `/admin/addInterpret/` | Admin token | Add a composer |
+| `POST` | `/admin/startContest/` | Admin token | Shuffle all songs and start a new contest run |
+| `POST` | `/admin/advanceContest/` | Admin token | Advance to the next song in the active contest |
 | `GET` | `/jury/authenticate` | Jury token | Validate a jury token — `202` on success, `403` on failure |
 | `POST` | `/jury/vote/` | Jury token | Cast a jury vote |
 
@@ -255,4 +273,4 @@ EuroStats ──OTLP/gRPC──►                 ──► Prometheus  (metric
                                                 │
                                                 └──► Grafana (unified view)
                                                      https://<host>/grafana/
-
+```
