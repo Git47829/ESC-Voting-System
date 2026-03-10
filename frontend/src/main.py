@@ -611,6 +611,7 @@ def now_playing():
             "now.html",
             song=None,
             contest_active=False,
+            countries=[],
             error=data.get("error", "No active contest")
             if data
             else "Could not reach backend",
@@ -619,6 +620,17 @@ def now_playing():
     song = data.get("payload")
     if song and song.get("youtubeUrl"):
         song["youtubeUrl"] = normalize_youtube_url(song["youtubeUrl"])
+
+    # Fetch all songs so we can build the country selector server-side
+    songs_data = api_get("/songs/")
+    countries = []
+    if songs_data and "payload" in songs_data:
+        seen_ids = set()
+        for s in songs_data["payload"]:
+            if s["countryId"] not in seen_ids:
+                seen_ids.add(s["countryId"])
+                countries.append({"id": s["countryId"], "name": s["countryName"]})
+
     vote_state = None
     raw_cookie = request.cookies.get("vote_state")
     if raw_cookie:
@@ -636,6 +648,7 @@ def now_playing():
         votes_remaining=votes_remaining,
         votes_cast=votes_cast,
         total_vote_points=TOTAL_VOTE_POINTS,
+        countries=countries,
         error=None,
     )
 

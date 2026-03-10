@@ -298,7 +298,9 @@
                                appearance-none cursor-pointer"
                     >
                         <option value="" disabled selected>Select your country…</option>
-                        <!-- Populated by JS from the songs API -->
+                        {% for country in countries %}
+                        <option value="{{ country.id }}">{{ country.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
@@ -413,30 +415,6 @@ function countryFlag(alpha3) {
         el.previousElementSibling && (el.previousElementSibling.style.display = "none");
     }
 })();
-
-// ---------------------------------------------------------------------------
-// Populate country selector from songs API
-// ---------------------------------------------------------------------------
-async function populateCountrySelector() {
-    const sel = document.getElementById("own-country-select");
-    if (!sel) return;
-    try {
-        const resp = await fetch("/api/results");
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (!Array.isArray(data)) return;
-        const seen = new Set();
-        data.forEach(s => {
-            if (seen.has(s.countryId)) return;
-            seen.add(s.countryId);
-            const opt = document.createElement("option");
-            opt.value = s.countryId;
-            opt.textContent = s.countryName;
-            sel.appendChild(opt);
-        });
-    } catch (e) { /* silent */ }
-}
-populateCountrySelector();
 
 // ---------------------------------------------------------------------------
 // Point stepper
