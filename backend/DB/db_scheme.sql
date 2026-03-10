@@ -39,6 +39,7 @@ CREATE TABLE Song (
     PublikumsPunkte SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     JuryPunkte      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     GesamtPunkte    SMALLINT UNSIGNED GENERATED ALWAYS AS (PublikumsPunkte + JuryPunkte) STORED,
+    YoutubeURL      VARCHAR(500)  DEFAULT NULL,  -- Optional YouTube embed URL
     PRIMARY KEY (ID),
     CONSTRAINT fk_song_land      FOREIGN KEY (Land_ID)      REFERENCES Land(ID),
     CONSTRAINT fk_song_kuenstler FOREIGN KEY (Kuenstler_ID) REFERENCES Kuenstler(ID)
@@ -57,6 +58,16 @@ CREATE TABLE Voting_Status (
 	VotingID INT NOT NULL PRIMARY KEY,
 	isOpen BOOL NOT NULL,
 	lastChange TIME
+);
+
+-- Contest run state: tracks shuffled song order and current position
+CREATE TABLE Contest_Run (
+    ID              INT           NOT NULL AUTO_INCREMENT,
+    SongOrder       JSON          NOT NULL,  -- JSON array of song IDs in shuffled order
+    CurrentIndex    INT           NOT NULL DEFAULT 0,
+    StartedAt       DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    IsActive        BOOL          NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (ID)
 );
 
 CREATE TABLE Phone_Nums (

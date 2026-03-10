@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from functools import wraps
 
@@ -131,6 +132,39 @@ def api_delete(endpoint, params=None):
         return 500, {"error": str(e)}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
+
+
+def normalize_youtube_url(url: str) -> str:
+    """Convert any YouTube URL format to the embeddable /embed/VIDEO_ID form.
+
+    Handles:
+      - https://www.youtube.com/watch?v=VIDEO_ID
+      - https://youtu.be/VIDEO_ID
+      - https://www.youtube.com/embed/VIDEO_ID   (already correct)
+      - https://youtube.com/shorts/VIDEO_ID
+    Returns the original string unchanged if no video ID can be extracted.
+    """
+    if not url:
+        return url
+
+    # Already an embed URL — return as-is
+    embed_match = re.search(r"youtube\.com/embed/([A-Za-z0-9_-]{11})", url)
+    if embed_match:
+        return f"https://www.youtube.com/embed/{embed_match.group(1)}"
+
+    # youtu.be/VIDEO_ID
+    short_match = re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", url)
+    if short_match:
+        return f"https://www.youtube.com/embed/{short_match.group(1)}"
+
+    # youtube.com/watch?v=VIDEO_ID  or  youtube.com/shorts/VIDEO_ID
+    watch_match = re.search(
+        r"youtube\.com/(?:watch\?(?:.*&)?v=|shorts/)([A-Za-z0-9_-]{11})", url
+    )
+    if watch_match:
+        return f"https://www.youtube.com/embed/{watch_match.group(1)}"
+
+    return url
 
 
 def get_voting_status():
@@ -509,15 +543,17 @@ def admin_add_song():
     song_name = request.form.get("name", "").strip()
     country = request.form.get("country", "").strip()
     artist_id = request.form.get("artistId", "").strip()
+    youtube_url = request.form.get("youtubeUrl", "").strip()
 
     if not song_name or not country or not artist_id:
         flash("Song Name, Country, and Artist ID are required.", "error")
         return redirect(url_for("admin_dashboard"))
 
-    status, data, _ = api_post(
-        "/admin/addSong/",
-        params={"Token": token, "ID": artist_id, "Name": song_name, "Land": country},
-    )
+    params = {"Token": token, "ID": artist_id, "Name": song_name, "Land": country}
+    if youtube_url:
+        params["YoutubeURL"] = youtube_url
+
+    status, data, _ = api_post("/admin/addSong/", params=params)
     if status in (200, 202):
         app.logger.info(
             "song added", extra={"song_name": song_name, "country": country}
@@ -526,6 +562,104 @@ def admin_add_song():
     else:
         flash(data.get("message", data.get("error", "Failed to add song.")), "error")
     return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/start-contest", methods=["POST"])
+@login_required("admin")
+def admin_start_contest():
+    """Shuffle all songs into a random order and start the contest."""
+    token = session.get("token", "")
+    status, data, _ = api_post("/admin/startContest/", params={"Token": token})
+    if status == 200:
+        song_count = data.get("songCount", 0)
+        app.logger.info("contest started", extra={"song_count": song_count})
+        flash(f"Contest started! {song_count} songs queued in random order.", "success")
+    else:
+        flash(
+            data.get("message", data.get("error", "Failed to start contest.")), "error"
+        )
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/advance-contest", methods=["POST"])
+@login_required("admin")
+def admin_advance_contest():
+    """Advance the contest to the next song."""
+    token = session.get("token", "")
+    status, data, _ = api_post("/admin/advanceContest/", params={"Token": token})
+    if status == 200:
+        if data.get("finished"):
+            flash("The contest has finished! All songs have performed.", "success")
+        else:
+            flash(
+                f"Advanced to song {int(data.get('currentIndex', 0)) + 1}.", "success"
+            )
+    else:
+        flash(
+            data.get("message", data.get("error", "Failed to advance contest.")),
+            "error",
+        )
+    return redirect(url_for("now_playing"))
+
+
+@app.route("/now")
+def now_playing():
+    """Running Now page — shows the current song with YouTube embed and voting."""
+    data = api_get("/contest/current/")
+    if data is None or "error" in data:
+        return render_template(
+            "now.html",
+            song=None,
+            contest_active=False,
+            countries=[],
+            error=data.get("error", "No active contest")
+            if data
+            else "Could not reach backend",
+        )
+
+    song = data.get("payload")
+    if song and song.get("youtubeUrl"):
+        song["youtubeUrl"] = normalize_youtube_url(song["youtubeUrl"])
+
+    # Fetch all songs so we can build the country selector server-side
+    songs_data = api_get("/songs/")
+    countries = []
+    if songs_data and "payload" in songs_data:
+        seen_ids = set()
+        for s in songs_data["payload"]:
+            if s["countryId"] not in seen_ids:
+                seen_ids.add(s["countryId"])
+                countries.append({"id": s["countryId"], "name": s["countryName"]})
+
+    vote_state = None
+    raw_cookie = request.cookies.get("vote_state")
+    if raw_cookie:
+        vote_state = decode_vote_state_cookie(raw_cookie)
+
+    votes_remaining = (
+        vote_state.get("votes_remaining", 0) if vote_state else TOTAL_VOTE_POINTS
+    )
+    votes_cast = vote_state.get("votes_cast", {}) if vote_state else {}
+
+    return render_template(
+        "now.html",
+        song=song,
+        contest_active=True,
+        votes_remaining=votes_remaining,
+        votes_cast=votes_cast,
+        total_vote_points=TOTAL_VOTE_POINTS,
+        countries=countries,
+        error=None,
+    )
+
+
+@app.route("/api/contest/current")
+def api_contest_current():
+    """JSON proxy for the current contest song (polled by the now-playing page)."""
+    data = api_get("/contest/current/")
+    if data is None:
+        return jsonify({"error": "Backend unavailable"}), 503
+    return jsonify(data)
 
 
 # ---------------------------------------------------------------------------
