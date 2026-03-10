@@ -2,105 +2,298 @@
 
 {% block title %}Vote — ESC Voting System{% endblock %}
 
+{% block head %}
+<style>
+    .country-card {
+        transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .country-card:not(.card-disabled):hover {
+        transform: translateY(-2px);
+    }
+    .country-card.card-allocated {
+        border-color: rgba(255, 222, 0, 0.5);
+        background-color: rgba(255, 222, 0, 0.06);
+    }
+    .country-card.card-disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    /* Point stepper */
+    .stepper-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: 700;
+        border: 1px solid #333;
+        background: #1a1a1a;
+        color: #e8e8e8;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+        line-height: 1;
+        user-select: none;
+    }
+    .stepper-btn:hover:not(:disabled) {
+        background: #ffde00;
+        color: #0a0a0a;
+        border-color: #ffde00;
+    }
+    .stepper-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+
+    /* Budget ring animation */
+    @keyframes budget-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 222, 0, 0.4); }
+        50%       { box-shadow: 0 0 0 6px rgba(255, 222, 0, 0); }
+    }
+    .budget-pulse {
+        animation: budget-pulse 0.5s ease-out;
+    }
+
+    /* Basket slide-up on mobile */
+    @keyframes slide-up {
+        from { transform: translateY(100%); opacity: 0; }
+        to   { transform: translateY(0);   opacity: 1; }
+    }
+    .basket-appear {
+        animation: slide-up 0.25s ease-out forwards;
+    }
+
+    /* Already-voted overlay on a card */
+    .voted-badge {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(255,222,0,0.15);
+        border: 1px solid rgba(255,222,0,0.3);
+        color: #ffde00;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 99px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
 
     <!-- Page Header -->
-    <div class="text-center mb-12">
+    <div class="text-center mb-10">
         <h1 class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3">
-            Cast Your Vote
+            Cast Your Votes
         </h1>
-        <p class="text-esc-muted text-sm max-w-md mx-auto">
-            Choose your favourite entry and submit your vote. Each phone number can only vote once.
+        <p class="text-esc-muted text-sm max-w-lg mx-auto">
+            You have <strong class="text-esc-text">{{ total_vote_points }} vote points</strong>
+            to distribute freely across all songs. You can give all of them to one song
+            or spread them however you like.
         </p>
     </div>
 
-    {% if has_voted %}
-    <!-- Already voted banner -->
-    <div class="mx-auto max-w-xl mb-10 flex items-center gap-3 rounded-xl border border-green-500/30 bg-green-500/10 px-5 py-4 text-sm text-green-400">
-        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-        <span>Your vote has already been cast. Thank you for participating!</span>
-    </div>
-    {% endif %}
-
-    <!-- Country Cards Grid -->
-    {% if songs %}
-    <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-        {% for song in songs %}
-        <button
-            type="button"
-            class="country-card group relative flex flex-col items-center gap-4 rounded-2xl border border-esc-surface bg-esc-surface/50 p-6 text-center
-                   transition-all duration-200 hover:border-esc-yellow/50 hover:bg-esc-surface hover:shadow-lg hover:shadow-esc-yellow/5
-                   focus:outline-none focus:ring-2 focus:ring-esc-yellow/40 focus:ring-offset-2 focus:ring-offset-esc-black
-                   {% if not voting_is_open or has_voted %}opacity-50 cursor-not-allowed{% else %}cursor-pointer{% endif %}"
-            data-song-id="{{ song.songId }}"
-            data-song-name="{{ song.songName }}"
-            data-country-name="{{ song.countryName }}"
-            data-country-id="{{ song.countryId }}"
-            data-artist="{{ song.artistFirstName }} {{ song.artistLastName }}"
-            {% if not voting_is_open or has_voted %}disabled{% endif %}
-            onclick="openVoteModal(this)"
-        >
-            <!-- Flag -->
-            <div class="w-16 h-16 rounded-full overflow-hidden border-2 border-esc-surface group-hover:border-esc-yellow/30 transition-colors flex items-center justify-center bg-esc-black">
-                <img
-                    src="https://flagcdn.com/w80/{{ song.countryId[:2]|lower }}.png"
-                    alt="{{ song.countryName }} flag"
-                    class="w-full h-full object-cover"
-                    onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\'text-2xl\'>🏳️</span>';"
-                >
-            </div>
-
-            <!-- Country Name -->
-            <h3 class="font-heading font-semibold text-base text-esc-text group-hover:text-esc-yellow transition-colors leading-tight">
-                {{ song.countryName }}
-            </h3>
-
-            <!-- Song Title -->
-            <p class="text-xs text-esc-muted leading-snug -mt-2">
-                "{{ song.songName }}"
-            </p>
-
-            <!-- Artist -->
-            <p class="text-xs text-esc-muted/70 -mt-2">
-                {{ song.artistFirstName }} {{ song.artistLastName }}
-            </p>
-
-            <!-- Points Badge -->
-            <div class="flex items-center gap-1.5 mt-auto pt-2">
-                <span class="inline-flex items-center rounded-md bg-esc-yellow/10 px-2 py-0.5 text-[10px] font-medium text-esc-yellow ring-1 ring-inset ring-esc-yellow/20">
-                    {{ song.totalVotes }} pts
+    <!-- Budget Bar -->
+    <div class="mx-auto max-w-xl mb-10">
+        <div class="rounded-2xl border border-esc-surface bg-esc-surface/40 px-6 py-5">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-medium text-esc-muted uppercase tracking-wider">Your Point Budget</span>
+                <span class="font-heading font-bold text-lg">
+                    <span id="budget-remaining" class="text-esc-yellow">{{ votes_remaining }}</span>
+                    <span class="text-esc-muted text-sm font-normal"> / {{ total_vote_points }}</span>
                 </span>
             </div>
+            <!-- Progress bar: yellow = used, dark = remaining -->
+            <div class="h-3 w-full rounded-full bg-esc-black/60 overflow-hidden">
+                <div
+                    id="budget-bar"
+                    class="h-full rounded-full bg-esc-yellow transition-all duration-400 ease-out"
+                    style="width: {{ ((total_vote_points - votes_remaining) / total_vote_points * 100)|int }}%"
+                ></div>
+            </div>
+            <div class="mt-2 flex justify-between text-[10px] text-esc-muted">
+                <span>0 used</span>
+                <span id="budget-used-label">{{ total_vote_points - votes_remaining }} used</span>
+            </div>
+            {% if out_of_points %}
+            <div class="mt-4 flex items-center gap-2 rounded-lg border border-esc-yellow/30 bg-esc-yellow/10 px-4 py-2.5 text-xs text-esc-yellow">
+                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span>All your vote points have been spent. Thank you for participating!</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
 
-            <!-- Hover glow accent -->
-            <div class="absolute inset-0 rounded-2xl bg-gradient-to-t from-esc-yellow/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
-        </button>
-        {% endfor %}
+    <!-- Songs Grid -->
+    {% if songs %}
+    <div class="pb-48 sm:pb-32">
+        <div id="cards-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            {% for song in songs %}
+            {% set song_id_str = song.songId | string %}
+            {% set already_spent = votes_cast.get(song_id_str, 0) %}
+            <div
+                class="country-card group relative flex flex-col items-center gap-3 rounded-2xl border border-esc-surface bg-esc-surface/50 p-5 text-center
+                       focus-within:ring-2 focus-within:ring-esc-yellow/40 focus-within:ring-offset-2 focus-within:ring-offset-esc-black
+                       {% if already_spent > 0 %}card-allocated{% endif %}
+                       {% if out_of_points and already_spent == 0 %}card-disabled{% endif %}"
+                data-song-id="{{ song.songId }}"
+                data-song-name="{{ song.songName }}"
+                data-country-name="{{ song.countryName }}"
+                data-country-id="{{ song.countryId }}"
+                data-artist="{{ song.artistFirstName }} {{ song.artistLastName }}"
+                data-already-spent="{{ already_spent }}"
+            >
+                {% if already_spent > 0 %}
+                <div class="voted-badge">{{ already_spent }} pts given</div>
+                {% endif %}
+
+                <!-- Flag -->
+                <div class="w-14 h-14 rounded-full overflow-hidden border-2 border-esc-surface group-hover:border-esc-yellow/30 transition-colors flex items-center justify-center bg-esc-black">
+                    <img
+                        src="https://flagcdn.com/w80/{{ song.countryId[:2]|lower }}.png"
+                        alt="{{ song.countryName }} flag"
+                        class="w-full h-full object-cover"
+                        onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\'text-2xl\'>🏳️</span>';"
+                    >
+                </div>
+
+                <!-- Country + Song -->
+                <div class="w-full">
+                    <h3 class="font-heading font-semibold text-sm text-esc-text group-hover:text-esc-yellow transition-colors leading-tight truncate">
+                        {{ song.countryName }}
+                    </h3>
+                    <p class="text-[11px] text-esc-muted leading-snug truncate">"{{ song.songName }}"</p>
+                    <p class="text-[10px] text-esc-muted/60 truncate">{{ song.artistFirstName }} {{ song.artistLastName }}</p>
+                </div>
+
+                <!-- Current total score badge -->
+                <div class="flex items-center gap-1.5">
+                    <span class="inline-flex items-center rounded-md bg-esc-yellow/10 px-2 py-0.5 text-[10px] font-medium text-esc-yellow ring-1 ring-inset ring-esc-yellow/20">
+                        {{ song.totalVotes }} pts total
+                    </span>
+                </div>
+
+                <!-- Point Stepper — hidden when voting is closed or out of points with 0 allocated -->
+                {% if not out_of_points or already_spent > 0 %}
+                <div class="w-full flex items-center justify-between gap-2 mt-1 pt-3 border-t border-esc-surface/60">
+                    <button
+                        type="button"
+                        class="stepper-btn stepper-minus"
+                        data-song-id="{{ song.songId }}"
+                        aria-label="Remove a point from {{ song.countryName }}"
+                        {% if already_spent == 0 %}disabled{% endif %}
+                    >−</button>
+
+                    <div class="flex-1 text-center">
+                        <span
+                            id="pts-display-{{ song.songId }}"
+                            class="font-heading font-bold text-base {% if already_spent > 0 %}text-esc-yellow{% else %}text-esc-muted{% endif %} transition-colors"
+                        >{{ already_spent }}</span>
+                        <span class="text-[10px] text-esc-muted block leading-none -mt-0.5">pts</span>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="stepper-btn stepper-plus"
+                        data-song-id="{{ song.songId }}"
+                        aria-label="Add a point to {{ song.countryName }}"
+                        {% if out_of_points %}disabled{% endif %}
+                    >+</button>
+                </div>
+                {% else %}
+                <div class="w-full pt-3 border-t border-esc-surface/60 text-[11px] text-esc-muted/50 text-center">
+                    No points left
+                </div>
+                {% endif %}
+
+                <!-- Hover glow -->
+                <div class="absolute inset-0 rounded-2xl bg-gradient-to-t from-esc-yellow/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
     {% else %}
     <div class="flex flex-col items-center justify-center py-20 text-center">
         <span class="text-5xl mb-4">🎵</span>
         <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">No Entries Yet</h2>
-        <p class="text-sm text-esc-muted max-w-sm">
-            No songs have been added to the contest yet. Please check back soon.
-        </p>
+        <p class="text-sm text-esc-muted max-w-sm">No songs have been added to the contest yet. Please check back soon.</p>
     </div>
     {% endif %}
+
 </div>
 
-<div id="vote-modal" class="fixed inset-0 z-50 hidden">
+<!-- ====================================================================
+     VOTE BASKET — sticky bottom bar
+     ==================================================================== -->
+<div
+    id="vote-basket"
+    class="fixed bottom-0 left-0 right-0 z-40 hidden basket-appear"
+>
+    <div class="border-t border-esc-yellow/20 bg-esc-black/95 backdrop-blur-md shadow-2xl shadow-black/60">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-4">
 
-    <div class="modal-backdrop absolute inset-0" onclick="closeVoteModal()"></div>
+                <!-- Allocation summary -->
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-esc-muted mb-2 uppercase tracking-wider font-medium">Your allocation</p>
+                    <div id="basket-tags" class="flex flex-wrap gap-1.5">
+                        <!-- Tags injected by JS -->
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-3 shrink-0">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-xs text-esc-muted">Points pending</p>
+                        <p class="font-heading font-bold text-esc-yellow text-lg" id="basket-pending-count">0</p>
+                    </div>
+                    <button
+                        id="basket-clear-btn"
+                        type="button"
+                        onclick="clearBasket()"
+                        class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2.5 text-xs font-medium text-esc-muted hover:border-red-500/40 hover:text-red-400 transition-colors"
+                    >
+                        Clear
+                    </button>
+                    <button
+                        id="basket-submit-btn"
+                        type="button"
+                        onclick="openSubmitModal()"
+                        class="flex items-center gap-2 rounded-lg bg-esc-yellow px-5 py-2.5 text-sm font-heading font-bold text-esc-black uppercase tracking-wider
+                               hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-colors"
+                    >
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        Submit Votes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====================================================================
+     SUBMIT MODAL — phone number + confirm
+     ==================================================================== -->
+<div id="submit-modal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop absolute inset-0" onclick="closeSubmitModal()"></div>
 
     <div class="relative flex min-h-full items-center justify-center p-4">
         <div class="relative w-full max-w-md rounded-2xl border border-esc-surface bg-esc-black shadow-2xl shadow-esc-yellow/5 overflow-hidden">
 
+            <!-- Close -->
             <button
                 type="button"
-                onclick="closeVoteModal()"
+                onclick="closeSubmitModal()"
                 class="absolute top-4 right-4 rounded-full p-1 text-esc-muted hover:text-esc-yellow hover:bg-esc-surface transition-colors z-10"
                 aria-label="Close"
             >
@@ -109,21 +302,20 @@
                 </svg>
             </button>
 
+            <!-- Header -->
             <div class="border-b border-esc-surface px-6 py-5">
-                <div class="flex items-center gap-4">
-                    <div id="modal-flag" class="w-12 h-12 rounded-full overflow-hidden border-2 border-esc-surface flex items-center justify-center bg-esc-surface">
-                        <span class="text-xl">🏳️</span>
-                    </div>
-                    <div>
-                        <h2 id="modal-country" class="font-heading font-bold text-lg text-esc-yellow">Country</h2>
-                        <p id="modal-song" class="text-xs text-esc-muted">"Song Title"</p>
-                        <p id="modal-artist" class="text-[11px] text-esc-muted/60">Artist</p>
-                    </div>
-                </div>
+                <h2 class="font-heading font-bold text-lg text-esc-yellow">Confirm Your Votes</h2>
+                <p class="text-xs text-esc-muted mt-0.5">Review your allocation and enter your phone number to submit.</p>
             </div>
 
-            <form id="vote-form" class="px-6 py-6 space-y-5">
-                <input type="hidden" id="modal-song-id" name="songID" value="">
+            <!-- Allocation review -->
+            <div class="px-6 pt-4 pb-2">
+                <p class="text-[11px] text-esc-muted uppercase tracking-wider mb-2">Point allocation</p>
+                <div id="modal-allocation-list" class="space-y-1.5 max-h-40 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Form -->
+            <form id="submit-form" class="px-6 pb-6 pt-3 space-y-4">
 
                 <div>
                     <label for="own-country" class="block text-xs font-medium text-esc-muted mb-1.5 uppercase tracking-wider">
@@ -152,7 +344,7 @@
                         type="tel"
                         id="phone-number"
                         name="phoneNum"
-                        placeholder="""+49 123 456 7890"
+                        placeholder="+49 123"" 456 7890"
                         required
                         class="w-full rounded-lg border border-esc-surface bg-esc-surface/50 px-3 py-2.5 text-sm text-esc-text placeholder-esc-muted/50
                                focus:border-esc-yellow focus:ring-1 focus:ring-esc-yellow focus:outline-none transition-colors"
@@ -162,22 +354,36 @@
                     </p>
                 </div>
 
+                <!-- Progress indicator during submission -->
+                <div id="submit-progress" class="hidden space-y-1">
+                    <div class="flex justify-between text-[11px] text-esc-muted">
+                        <span id="submit-progress-label">Submitting…</span>
+                        <span id="submit-progress-count"></span>
+                    </div>
+                    <div class="h-1.5 w-full rounded-full bg-esc-surface overflow-hidden">
+                        <div id="submit-progress-bar" class="h-full bg-esc-yellow rounded-full transition-all duration-300" style="width:0%"></div>
+                    </div>
+                </div>
+
+                <!-- Per-vote result log -->
+                <div id="submit-log" class="hidden max-h-32 overflow-y-auto space-y-1 text-[11px]"></div>
+
+                <!-- Error / success banner -->
+                <div id="submit-response" class="hidden rounded-lg px-4 py-3 text-sm text-center"></div>
+
                 <button
                     type="submit"
-                    id="vote-submit-btn"
-                    {% if has_voted %}disabled{% endif %}
+                    id="submit-btn"
                     class="w-full flex items-center justify-center gap-2 rounded-lg bg-esc-yellow px-4 py-3 text-sm font-heading font-bold text-esc-black uppercase tracking-wider
                            hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black
                            transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <span id="vote-btn-text">{% if has_voted %}Vote Already Cast{% else %}Submit Vote{% endif %}</span>
-                    <svg id="vote-spinner" class="hidden animate-spin h-4 w-4 text-esc-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <span id="submit-btn-text">Submit All Votes</span>
+                    <svg id="submit-spinner" class="hidden animate-spin h-4 w-4 text-esc-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                     </svg>
                 </button>
-
-                <div id="vote-response" class="hidden rounded-lg px-4 py-3 text-sm text-center"></div>
             </form>
         </div>
     </div>
@@ -186,113 +392,377 @@
 
 {% block scripts %}
 <script>
-    const HAS_VOTED = {{ 'true' if has_voted else 'false' }};
+    // -----------------------------------------------------------------------
+    // Constants injected from Flask
+    // -----------------------------------------------------------------------
+    const TOTAL_POINTS      = {{ total_vote_points }};
+    const SERVER_REMAINING  = {{ votes_remaining }};
+    // votes already cast server-side: { "songId": points, ... }
+    const SERVER_VOTES_CAST = {{ votes_cast | tojson }};
+    const OUT_OF_POINTS     = {{ 'true' if out_of_points else 'false' }};
 
-    const countryIdToAlpha2 = {
-        'DEU': 'de', 'SWE': 'se', 'FRA': 'fr', 'ESP': 'es', 'ITA': 'it',
-        'GBR': 'gb', 'NOR': 'no', 'FIN': 'fi', 'AUT': 'at', 'BEL': 'be',
-        'NLD': 'nl', 'CHE': 'ch', 'PRT': 'pt', 'GRC': 'gr', 'IRL': 'ie',
-        'DNK': 'dk', 'ISL': 'is', 'HRV': 'hr', 'SRB': 'rs', 'UKR': 'ua',
-        'POL': 'pl', 'CZE': 'cz', 'ROU': 'ro', 'BGR': 'bg', 'HUN': 'hu',
-        'SVN': 'si', 'SVK': 'sk', 'EST': 'ee', 'LVA': 'lv', 'LTU': 'lt',
-        'CYP': 'cy', 'MLT': 'mt', 'ISR': 'il', 'GEO': 'ge', 'ARM': 'am',
-        'AZE': 'az', 'MDA': 'md', 'MNE': 'me', 'MKD': 'mk', 'ALB': 'al',
-        'BIH': 'ba', 'SMR': 'sm', 'AND': 'ad', 'LUX': 'lu', 'AUS': 'au',
+    // Country ID (alpha-3) → alpha-2 flag code map
+    const ALPHA3_TO_ALPHA2 = {
+        'DEU':'de','SWE':'se','FRA':'fr','ESP':'es','ITA':'it','GBR':'gb',
+        'NOR':'no','FIN':'fi','AUT':'at','BEL':'be','NLD':'nl','CHE':'ch',
+        'PRT':'pt','GRC':'gr','IRL':'ie','DNK':'dk','ISL':'is','HRV':'hr',
+        'SRB':'rs','UKR':'ua','POL':'pl','CZE':'cz','ROU':'ro','BGR':'bg',
+        'HUN':'hu','SVN':'si','SVK':'sk','EST':'ee','LVA':'lv','LTU':'lt',
+        'CYP':'cy','MLT':'mt','ISR':'il','GEO':'ge','ARM':'am','AZE':'az',
+        'MDA':'md','MNE':'me','MKD':'mk','ALB':'al','BIH':'ba','SMR':'sm',
+        'AND':'ad','LUX':'lu','AUS':'au',
     };
 
-    function getAlpha2(countryId) {
-        if (countryIdToAlpha2[countryId]) return countryIdToAlpha2[countryId];
-        // Fallback: try first two chars lowercased
-        return countryId.substring(0, 2).toLowerCase();
+    // -----------------------------------------------------------------------
+    // State
+    // -----------------------------------------------------------------------
+    // pendingAllocation: songId (number) → points (number) the user is
+    // currently setting in THIS session (before submitting).
+    // This is separate from SERVER_VOTES_CAST which is already committed.
+    const pendingAllocation = {};
+
+    // Budget remaining for pending actions only.
+    // The real authoritative budget lives on the server; we compute a local
+    // shadow so the UI stays responsive.
+    let localRemaining = SERVER_REMAINING;
+
+    // -----------------------------------------------------------------------
+    // Boot: initialise stepper states
+    // -----------------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+        // All plus/minus buttons
+        document.querySelectorAll('.stepper-plus').forEach(btn => {
+            btn.addEventListener('click', () => stepPoints(Number(btn.dataset.songId), +1));
+        });
+        document.querySelectorAll('.stepper-minus').forEach(btn => {
+            btn.addEventListener('click', () => stepPoints(Number(btn.dataset.songId), -1));
+        });
+
+        refreshBudgetUI();
+        refreshBasket();
+    });
+
+    // -----------------------------------------------------------------------
+    // Core: adjust pending points for a song by delta (+1 / -1)
+    // -----------------------------------------------------------------------
+    function stepPoints(songId, delta) {
+        const current = pendingAllocation[songId] || 0;
+        const newVal  = current + delta;
+
+        if (newVal < 0) return;                    // can't go below zero
+        if (delta > 0 && localRemaining <= 0) return; // no budget left
+
+        pendingAllocation[songId] = newVal;
+        localRemaining -= delta;
+
+        updateCardDisplay(songId, newVal);
+        refreshBudgetUI();
+        refreshBasket();
     }
 
-    function openVoteModal(el) {
-        if (HAS_VOTED) return;
-        const songId = el.dataset.songId;
-        const songName = el.dataset.songName;
-        const countryName = el.dataset.countryName;
-        const countryId = el.dataset.countryId;
-        const artist = el.dataset.artist;
+    // -----------------------------------------------------------------------
+    // Update a single card's stepper display
+    // -----------------------------------------------------------------------
+    function updateCardDisplay(songId, pts) {
+        const display = document.getElementById('pts-display-' + songId);
+        if (!display) return;
 
-        document.getElementById('modal-song-id').value = songId;
-        document.getElementById('modal-country').textContent = countryName;
-        document.getElementById('modal-song').textContent = '"' + songName + '"';
-        document.getElementById('modal-artist').textContent = artist;
+        display.textContent = pts;
+        display.className = display.className.replace(/text-esc-(yellow|muted)/g, '');
+        display.classList.add(pts > 0 ? 'text-esc-yellow' : 'text-esc-muted');
 
+        // Card border/bg highlight
+        const card = document.querySelector(`.country-card[data-song-id="${songId}"]`);
+        if (card) {
+            if (pts > 0) {
+                card.classList.add('card-allocated');
+            } else {
+                // Only remove if no server-side points either
+                const serverPts = Number(SERVER_VOTES_CAST[String(songId)] || 0);
+                if (serverPts === 0) card.classList.remove('card-allocated');
+            }
+        }
 
-        const alpha2 = getAlpha2(countryId);
-        document.getElementById('modal-flag').innerHTML =
-            '<img src="https://flagcdn.com/w80/' + alpha2 + '.png" alt="' + countryName + ' flag" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML=\'<span class=\\\'text-xl\\\'>🏳️</span>\';">';
+        // Minus button — disable at 0
+        const minusBtn = document.querySelector(`.stepper-minus[data-song-id="${songId}"]`);
+        if (minusBtn) minusBtn.disabled = (pts <= 0);
 
-        document.getElementById('vote-form').reset();
-        document.getElementById('modal-song-id').value = songId;
-        document.getElementById('vote-response').classList.add('hidden');
-        document.getElementById('vote-submit-btn').disabled = false;
-        document.getElementById('vote-btn-text').textContent = 'Submit Vote';
-        document.getElementById('vote-spinner').classList.add('hidden');
+        // Plus buttons — disable all if budget exhausted
+        refreshPlusButtons();
+    }
 
-        document.getElementById('vote-modal').classList.remove('hidden');
+    // -----------------------------------------------------------------------
+    // Enable / disable all + buttons based on remaining budget
+    // -----------------------------------------------------------------------
+    function refreshPlusButtons() {
+        document.querySelectorAll('.stepper-plus').forEach(btn => {
+            btn.disabled = (localRemaining <= 0);
+        });
+    }
+
+    // -----------------------------------------------------------------------
+    // Update the top budget bar + labels
+    // -----------------------------------------------------------------------
+    function refreshBudgetUI() {
+        const usedTotal    = TOTAL_POINTS - SERVER_REMAINING; // already committed
+        const pendingTotal = Object.values(pendingAllocation).reduce((a, b) => a + b, 0);
+        const displayUsed  = usedTotal + pendingTotal;
+        const displayLeft  = TOTAL_POINTS - displayUsed;
+
+        const bar   = document.getElementById('budget-bar');
+        const label = document.getElementById('budget-remaining');
+        const used  = document.getElementById('budget-used-label');
+
+        if (bar)   bar.style.width   = Math.min(100, (displayUsed / TOTAL_POINTS) * 100) + '%';
+        if (label) label.textContent = Math.max(0, displayLeft);
+        if (used)  used.textContent  = displayUsed + ' used';
+
+        // Pulse the bar when it changes
+        if (bar) {
+            bar.classList.remove('budget-pulse');
+            void bar.offsetWidth; // reflow to re-trigger animation
+            bar.classList.add('budget-pulse');
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Basket: show/hide sticky bar, populate tags
+    // -----------------------------------------------------------------------
+    function refreshBasket() {
+        const basket     = document.getElementById('vote-basket');
+        const tagsEl     = document.getElementById('basket-tags');
+        const pendingEl  = document.getElementById('basket-pending-count');
+
+        const entries = Object.entries(pendingAllocation).filter(([, pts]) => pts > 0);
+
+        if (entries.length === 0) {
+            basket.classList.add('hidden');
+            return;
+        }
+
+        basket.classList.remove('hidden');
+
+        const totalPending = entries.reduce((sum, [, pts]) => sum + pts, 0);
+        if (pendingEl) pendingEl.textContent = totalPending;
+
+        // Build tag HTML
+        tagsEl.innerHTML = entries.map(([songId, pts]) => {
+            const card = document.querySelector(`.country-card[data-song-id="${songId}"]`);
+            const countryName  = card ? card.dataset.countryName  : `Song ${songId}`;
+            const countryId    = card ? card.dataset.countryId    : '';
+            const alpha2       = ALPHA3_TO_ALPHA2[countryId] || countryId.substring(0, 2).toLowerCase();
+            return `
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-esc-yellow/30 bg-esc-yellow/10 px-2.5 py-1 text-[11px] text-esc-yellow font-medium">
+                    <img src="https://flagcdn.com/w20/${alpha2}.png" alt="" class="w-3.5 h-3.5 rounded-full object-cover shrink-0">
+                    ${countryName}
+                    <span class="font-bold">${pts}pt${pts !== 1 ? 's' : ''}</span>
+                </span>`;
+        }).join('');
+    }
+
+    // -----------------------------------------------------------------------
+    // Clear all pending allocations
+    // -----------------------------------------------------------------------
+    function clearBasket() {
+        Object.keys(pendingAllocation).forEach(songId => {
+            pendingAllocation[songId] = 0;
+            updateCardDisplay(Number(songId), 0);
+        });
+        localRemaining = SERVER_REMAINING;
+        refreshBudgetUI();
+        refreshBasket();
+    }
+
+    // -----------------------------------------------------------------------
+    // Submit modal: open / close / populate
+    // -----------------------------------------------------------------------
+    function openSubmitModal() {
+        const entries = Object.entries(pendingAllocation).filter(([, pts]) => pts > 0);
+        if (entries.length === 0) return;
+
+        // Populate allocation review list
+        const listEl = document.getElementById('modal-allocation-list');
+        listEl.innerHTML = entries.map(([songId, pts]) => {
+            const card = document.querySelector(`.country-card[data-song-id="${songId}"]`);
+            const countryName = card ? card.dataset.countryName : `Song ${songId}`;
+            const songName    = card ? card.dataset.songName    : '';
+            const countryId   = card ? card.dataset.countryId   : '';
+            const alpha2      = ALPHA3_TO_ALPHA2[countryId] || countryId.substring(0, 2).toLowerCase();
+            return `
+                <div class="flex items-center gap-2.5 rounded-lg bg-esc-surface/40 px-3 py-2">
+                    <img src="https://flagcdn.com/w20/${alpha2}.png" alt="" class="w-5 h-5 rounded-full object-cover shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-medium text-esc-text truncate">${countryName}</p>
+                        <p class="text-[10px] text-esc-muted truncate">${songName}</p>
+                    </div>
+                    <span class="font-heading font-bold text-sm text-esc-yellow shrink-0">${pts} pt${pts !== 1 ? 's' : ''}</span>
+                </div>`;
+        }).join('');
+
+        // Reset form state
+        document.getElementById('submit-form').reset();
+        document.getElementById('submit-response').classList.add('hidden');
+        document.getElementById('submit-progress').classList.add('hidden');
+        document.getElementById('submit-log').classList.add('hidden');
+        document.getElementById('submit-log').innerHTML = '';
+        document.getElementById('submit-btn').disabled = false;
+        document.getElementById('submit-btn-text').textContent = 'Submit All Votes';
+        document.getElementById('submit-spinner').classList.add('hidden');
+
+        document.getElementById('submit-modal').classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     }
 
-    function closeVoteModal() {
-        document.getElementById('vote-modal').classList.add('hidden');
+    function closeSubmitModal() {
+        document.getElementById('submit-modal').classList.add('hidden');
         document.body.style.overflow = '';
     }
 
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape') closeVoteModal();
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeSubmitModal();
     });
 
-    document.getElementById('vote-form').addEventListener('submit', async function (e) {
+    // -----------------------------------------------------------------------
+    // Form submission: send one POST per song sequentially
+    // -----------------------------------------------------------------------
+    document.getElementById('submit-form').addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        if (HAS_VOTED) return;
+        const phone      = document.getElementById('phone-number').value.trim();
+        const ownCountry = document.getElementById('own-country').value;
 
-        const btn = document.getElementById('vote-submit-btn');
-        const btnText = document.getElementById('vote-btn-text');
-        const spinner = document.getElementById('vote-spinner');
-        const responseDiv = document.getElementById('vote-response');
+        if (!phone || !ownCountry) {
+            showResponse('error', 'Please fill in your country and phone number.');
+            return;
+        }
 
-        btn.disabled = true;
-        btnText.textContent = 'Submitting…';
+        const entries = Object.entries(pendingAllocation).filter(([, pts]) => pts > 0);
+        if (entries.length === 0) {
+            showResponse('error', 'No points allocated.');
+            return;
+        }
+
+        // Lock UI
+        const btn     = document.getElementById('submit-btn');
+        const btnText = document.getElementById('submit-btn-text');
+        const spinner = document.getElementById('submit-spinner');
+        btn.disabled  = true;
         spinner.classList.remove('hidden');
-        responseDiv.classList.add('hidden');
+        btnText.textContent = 'Submitting…';
 
-        const formData = new FormData(this);
+        const progressWrap = document.getElementById('submit-progress');
+        const progressBar  = document.getElementById('submit-progress-bar');
+        const progressLbl  = document.getElementById('submit-progress-label');
+        const progressCnt  = document.getElementById('submit-progress-count');
+        const logEl        = document.getElementById('submit-log');
 
-        try {
-            const resp = await fetch('/vote/submit', {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await resp.json();
+        progressWrap.classList.remove('hidden');
+        logEl.classList.remove('hidden');
+        logEl.innerHTML = '';
 
-            responseDiv.classList.remove('hidden');
+        const total   = entries.length;
+        let succeeded = 0;
+        let failed    = 0;
+        const errors  = [];
 
-            if (resp.ok) {
-                responseDiv.className = 'rounded-lg px-4 py-3 text-sm text-center border border-green-500/30 bg-green-500/10 text-green-400';
-                responseDiv.textContent = '✓ Vote submitted successfully!';
-                btnText.textContent = 'Vote Cast!';
+        for (let i = 0; i < entries.length; i++) {
+            const [songId, pts] = entries[i];
+            const card = document.querySelector(`.country-card[data-song-id="${songId}"]`);
+            const countryName = card ? card.dataset.countryName : `Song ${songId}`;
 
-                setTimeout(function () {
-                    window.location.reload();
-                }, 1500);
-            } else {
-                responseDiv.className = 'rounded-lg px-4 py-3 text-sm text-center border border-red-500/30 bg-red-500/10 text-red-400';
-                responseDiv.textContent = data.error || data.message || 'Failed to submit vote.';
-                btn.disabled = false;
-                btnText.textContent = 'Submit Vote';
-                spinner.classList.add('hidden');
+            progressLbl.textContent = `Submitting vote for ${countryName}…`;
+            progressCnt.textContent = `${i + 1} / ${total}`;
+            progressBar.style.width = ((i / total) * 100) + '%';
+
+            const formData = new FormData();
+            formData.append('songID',     songId);
+            formData.append('phoneNum',   phone);
+            formData.append('ownCountry', ownCountry);
+            formData.append('points',     String(pts));
+
+            try {
+                const resp = await fetch('/vote/submit', {
+                    method: 'POST',
+                    body:   formData,
+                });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    succeeded++;
+                    logEl.innerHTML += logEntry('success', `✓ ${countryName}: ${pts} pt${pts !== 1 ? 's' : ''} cast`);
+                    // Update the local server-remaining value from the response
+                    if (typeof data.votes_remaining === 'number') {
+                        localRemaining = data.votes_remaining;
+                    }
+                } else {
+                    failed++;
+                    const msg = data.error || data.message || 'Unknown error';
+                    errors.push(`${countryName}: ${msg}`);
+                    logEl.innerHTML += logEntry('error', `✗ ${countryName}: ${msg}`);
+                }
+            } catch (err) {
+                failed++;
+                errors.push(`${countryName}: network error`);
+                logEl.innerHTML += logEntry('error', `✗ ${countryName}: network error`);
             }
-        } catch (err) {
-            responseDiv.classList.remove('hidden');
-            responseDiv.className = 'rounded-lg px-4 py-3 text-sm text-center border border-red-500/30 bg-red-500/10 text-red-400';
-            responseDiv.textContent = 'Network error — please try again.';
+
+            // Scroll log to bottom
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        // Final progress bar
+        progressBar.style.width = '100%';
+        progressLbl.textContent = 'Done!';
+        progressCnt.textContent = `${total} / ${total}`;
+
+        spinner.classList.add('hidden');
+
+        if (failed === 0) {
+            // Full success
+            btnText.textContent = '✓ All Votes Submitted!';
+            showResponse('success', `All ${succeeded} vote${succeeded !== 1 ? 's' : ''} submitted successfully! Refreshing…`);
+            setTimeout(() => {
+                closeSubmitModal();
+                window.location.reload();
+            }, 2000);
+        } else if (succeeded > 0) {
+            // Partial success
+            btnText.textContent = 'Partially Submitted';
+            showResponse('warning', `${succeeded} vote${succeeded !== 1 ? 's' : ''} submitted, ${failed} failed. Refreshing…`);
+            setTimeout(() => {
+                closeSubmitModal();
+                window.location.reload();
+            }, 3000);
+        } else {
+            // All failed
+            btnText.textContent = 'Submission Failed';
             btn.disabled = false;
-            btnText.textContent = 'Submit Vote';
-            spinner.classList.add('hidden');
+            showResponse('error', errors[0] || 'All votes failed. Please try again.');
         }
     });
+
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+    function logEntry(type, text) {
+        const colour = type === 'success' ? 'text-green-400' : 'text-red-400';
+        return `<p class="${colour}">${escHtml(text)}</p>`;
+    }
+
+    function escHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function showResponse(type, message) {
+        const el = document.getElementById('submit-response');
+        el.classList.remove('hidden');
+        const styles = {
+            success: 'border border-green-500/30 bg-green-500/10 text-green-400',
+            error:   'border border-red-500/30 bg-red-500/10 text-red-400',
+            warning: 'border border-esc-yellow/30 bg-esc-yellow/10 text-esc-yellow',
+        };
+        el.className = 'rounded-lg px-4 py-3 text-sm text-center ' + (styles[type] || styles.error);
+        el.textContent = message;
+    }
 </script>
 {% endblock %}
