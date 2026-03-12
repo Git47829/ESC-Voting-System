@@ -11,6 +11,7 @@ import (
 
 	pb "main/proto"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -213,37 +214,43 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	query := `
-		SELECT
-			s.ID,
-			s.Name,
-			l.ID as country_id,
-			l.Name as country_name,
-			s.PublikumsPunkte + s.JuryPunkte as total_votes
-		FROM Song s
-		JOIN Land l ON s.Land_ID = l.ID
-		WHERE s.ID = ?
-	`
-
 	var (
-		id          int
-		songName    string
-		countryID   string
-		countryName string
-		totalVotes  int
+		id, totalVotes                   int
+		songName, countryID, countryName string
+		voterCountryName                 string
 	)
 
-	err := db.QueryRowContext(ctx, query, songID).Scan(&id, &songName, &countryID, &countryName, &totalVotes)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to get vote details for notification",
-			slog.Any("error", err),
-			slog.Int("song_id", songID),
-		)
-		return
-	}
+	g, gctx := errgroup.WithContext(ctx)
 
-	var voterCountryName string
-	if voterCountry != "" && voterCountry != "SYSTEM" {
+	g.Go(func() error {
+		query := `
+			SELECT
+				s.ID,
+				s.Name,
+				l.ID as country_id,
+				l.Name as country_name,
+				s.PublikumsPunkte + s.JuryPunkte as total_votes
+			FROM Song s
+			JOIN Land l ON s.Land_ID = l.ID
+			WHERE s.ID = ?
+		`
+
+		err := db.QueryRowContext(gctx, query, songID).
+			Scan(&id, &songName, &countryID, &countryName, &totalVotes)
+		if err != nil {
+			logger.ErrorContext(gctx, "failed to get vote details for notification",
+				slog.Any("error", err),
+				slog.Int("song_id", songID),
+			)
+		}
+		return err
+	})
+
+	g.Go(func() error {
+		if voterCountry == "" || voterCountry == "SYSTEM" || voterCountry == "JURY" {
+			voterCountryName = "Unknown"
+			return nil
+		}
 		err := db.QueryRowContext(ctx, "SELECT Name FROM Land WHERE ID = ?", voterCountry).Scan(&voterCountryName)
 		if err != nil {
 			voterCountryName = voterCountry
@@ -251,9 +258,18 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 				slog.String("country_id", voterCountry),
 				slog.Any("error", err),
 			)
+			return nil
 		}
-	} else {
-		voterCountryName = "Unknown"
+		return nil
+
+	})
+
+	if err := g.Wait(); err != nil {
+		logger.ErrorContext(ctx, "NotifyVote: aborting broadcast due to DB error",
+			slog.Any("error", err),
+			slog.Int("song_id", songID),
+		)
+		return
 	}
 
 	vote := &pb.Vote{

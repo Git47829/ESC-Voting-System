@@ -15,8 +15,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -35,6 +37,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
 	"github.com/nyaruka/phonenumbers"
@@ -113,7 +116,6 @@ var (
 	}
 )
 
-// Token Store (kept for legacy cookie invalidation checks)
 var (
 	usedTokens = make(map[string]bool)
 	mu         sync.Mutex
@@ -121,14 +123,11 @@ var (
 
 const totalVotePoints = 20
 
-// cookieVoteState is the structure stored in the vote cookie.
 type cookieVoteState struct {
 	VotesRemaining int            `json:"votes_remaining"`
-	VotesCast      map[string]int `json:"votes_cast"` // songID (string) -> points awarded
+	VotesCast      map[string]int `json:"votes_cast"`
 }
 
-// signedCookieSecret is derived from the adminPassword env var at startup.
-// Falls back to a random per-process secret so the service still works without one.
 var signedCookieSecret []byte
 
 func initCookieSecret() {
@@ -143,8 +142,6 @@ func initCookieSecret() {
 	}
 }
 
-// encodeCookieValue serialises a cookieVoteState and appends an HMAC-SHA256
-// signature so the client cannot tamper with it.
 func encodeCookieValue(state cookieVoteState) (string, error) {
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -158,14 +155,11 @@ func encodeCookieValue(state cookieVoteState) (string, error) {
 	return hex.EncodeToString(payload), nil
 }
 
-// Structured Logger
 var (
 	logger *slog.Logger
 
-	//OTel Tracer
 	tracer trace.Tracer
 
-	//Prometheus metrics for request size
 	requestSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_size_bytes",
@@ -175,7 +169,6 @@ var (
 		[]string{"method", "path"},
 	)
 
-	// Response size
 	responseSizeBytes = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_response_size_bytes",
@@ -185,7 +178,6 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
-	// Request Duration
 	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "http_request_duration_seconds",
@@ -206,7 +198,6 @@ var (
 
 func otlpEndpointHostPort() string {
 	otlpEndpoint := getEnvOrDefault("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "localhost:4318")
-	// WithEndpoint expects only host:port, so strip any http:// or https:// scheme
 	if parsed, err := url.Parse(otlpEndpoint); err == nil && parsed.Host != "" {
 		return parsed.Host
 	}
@@ -276,9 +267,6 @@ func initLogProvider() (*sdklog.LoggerProvider, error) {
 	return lp, nil
 }
 
-// otelSlogHandler wraps another slog.Handler and additionally emits each log
-// record as an OTLP log, embedding the active trace/span IDs so that Loki
-// can correlate logs with Tempo traces via the traceID label.
 type otelSlogHandler struct {
 	inner  slog.Handler
 	logger otellog.Logger
@@ -296,17 +284,14 @@ func (h *otelSlogHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
-	// Emit to the original handler (stdout) first.
 	if err := h.inner.Handle(ctx, r); err != nil {
 		return err
 	}
 
-	// Build an OTel log record.
 	var rec otellog.Record
 	rec.SetTimestamp(r.Time)
 	rec.SetBody(otellog.StringValue(r.Message))
 
-	// Map slog levels to OTel severity.
 	switch {
 	case r.Level >= slog.LevelError:
 		rec.SetSeverity(otellog.SeverityError)
@@ -322,19 +307,12 @@ func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 		rec.SetSeverityText("DEBUG")
 	}
 
-	// Carry all slog attributes across as OTel log attributes.
 	attrs := make([]otellog.KeyValue, 0, r.NumAttrs()+2)
 	r.Attrs(func(a slog.Attr) bool {
 		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
 		return true
 	})
 
-	// Explicitly attach traceID and spanID as log *attributes* (in addition
-	// to the OTel SDK automatically setting them as standard OTLP trace
-	// context fields from ctx). The Loki exporter in the OTel collector
-	// promotes attributes listed under loki.attribute.labels as Loki stream
-	// labels, which is what enables Grafana's tracesToLogsV2 filterByTraceID
-	// link to perform an efficient label-based query instead of a full scan.
 	if spanCtx := trace.SpanFromContext(ctx).SpanContext(); spanCtx.IsValid() {
 		attrs = append(attrs,
 			otellog.String("traceID", spanCtx.TraceID().String()),
@@ -373,7 +351,6 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
-// Chain of Responsibility Design Pattern
 func ObservabilityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
@@ -389,13 +366,10 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 			attribute.Int64("http.request_content_length", r.ContentLength),
 		)
 
-		// Wrap response writer to capture status and size
 		rw := &responseWriter{
 			ResponseWriter: w,
 			statusCode:     http.StatusOK,
 		}
-
-		// Record request size metric
 
 		if r.ContentLength > 0 {
 			requestSizeBytes.WithLabelValues(r.Method, r.URL.Path).Observe(float64(r.ContentLength))
@@ -412,25 +386,21 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 			slog.String("span_id", span.SpanContext().SpanID().String()),
 		)
 
-		// Call the next handler with new Context
 		next.ServeHTTP(rw, r.WithContext(ctx))
 
 		duration := time.Since(startTime)
 
-		// Update span with response info
 		span.SetAttributes(
 			attribute.Int("http.status_code", rw.statusCode),
 			attribute.Int("http.response_size", rw.size),
 			attribute.Float64("http.duration_ms", float64(duration.Milliseconds())),
 		)
 
-		// Record Metrics
 		statusStr := fmt.Sprintf("%d", rw.statusCode)
 		requestCounter.WithLabelValues(r.Method, r.URL.Path, statusStr).Inc()
 		requestDuration.WithLabelValues(r.Method, r.URL.Path, statusStr).Observe(duration.Seconds())
 		responseSizeBytes.WithLabelValues(r.Method, r.URL.Path, statusStr).Observe(float64(rw.size))
 
-		// Request Complete
 		logger.InfoContext(ctx, "request completed",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
@@ -539,28 +509,17 @@ var alpha3ToAlpha2 = map[string]string{
 	"UKR": "UA", // Ukraine
 }
 
-// checkPhoneNum validates a phone number and returns the alpha-3 country code
-// it belongs to (as used in the Land table), so the caller can enforce voting rules.
-//
-// Returns:
-//   - (alpha3, nil)   — number is valid and from a European / ESC-participating country
-//   - ("",    nil)    — number is structurally invalid
-//   - ("",    error)  — number is valid but not from a European / ESC-participating country
 func checkPhoneNum(num string) (string, error) {
-	// Parse without a region hint so the region is derived purely from the
-	// number itself (requires E.164 or an explicit country prefix).
+
 	parsed, err := phonenumbers.Parse(num, "")
 	if err != nil {
-		// Could not be parsed at all — not a valid phone number.
 		return "", nil
 	}
 
-	// Check 1 — is the number itself structurally valid?
 	if !phonenumbers.IsValidNumber(parsed) {
 		return "", nil
 	}
 
-	// Check 2 — is the number from a European / ESC-participating country?
 	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
 	alpha3 := regionAlpha2ToAlpha3(numRegion)
 	if alpha3 == "" {
@@ -570,8 +529,6 @@ func checkPhoneNum(num string) (string, error) {
 	return alpha3, nil
 }
 
-// regionAlpha2ToAlpha3 reverses alpha3ToAlpha2 for a single lookup.
-// Returns an empty string if the alpha-2 code is not in the ESC map.
 func regionAlpha2ToAlpha3(alpha2 string) string {
 	for a3, a2 := range alpha3ToAlpha2 {
 		if a2 == alpha2 {
@@ -612,16 +569,35 @@ func checkAccessJury(input string) (bool, string) {
 
 	TestToken := []string{juryPassword1, juryPassword2, juryPassword3}
 
-	if input == "" {
-		return false, "Token has to be provided"
-	}
+	results := make(chan bool, len(TestToken))
+
+	var wg sync.WaitGroup
 
 	for _, token := range TestToken {
-		if checkPassword(input, token) {
-			return true, "Authorized"
+		wg.Add(1)
+		t := token
+		go func() {
+			defer wg.Done()
+			results <- checkPassword(input, t)
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	authorized := false
+
+	for matched := range results {
+		if matched {
+			authorized = true
 		}
 	}
 
+	if authorized {
+		return true, "Authorized"
+	}
 	return false, "Wrong Token Provided"
 }
 
@@ -712,7 +688,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
 
-	// --- Validate phone number ---
 	phoneCountry, phoneErr := checkPhoneNum(phone)
 	if phoneErr != nil {
 		logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.Any("error", phoneErr))
@@ -729,7 +704,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 
 	phoneHash, _ := hashPassword(phone)
 
-	// --- Parse songID ---
 	rawID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(rawID)
 	if err != nil {
@@ -739,7 +713,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Parse points ---
 	rawPoints := r.URL.Query().Get("points")
 	points, err := strconv.Atoi(rawPoints)
 	if err != nil || points < 1 || points > totalVotePoints {
@@ -751,92 +724,68 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Check voting is open ---
-	type voteStatus struct {
-		VotingID   int    `json:"votingId"`
-		IsOpen     bool   `json:"isOpen"`
-		LastChange string `json:"lastChange,omitempty"`
-	}
-	statusRows, err := db.QueryContext(ctx, `SELECT VotingID, isOpen, lastChange FROM Voting_Status`)
-	if err != nil {
-		logger.ErrorContext(ctx, "failed to query voting status", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to query voting status"})
-		return
-	}
-	defer statusRows.Close()
+	var (
+		votingIsOpen bool
+		songLandID   string
+		songFound    bool
+	)
 
-	for statusRows.Next() {
-		var v voteStatus
-		var lastChange sql.NullString
-		if scanErr := statusRows.Scan(&v.VotingID, &v.IsOpen, &lastChange); scanErr != nil {
-			logger.ErrorContext(ctx, "failed to scan voting status row", slog.Any("error", scanErr))
-			continue
-		}
-		if lastChange.Valid {
-			v.LastChange = lastChange.String
-		}
-		if !v.IsOpen {
-			w.WriteHeader(http.StatusTooEarly)
-			json.NewEncoder(w).Encode(map[string]any{
-				"error":   "voting has not started yet, please try again in a few minutes",
-				"payload": v,
-			})
-			return
-		}
-	}
-	if statusErr := statusRows.Err(); statusErr != nil {
-		logger.ErrorContext(ctx, "voting status rows iteration error", slog.Any("error", statusErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to process voting status"})
-		return
-	}
+	g, gctx := errgroup.WithContext(ctx)
 
-	// --- Verify song exists and is not from the voter's own country ---
-	type voteVerify struct {
-		SongID int    `json:"songId"`
-		LandID string `json:"landId"`
-	}
-	songRows, dbErr := db.QueryContext(ctx, `SELECT ID, Land_ID FROM Song WHERE ID = ?`, songID)
-	if dbErr != nil {
-		logger.ErrorContext(ctx, "error querying song", slog.Any("error", dbErr), slog.Int("songID", songID))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "error querying DB"})
-		return
-	}
-	defer songRows.Close()
+	g.Go(func() error {
+		err := db.QueryRowContext(gctx, `SELECT isOpen FROM Voting_Status`).Scan(&votingIsOpen)
+		if err != nil {
+			logger.ErrorContext(gctx, "failed to query voting status", slog.Any("error", err))
+		}
+		return err
+	})
 
-	var songFound bool
-	for songRows.Next() {
-		var v voteVerify
-		if scanErr := songRows.Scan(&v.SongID, &v.LandID); scanErr != nil {
-			logger.ErrorContext(ctx, "failed to scan song row", slog.Any("error", scanErr))
-			continue
+	g.Go(func() error {
+		err := db.QueryRowContext(gctx, `SELECT Land_ID FROM Song WHERE ID = ?`, songID).Scan(&songLandID)
+		if err == sql.ErrNoRows {
+			songFound = false
+			return nil
+		}
+		if err != nil {
+			logger.ErrorContext(gctx, "error querying song", slog.Any("error", err), slog.Int("songID", songID))
+			return err
 		}
 		songFound = true
-		if v.LandID == phoneCountry {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]any{
-				"error":   "cannot vote for your own country",
-				"payload": v,
-			})
-			return
-		}
-	}
-	if songErr := songRows.Err(); songErr != nil {
-		logger.ErrorContext(ctx, "song rows iteration error", slog.Any("error", songErr))
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to process song details"})
-		return
-	}
-	if !songFound {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "error querying DB",
+		})
 		return
 	}
 
-	// --- Upsert phone number row; initialise with full point budget on first insert ---
-	// ON DUPLICATE KEY UPDATE with votes_remaining unchanged keeps the existing value.
+	if !votingIsOpen {
+		w.WriteHeader(http.StatusTooEarly)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "voting has not started yet, please try again in a few minutes",
+		})
+		return
+	}
+
+	if !songFound {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Song not found",
+		})
+		return
+	}
+
+	if songLandID == phoneCountry {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "cannot vote for your own country",
+		})
+		return
+	}
+
 	upsertQuery := `
 		INSERT INTO Phone_Nums (Phone_Number, votes_remaining, votes_cast)
 		VALUES (?, ?, JSON_OBJECT())
@@ -848,8 +797,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Atomically deduct points if enough remain ---
-	// We use a conditional UPDATE that only applies when votes_remaining >= points.
 	deductQuery := `
 		UPDATE Phone_Nums
 		SET
@@ -877,7 +824,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 
 	rowsAffected, _ := deductResult.RowsAffected()
 	if rowsAffected == 0 {
-		// Either already at 0 or points requested exceed the remaining budget.
 		var remaining int
 		db.QueryRowContext(ctx,
 			`SELECT votes_remaining FROM Phone_Nums WHERE Phone_Number = ?`, phoneHash,
@@ -896,27 +842,76 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// --- Read back the updated state from DB ---
-	var remaining int
-	var votesCastJSON sql.NullString
-	db.QueryRowContext(ctx,
-		`SELECT votes_remaining, votes_cast FROM Phone_Nums WHERE Phone_Number = ?`, phoneHash,
-	).Scan(&remaining, &votesCastJSON)
+	var (
+		remaining   int
+		votesCast   = make(map[string]int)
+		songUpdated bool
+		cookieVal   string
+	)
 
-	votesCast := make(map[string]int)
-	if votesCastJSON.Valid && votesCastJSON.String != "" {
-		json.Unmarshal([]byte(votesCastJSON.String), &votesCast)
+	g, cctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		var votesCastJSON sql.NullString
+		err := db.QueryRowContext(cctx, `SELECT votes_remaining, votes_cast FROM Phone_Nums WHERE Phone_Number = ?`, phoneHash).Scan(&remaining, &votesCastJSON)
+		if err != nil {
+			logger.ErrorContext(cctx, "failed to read back vote state", slog.Any("error", err))
+			return err
+		}
+
+		if votesCastJSON.Valid && votesCastJSON.String != "" {
+			if err := json.Unmarshal([]byte(votesCastJSON.String), &votesCast); err != nil {
+				logger.ErrorContext(cctx, "failed to umarshal votes_cast", slog.Any("error", err))
+			}
+		}
+
+		state := cookieVoteState{
+			VotesRemaining: remaining,
+			VotesCast:      votesCast,
+		}
+
+		var encErr error
+		cookieVal, encErr = encodeCookieValue(state)
+		if encErr != nil {
+			logger.ErrorContext(cctx, "failed to encode vote cookie", slog.Any("error", encErr))
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		const weightPublicVote = 1
+		result, err := db.ExecContext(cctx,
+			`UPDATE Song SET PublikumsPunkte = PublikumsPunkte + ? WHERE ID = ?`,
+			points*weightPublicVote, songID,
+		)
+		if err != nil {
+			logger.ErrorContext(gctx, "failed to update song votes", slog.Any("error", err))
+			return err
+		}
+		updatedRows, err := result.RowsAffected()
+		if err != nil {
+			logger.ErrorContext(gctx, "failed to get affected rows", slog.Any("error", err))
+			return err
+		}
+		songUpdated = updatedRows > 0
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
+		return
 	}
 
-	// --- Update the vote state cookie ---
-	state := cookieVoteState{
-		VotesRemaining: remaining,
-		VotesCast:      votesCast,
+	if !songUpdated {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
+		return
 	}
-	cookieVal, encErr := encodeCookieValue(state)
-	if encErr != nil {
-		logger.ErrorContext(ctx, "failed to encode vote cookie", slog.Any("error", encErr))
-	} else {
+
+	// Set the cookie now that we are back on the handler goroutine —
+	// http.ResponseWriter is not safe to use from multiple goroutines.
+	if cookieVal != "" {
 		http.SetCookie(w, &http.Cookie{
 			Name:     cookieName,
 			Value:    cookieVal,
@@ -925,24 +920,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 			SameSite: http.SameSiteStrictMode,
 			Path:     "/",
 		})
-	}
-
-	// --- Apply the public vote weight to the Song table ---
-	const weightPublicVote = 1 // 1 point in Song table per vote point spent
-	updateSong := `UPDATE Song SET PublikumsPunkte = PublikumsPunkte + ? WHERE ID = ?`
-	voteResult, voteErr := db.ExecContext(ctx, updateSong, points*weightPublicVote, songID)
-	if voteErr != nil {
-		logger.ErrorContext(ctx, "failed to update song votes", slog.Any("error", voteErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
-		return
-	}
-	if updatedRows, rowsErr := voteResult.RowsAffected(); rowsErr != nil {
-		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", rowsErr))
-	} else if updatedRows == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
-		return
 	}
 
 	NotifyVote(songID, ownCountry, db)
@@ -1123,28 +1100,23 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type CompleteESCEntryWithComposers struct {
-		// Song information
 		SongID          int    `json:"songId"`
 		SongName        string `json:"songName"`
 		PublikumsPunkte int    `json:"publicVotes"`
 		JuryPunkte      int    `json:"juryVotes"`
 		GesamtPunkte    int    `json:"totalVotes"`
 
-		// Land (Country) information for the song
 		LandID   string `json:"countryId"`
 		LandName string `json:"countryName"`
 		LandPOT  *int   `json:"countryPot,omitempty"`
 
-		// Künstler (Artist) information
 		KuenstlerID      int    `json:"artistId"`
 		KuenstlerVorname string `json:"artistFirstName"`
 		KuenstlerName    string `json:"artistLastName"`
 		KuenstlerTyp     string `json:"artistType"`
 
-		// Komponist (Composers) information - aggregated as array
 		Komponisten []Komponist `json:"composers"`
 
-		// Voting Status information
 		VotingID         int    `json:"votingId"`
 		VotingIsOpen     bool   `json:"votingIsOpen"`
 		VotingLastChange string `json:"votingLastChange"`
@@ -1242,28 +1214,23 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type CompleteESCEntryWithComposers struct {
-		// Song information
 		SongID          int    `json:"songId"`
 		SongName        string `json:"songName"`
 		PublikumsPunkte int    `json:"publicVotes"`
 		JuryPunkte      int    `json:"juryVotes"`
 		GesamtPunkte    int    `json:"totalVotes"`
 
-		// Land (Country) information for the song
 		LandID   string `json:"countryId"`
 		LandName string `json:"countryName"`
 		LandPOT  *int   `json:"countryPot,omitempty"`
 
-		// Künstler (Artist) information
 		KuenstlerID      int    `json:"artistId"`
 		KuenstlerVorname string `json:"artistFirstName"`
 		KuenstlerName    string `json:"artistLastName"`
 		KuenstlerTyp     string `json:"artistType"`
 
-		// Komponist (Composers) information - aggregated as array
 		Komponisten []Komponist `json:"composers"`
 
-		// Voting Status information
 		VotingID         int    `json:"votingId"`
 		VotingIsOpen     bool   `json:"votingIsOpen"`
 		VotingLastChange string `json:"votingLastChange"`
@@ -1429,7 +1396,6 @@ func deleteVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reset all song vote tallies.
 	result, err := db.ExecContext(ctx, `UPDATE Song SET PublikumsPunkte = 0, JuryPunkte = 0`)
 	if err != nil {
 		logger.ErrorContext(ctx, "Error resetting song votes", slog.Any("error", err))
@@ -1447,15 +1413,12 @@ func deleteVotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reset all phone number vote budgets so everyone gets their 20 points back.
 	if _, phoneErr := db.ExecContext(ctx,
 		`UPDATE Phone_Nums SET votes_remaining = ?, votes_cast = JSON_OBJECT()`, totalVotePoints,
 	); phoneErr != nil {
 		logger.ErrorContext(ctx, "failed to reset phone vote budgets", slog.Any("error", phoneErr))
-		// Non-fatal: song votes are already cleared; warn but continue.
 	}
 
-	// Also clear the in-memory token store so cookies are invalidated.
 	mu.Lock()
 	usedTokens = make(map[string]bool)
 	mu.Unlock()
@@ -1752,6 +1715,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 	token := query.Get("Token")
 	points := query.Get("points")
 	songIDStr := query.Get("songID")
+
 	songID, err := strconv.Atoi(songIDStr)
 	if err != nil {
 		logger.ErrorContext(ctx, "invalid songID value", slog.Any("error", err), slog.String("songID", songIDStr))
@@ -1761,105 +1725,99 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	dbQuery := `SELECT isOpen FROM Voting_Status`
 
-	authorized, message := checkAccessJury(token)
-
-	if authorized == true {
-
-		rows, err := db.QueryContext(ctx, dbQuery)
-		if err != nil {
-			logger.ErrorContext(ctx, "Error Querying DB", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Error Querying DB",
-			})
-			return
-		}
-
-		defer rows.Close()
-
-		type vote_status struct {
-			id         string
-			isOpen     bool
-			lastChange time.Time
-		}
-
-		for rows.Next() {
-			var v vote_status
-			if err := rows.Scan(&v.id, &v.isOpen, &v.lastChange); err != nil {
-				logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
-				continue
-			}
-			if v.isOpen == false {
-				w.WriteHeader(http.StatusTooEarly)
-				json.NewEncoder(w).Encode(map[string]any{
-					"error":   "voting has not started yet, please try again in a few minutes",
-					"payload": v,
-				})
-				return
-			}
-		}
-
-		const juryWeight int = 5
-		parsedPoints, err := strconv.Atoi(points)
-		if err != nil {
-			logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", points))
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Invalid points value - must be an Integer",
-			})
-			return
-		}
-
-		totalPoints := juryWeight * parsedPoints
-
-		dbQuery = `UPDATE Song
-				 SET JuryPunkte = JuryPunkte + ?
-				 WHERE ID = ?`
-
-		result, err := db.ExecContext(ctx, dbQuery, totalPoints, songID)
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Failed to record vote",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Song not found",
-			})
-			return
-		}
-
-		NotifyVote(songID, "JURY", db)
-
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
-			"payload": "Vote Successfully Cast",
+	parsedPoints, err := strconv.Atoi(points)
+	if err != nil {
+		logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", points))
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Invalid points value - must be an Integer",
 		})
+		return
 	}
 
-	if authorized != true {
+	var (
+		authorized bool
+		authMsg    string
+		isOpen     bool
+	)
 
-		logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
+	g, gctx := errgroup.WithContext(ctx)
 
+	g.Go(func() error {
+		authorized, authMsg = checkAccessJury(token)
+		return nil
+	})
+
+	g.Go(func() error {
+		err := db.QueryRowContext(gctx, `SELECT isOpen FROM Voting_Status`).Scan(&isOpen)
+		if err != nil {
+			logger.ErrorContext(gctx, "failed to query voting status", slog.Any("error", err))
+		}
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error querying DB",
+		})
+		return
+	}
+
+	if !authorized {
+		logger.WarnContext(ctx, "invalid jury login attempt", slog.String("token", token))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
+			"message": authMsg,
 		})
+		return
 	}
 
+	if !isOpen {
+		w.WriteHeader(http.StatusTooEarly)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "voting has not started yet, please try again in a few minutes",
+		})
+		return
+	}
+
+	const juryWeight int = 5
+	totalPoints := juryWeight * parsedPoints
+
+	dbQuery := `UPDATE Song
+			 SET JuryPunkte = JuryPunkte + ?
+			 WHERE ID = ?`
+
+	result, err := db.ExecContext(ctx, dbQuery, totalPoints, songID)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to record vote",
+		})
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Song not found",
+		})
+		return
+	}
+
+	NotifyVote(songID, "JURY", db)
+
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": authMsg,
+		"payload": "Vote Successfully Cast",
+	})
 }
 
 func adminLogin(w http.ResponseWriter, r *http.Request) {
@@ -2180,12 +2138,11 @@ func getCurrentSong(w http.ResponseWriter, r *http.Request) {
 var (
 	maxDBAttempts  = 60
 	dbAttemptDelay = time.Second * 3
+	dbReady        = make(chan struct{})
 )
 
 func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
-	// URL encode the password to handle special characters
 	escapedPass := url.QueryEscape(cfg.DbPass)
-	// Add connection timeout parameters to DSN
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",
 		cfg.DbUser,
 		escapedPass,
@@ -2204,12 +2161,10 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
 		conn, err = sql.Open("mysql", dsn)
 		if err == nil {
-			// Set connection pool settings
 			conn.SetMaxOpenConns(25)
 			conn.SetMaxIdleConns(5)
 			conn.SetConnMaxLifetime(5 * time.Minute)
 
-			// Use a context with timeout for ping
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			pingErr := conn.PingContext(ctx)
 			cancel()
@@ -2237,20 +2192,43 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 func main() {
 	initCookieSecret()
 
-	// Base JSON handler writing to stdout (keeps existing log lines intact).
 	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 
-	// Temporarily set a plain logger so that initLogProvider / initTracer
-	// failures can still be reported before the OTel handler is ready.
 	logger = slog.New(baseHandler)
 	slog.SetDefault(logger)
 
-	tp, erro := initTracer()
-	if erro != nil {
-		log.Printf("Warning: Failed to initialize tracer: %v. Continuing without tracing", erro)
-	} else {
+	var (
+		tp *sdktrace.TracerProvider
+		lp *sdklog.LoggerProvider
+	)
+
+	{
+		g, _ := errgroup.WithContext(context.Background())
+
+		g.Go(func() error {
+			var err error
+			tp, err = initTracer()
+			if err != nil {
+				log.Printf("Warning: Failed to initialize tracer: %v. Continuing without tracing", err)
+			}
+			return nil
+		})
+
+		g.Go(func() error {
+			var err error
+			lp, err = initLogProvider()
+			if err != nil {
+				log.Printf("Warning: Failed to initalize log provider: %v. Logs will not be forwarded via OTLP", err)
+			}
+			return nil
+		})
+
+		g.Wait()
+	}
+
+	if tp != nil {
 		defer func() {
 			if err := tp.Shutdown(context.Background()); err != nil {
 				log.Printf("Error shutting down tracer provider: %v", err)
@@ -2258,10 +2236,7 @@ func main() {
 		}()
 	}
 
-	lp, err := initLogProvider()
-	if err != nil {
-		log.Printf("Warning: Failed to initialize log provider: %v. Logs will not be forwarded via OTLP", err)
-	} else {
+	if lp != nil {
 		defer func() {
 			if err := lp.Shutdown(context.Background()); err != nil {
 				log.Printf("Error shutting down log provider: %v", err)
@@ -2269,17 +2244,10 @@ func main() {
 		}()
 	}
 
-	// Replace the logger with one that emits to both stdout and the OTel
-	// collector (which forwards to Loki with traceID as an index label).
 	logger = slog.New(newOtelSlogHandler(baseHandler))
 	slog.SetDefault(logger)
 
 	tracer = otel.Tracer("esc-voting-crud-api")
-	log.Println("Listening and Serving on Port 8000")
-	logger.Info("server starting",
-		slog.Int("port", 8000),
-		slog.String("service", "esc-voting-crud-api"),
-	)
 
 	router := http.NewServeMux()
 	router.HandleFunc("GET /health", getHealth)
@@ -2305,26 +2273,71 @@ func main() {
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
-	handler := RateLimitingMiddleware(ObservabilityMiddleware(router))
+	dbReadinessMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/health" {
+				next.ServeHTTP(w, r)
+				return
+			}
 
-	var dbErr error
-	db, dbErr = connectToDatabase(loadLocalConfig())
-	if dbErr != nil {
-		logger.Error("Error Connecting the Database")
-		panic(dbErr.Error())
+			select {
+			case <-dbReady:
+				next.ServeHTTP(w, r)
+			case <-r.Context().Done():
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusServiceUnavailable)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error": "service is starting up, please retry",
+				})
+			}
+		})
 	}
-	defer db.Close()
 
-	voteService, err := StartGRPCServer(db, "50051")
-	if err != nil {
-		logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
-		panic(err)
-	}
-	SetGlobalVoteServer(voteService)
-	logger.Info("gRPC vote streaming service initialized")
+	handler := dbReadinessMiddleware(RateLimitingMiddleware(ObservabilityMiddleware(router)))
+
+	go func() {
+		conn, dbErr := connectToDatabase(loadLocalConfig())
+
+		if dbErr != nil {
+			logger.Error("could not connect to Database after all retries",
+				slog.Any("error", dbErr),
+			)
+			os.Exit(1)
+		}
+
+		db = conn
+		close(dbReady)
+
+		logger.Info("database connection established - service fully ready")
+
+		voteService, err := StartGRPCServer(db, "50051")
+		if err != nil {
+			logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+		SetGlobalVoteServer(voteService)
+		logger.Info("gRPC vote streaming service initialized")
+	}()
+
+	log.Println("Listening and Serving on Port 8000")
+	logger.Info("server starting",
+		slog.Int("port", 8000),
+		slog.String("service", "esc-voting-crud-api"),
+	)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-quit
+		logger.Info("shutdown signal recieved, closing database")
+		if db != nil {
+			db.Close()
+		}
+		os.Exit(0)
+	}()
 
 	// Start Sercer
-	err = http.ListenAndServe(":8000", handler)
+	err := http.ListenAndServe(":8000", handler)
 	if err != nil {
 		logger.Error("Server failed", slog.String("error", err.Error()))
 		fmt.Println("Error Starting the Server")
