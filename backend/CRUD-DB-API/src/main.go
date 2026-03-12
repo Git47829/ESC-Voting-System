@@ -15,8 +15,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -2295,7 +2297,6 @@ func main() {
 
 		db = conn
 		close(dbReady)
-		defer conn.Close()
 
 		logger.Info("database connection established - service fully ready")
 
@@ -2313,6 +2314,17 @@ func main() {
 		slog.Int("port", 8000),
 		slog.String("service", "esc-voting-crud-api"),
 	)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-quit
+		logger.Info("shutdown signal recieved, closing database")
+		if db != nil {
+			db.Close()
+		}
+		os.Exit(0)
+	}()
 
 	// Start Sercer
 	err := http.ListenAndServe(":8000", handler)
