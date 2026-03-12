@@ -1872,6 +1872,8 @@ func juryLogin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// startContest fetches all songs, shuffles them into a random order, and
+// persists the result in Contest_Run, deactivating any previous run.
 func startContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
@@ -1885,6 +1887,7 @@ func startContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Fetch all song IDs
 	rows, err := db.QueryContext(ctx, "SELECT ID FROM Song ORDER BY ID")
 	if err != nil {
 		logger.ErrorContext(ctx, "startContest: failed to query songs", slog.Any("error", err))
@@ -1930,6 +1933,7 @@ func startContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deactivate previous runs
 	if _, err := db.ExecContext(ctx, "UPDATE Contest_Run SET IsActive = FALSE WHERE IsActive = TRUE"); err != nil {
 		logger.ErrorContext(ctx, "startContest: failed to deactivate old runs", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -1937,6 +1941,7 @@ func startContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Insert new run
 	if _, err := db.ExecContext(ctx,
 		"INSERT INTO Contest_Run (SongOrder, CurrentIndex, IsActive) VALUES (?, 0, TRUE)",
 		string(orderJSON),
@@ -1956,6 +1961,7 @@ func startContest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// advanceContest moves the active contest to the next song.
 func advanceContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
@@ -2024,6 +2030,8 @@ func advanceContest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// getCurrentSong returns the song currently on stage in the active contest,
+// along with full song details and the contest progress.
 func getCurrentSong(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
@@ -2063,6 +2071,7 @@ func getCurrentSong(w http.ResponseWriter, r *http.Request) {
 
 	currentSongID := ids[currentIndex]
 
+	// Fetch full song details
 	songQuery := `SELECT
 		s.ID, s.Name, s.PublikumsPunkte, s.JuryPunkte, s.GesamtPunkte,
 		COALESCE(s.YoutubeURL, ''),
@@ -2261,6 +2270,7 @@ func main() {
 	router.HandleFunc("POST /admin/startContest/", startContest)
 	router.HandleFunc("POST /admin/advanceContest/", advanceContest)
 	router.HandleFunc("GET /contest/current/", getCurrentSong)
+
 	router.Handle("GET /metrics/", promhttp.Handler())
 
 	dbReadinessMiddleware := func(next http.Handler) http.Handler {
