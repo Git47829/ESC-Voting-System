@@ -31,10 +31,11 @@ _vote_df: pd.DataFrame = pd.DataFrame(columns=[
     "vote_count", "timestamp",
 ])
 
+
 # ---------------------------------------------------------------------------
-# WebSocket connection manager for /ws/stats
+# WebSocket connection manager — reusable fan-out pattern
 # ---------------------------------------------------------------------------
-class StatsConnectionManager:
+class _ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
 
@@ -57,7 +58,8 @@ class StatsConnectionManager:
             self.active_connections.remove(d)
 
 
-stats_manager = StatsConnectionManager()
+stats_manager = _ConnectionManager()
+votes_manager = _ConnectionManager()
 
 # ---------------------------------------------------------------------------
 # Chart colour palette (ESC dark theme)
@@ -165,7 +167,7 @@ async def _compute_and_broadcast() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Vote handler — appends to DataFrame and triggers broadcast
+# Vote handler — appends to DataFrame and triggers broadcasts
 # ---------------------------------------------------------------------------
 async def handle_vote(vote) -> None:
     global _vote_df
@@ -174,17 +176,38 @@ async def handle_vote(vote) -> None:
         f"country={vote.country_voted_for}, "
         f"votes={vote.vote_count}"
     )
+
+    # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
+    ts = int(vote.timestamp.seconds) if hasattr(vote.timestamp, "seconds") else int(vote.timestamp)
+
     new_row = pd.DataFrame([{
-        "song_id": vote.song_id,
+        "song_id": int(vote.song_id),
         "song_name": vote.song_name,
         "country_voted_for": vote.country_voted_for,
         "country_voted_for_name": vote.country_voted_for_name,
         "voter_country": vote.voter_country,
         "voter_country_name": vote.voter_country_name,
-        "vote_count": vote.vote_count,
-        "timestamp": vote.timestamp,
+        "vote_count": int(vote.vote_count),
+        "timestamp": ts,
     }])
     _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
+
+    # Broadcast raw vote event to all /ws/votes clients
+    await votes_manager.broadcast({
+        "type": "vote",
+        "data": {
+            "song_id": int(vote.song_id),
+            "song_name": vote.song_name,
+            "country_voted_for": vote.country_voted_for,
+            "country_voted_for_name": vote.country_voted_for_name,
+            "voter_country": vote.voter_country,
+            "voter_country_name": vote.voter_country_name,
+            "vote_count": int(vote.vote_count),
+            "timestamp": ts,
+        },
+    })
+
+    # Recompute and broadcast pie charts to all /ws/stats clients
     await _compute_and_broadcast()
 
 
@@ -274,44 +297,30 @@ async def subscribe_to_votes(include_historical: bool = True):
 
 
 # ---------------------------------------------------------------------------
-# WebSocket: raw vote stream
+# WebSocket: raw vote stream (fan-out from single ingestor)
 # ---------------------------------------------------------------------------
 @app.websocket("/ws/votes")
 async def websocket_votes_endpoint(websocket: WebSocket):
-    """Stream raw vote events to connected clients."""
-    await websocket.accept()
+    """Stream raw vote events to connected clients via fan-out from the single ingestor."""
+    await votes_manager.connect(websocket)
     logger.info("WebSocket client connected to votes stream")
-
-    if not vote_consumer:
-        await websocket.send_json({"error": "gRPC consumer not initialized"})
-        await websocket.close(code=1008)
-        return
-
     try:
-        async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
-            await websocket.send_json(
-                {
-                    "type": "vote",
-                    "data": {
-                        "song_id": vote.song_id,
-                        "song_name": vote.song_name,
-                        "country_voted_for": vote.country_voted_for,
-                        "country_voted_for_name": vote.country_voted_for_name,
-                        "voter_country": vote.voter_country,
-                        "voter_country_name": vote.voter_country_name,
-                        "vote_count": vote.vote_count,
-                        "timestamp": vote.timestamp,
-                    },
-                }
-            )
+        # Send snapshot of all accumulated votes so late-joiners get current state
+        if not _vote_df.empty:
+            snapshot = _vote_df.to_dict(orient="records")
+            await websocket.send_json({"type": "snapshot", "data": snapshot})
+        # Keep alive with periodic pings
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected from votes stream")
     except asyncio.CancelledError:
-        logger.info("WebSocket connection cancelled")
+        logger.info("WebSocket votes connection cancelled")
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-        await websocket.send_json({"type": "error", "message": str(e)})
-        await websocket.close(code=1011)
+        logger.error(f"Votes WebSocket error: {e}")
+    finally:
+        votes_manager.disconnect(websocket)
 
 
 # ---------------------------------------------------------------------------

@@ -9,18 +9,18 @@
             Live Results
         </h1>
         <p class="text-esc-muted text-sm max-w-md mx-auto">
-            Scores update automatically every 10 seconds.
+            Scores update in real-time as votes arrive.
         </p>
     </div>
 
-    <!-- Refresh indicator -->
+    <!-- Status bar -->
     <div class="flex items-center justify-center gap-3 mb-8">
-        <span id="refresh-indicator" class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted">
+        <span id="status-badge" class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted">
             <span class="relative flex h-1.5 w-1.5">
                 <span id="ping-dot" class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"></span>
+                <span id="ping-dot-solid" class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"></span>
             </span>
-            <span id="refresh-text">Live — updates in <span id="countdown">10</span>s</span>
+            <span id="status-text">Connecting&hellip;</span>
         </span>
         <button
             id="pause-btn"
@@ -58,7 +58,7 @@
         <span class="text-5xl mb-4">⚠️</span>
         <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">Failed to Load Results</h2>
         <p class="text-sm text-esc-muted max-w-sm mb-4">Could not connect to the voting server. Retrying automatically&hellip;</p>
-        <button onclick="fetchResults()" class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors">
+        <button onclick="fetchInitialResults()" class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors">
             Retry Now
         </button>
     </div>
@@ -92,20 +92,45 @@
     // ---------------------------------------------------------------------------
     // State
     // ---------------------------------------------------------------------------
+    // song_id (int) → { id, name, country, juryPts, escPublicPts, rawVoteCount, escRatio }
+    let localState = {};
     let paused = false;
-    let secondsLeft = 10;
-    let pollInterval = null;
-    let countdownInterval = null;
+    let ws = null;
+    let reconnectDelay = 1000;
+    let hasInitialData = false;
+    let fallbackPollInterval = null;
     let previousData = null;
 
     // ---------------------------------------------------------------------------
-    // Rendering
+    // Status indicator
+    // ---------------------------------------------------------------------------
+    function setStatus(connected) {
+        const pingDot   = document.getElementById('ping-dot');
+        const pingSolid = document.getElementById('ping-dot-solid');
+        const statusText = document.getElementById('status-text');
+        if (connected) {
+            pingDot.classList.add('animate-ping', 'bg-green-400');
+            pingDot.classList.remove('bg-esc-muted');
+            pingSolid.classList.add('bg-green-400');
+            pingSolid.classList.remove('bg-esc-muted');
+            statusText.textContent = 'Live';
+        } else {
+            pingDot.classList.remove('animate-ping', 'bg-green-400');
+            pingDot.classList.add('bg-esc-muted');
+            pingSolid.classList.remove('bg-green-400');
+            pingSolid.classList.add('bg-esc-muted');
+            statusText.textContent = 'Reconnecting\u2026';
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Rendering (unchanged from original)
     // ---------------------------------------------------------------------------
     function renderResults(results) {
-        const loadingEl = document.getElementById('loading-state');
-        const emptyEl   = document.getElementById('empty-state');
+        const loadingEl   = document.getElementById('loading-state');
+        const emptyEl     = document.getElementById('empty-state');
         const containerEl = document.getElementById('results-container');
-        const errorEl   = document.getElementById('error-state');
+        const errorEl     = document.getElementById('error-state');
 
         loadingEl.classList.add('hidden');
         errorEl.classList.add('hidden');
@@ -126,10 +151,9 @@
             const publicPts  = entry.escPublicPts || 0;
             const juryPts    = entry.juryPts      || 0;
             const totalPts   = entry.totalPts     || 0;
-            const barPct     = (totalPts / maxTotal) * 100;
             const flagUrl    = getFlagUrl(entry.country);
             const changed    = previousData
-                ? ((previousData.find(p => p.id === entry.id) || {}).totalVotes !== totalPts)
+                ? ((previousData.find(p => p.id === entry.id) || {}).totalPts !== totalPts)
                 : false;
 
             const totalBadgeCls = rank === 1
@@ -195,17 +219,100 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Fetch
+    // Re-derive sorted rankings from localState and render
     // ---------------------------------------------------------------------------
-    async function fetchResults() {
+    function rerenderResults() {
+        const entries = Object.values(localState)
+            .map(function(e) {
+                return {
+                    id: e.id,
+                    name: e.name,
+                    country: e.country,
+                    juryPts: e.juryPts || 0,
+                    escPublicPts: e.escPublicPts || 0,
+                    totalPts: (e.juryPts || 0) + (e.escPublicPts || 0),
+                };
+            })
+            .sort(function(a, b) { return b.totalPts - a.totalPts || a.id - b.id; });
+        entries.forEach(function(e, i) { e.rank = i + 1; });
+        renderResults(entries);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Handle WebSocket snapshot (full current state for late-joiners)
+    // ---------------------------------------------------------------------------
+    function handleSnapshot(rows) {
+        // vote_count is cumulative — take max per song_id (latest value)
+        const rawCounts = {};
+        rows.forEach(function(row) {
+            const sid = row.song_id;
+            rawCounts[sid] = Math.max(rawCounts[sid] || 0, row.vote_count || 0);
+        });
+        // Update localState with raw counts and compute escRatio
+        Object.keys(rawCounts).forEach(function(sid) {
+            const id = parseInt(sid, 10);
+            if (!localState[id]) return;
+            const raw = rawCounts[sid];
+            localState[id].rawVoteCount = raw;
+            if (raw > 0 && localState[id].escPublicPts > 0) {
+                localState[id].escRatio = localState[id].escPublicPts / raw;
+            }
+        });
+        rerenderResults();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Handle incremental vote event
+    // ---------------------------------------------------------------------------
+    function handleVoteEvent(data) {
+        const id = data.song_id;
+        if (!localState[id]) {
+            // Unknown song — refresh from REST to pick it up
+            fetchInitialResults();
+            return;
+        }
+        // vote_count is cumulative — replace directly
+        localState[id].rawVoteCount = data.vote_count;
+        if (localState[id].escRatio) {
+            localState[id].escPublicPts = Math.round(data.vote_count * localState[id].escRatio);
+        }
+        rerenderResults();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Fetch full results from REST (initial load + fallback)
+    // ---------------------------------------------------------------------------
+    async function fetchInitialResults() {
         try {
             const resp = await fetch('/api/results');
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
-            renderResults(data);
+
+            data.forEach(function(entry) {
+                const existing = localState[entry.id] || {};
+                localState[entry.id] = {
+                    id: entry.id,
+                    name: entry.name,
+                    country: entry.country,
+                    juryPts: entry.juryPts || 0,
+                    escPublicPts: entry.escPublicPts || 0,
+                    rawVoteCount: existing.rawVoteCount || 0,
+                    escRatio: existing.escRatio || 0,
+                };
+            });
+
+            hasInitialData = true;
+
+            // Stop fallback poll if WebSocket is now connected
+            if (fallbackPollInterval && ws && ws.readyState === WebSocket.OPEN) {
+                clearInterval(fallbackPollInterval);
+                fallbackPollInterval = null;
+            }
+
+            rerenderResults();
         } catch (err) {
             console.error('Failed to fetch results:', err);
-            if (!previousData) {
+            if (!hasInitialData) {
                 document.getElementById('loading-state').classList.add('hidden');
                 document.getElementById('error-state').classList.remove('hidden');
             }
@@ -213,48 +320,61 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Polling + pause
+    // Pause / resume
     // ---------------------------------------------------------------------------
-    function resetCountdown() {
-        secondsLeft = 10;
-        const el = document.getElementById('countdown');
-        if (el) el.textContent = secondsLeft;
-    }
-
-    function startPolling() {
-        fetchResults();
-        countdownInterval = setInterval(function () {
-            if (paused) return;
-            secondsLeft--;
-            if (secondsLeft < 0) secondsLeft = 0;
-            const el = document.getElementById('countdown');
-            if (el) el.textContent = secondsLeft;
-        }, 1000);
-        pollInterval = setInterval(function () {
-            if (paused) return;
-            fetchResults();
-            resetCountdown();
-        }, 10000);
-    }
-
     function togglePause() {
         paused = !paused;
-        const btn      = document.getElementById('pause-btn');
-        const pingDot  = document.getElementById('ping-dot');
-        const refreshT = document.getElementById('refresh-text');
+        const btn = document.getElementById('pause-btn');
         if (paused) {
             btn.textContent = 'Resume';
-            pingDot.classList.remove('animate-ping', 'bg-green-400');
-            pingDot.classList.add('bg-esc-muted');
-            refreshT.innerHTML = 'Paused';
         } else {
             btn.textContent = 'Pause';
-            pingDot.classList.add('animate-ping', 'bg-green-400');
-            pingDot.classList.remove('bg-esc-muted');
-            refreshT.innerHTML = 'Live — updates in <span id="countdown">10</span>s';
-            resetCountdown();
-            fetchResults();
+            rerenderResults();
         }
+    }
+
+    // ---------------------------------------------------------------------------
+    // WebSocket
+    // ---------------------------------------------------------------------------
+    function connect() {
+        const wsUrl = `wss://${window.location.host}/eurostats/ws/votes`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = function () {
+            reconnectDelay = 1000;
+            setStatus(true);
+            // Stop any fallback poll now that we're connected
+            if (fallbackPollInterval) {
+                clearInterval(fallbackPollInterval);
+                fallbackPollInterval = null;
+            }
+            if (!hasInitialData) {
+                fetchInitialResults();
+            }
+        };
+
+        ws.onmessage = function (event) {
+            if (paused) return;
+            let msg;
+            try { msg = JSON.parse(event.data); } catch (e) { return; }
+            if (msg.type === 'ping') return;
+            if (msg.type === 'snapshot') handleSnapshot(msg.data);
+            if (msg.type === 'vote') handleVoteEvent(msg.data);
+        };
+
+        ws.onclose = function () {
+            setStatus(false);
+            // Fall back to REST polling while disconnected
+            if (!fallbackPollInterval) {
+                fallbackPollInterval = setInterval(fetchInitialResults, 10000);
+            }
+            setTimeout(connect, reconnectDelay);
+            reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+        };
+
+        ws.onerror = function () {
+            ws.close();
+        };
     }
 
     // ---------------------------------------------------------------------------
@@ -266,8 +386,9 @@
     }
 
     // ---------------------------------------------------------------------------
-    // Boot
+    // Boot — fetch initial data and connect WebSocket concurrently
     // ---------------------------------------------------------------------------
-    startPolling();
+    fetchInitialResults();
+    connect();
 </script>
 {% endblock %}
