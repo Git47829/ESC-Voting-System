@@ -467,6 +467,59 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+func connectToDatabase() (*sql.DB, error) {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",
+		getEnv("DB_USER", "esc_user"),
+		url.QueryEscape(getEnv("DB_PASS", "esc_password")),
+		getEnv("DB_HOST", "localhost"),
+		getEnv("DB_PORT", "3306"),
+		getEnv("DB_NAME", "esc_voting"),
+	)
+
+	const (
+		maxAttempts = 60
+		retryDelay  = 3 * time.Second
+	)
+
+	logger.Info("connecting to database",
+		slog.String("host", getEnv("DB_HOST", "localhost")),
+		slog.String("port", getEnv("DB_PORT", "3306")),
+		slog.String("db", getEnv("DB_NAME", "esc_voting")),
+	)
+
+	var (
+		conn *sql.DB
+		err  error
+	)
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		conn, err = sql.Open("mysql", dsn)
+		if err == nil {
+			conn.SetMaxOpenConns(25)
+			conn.SetMaxIdleConns(5)
+			conn.SetConnMaxLifetime(5 * time.Minute)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			pingErr := conn.PingContext(ctx)
+			cancel()
+
+			if pingErr == nil {
+				logger.Info("database connected", slog.Int("attempt", attempt))
+				return conn, nil
+			}
+			err = pingErr
+		}
+		logger.Warn("database not ready, retrying",
+			slog.Int("attempt", attempt),
+			slog.Int("max", maxAttempts),
+			"error", err,
+		)
+		if attempt < maxAttempts {
+			time.Sleep(retryDelay * time.Duration(attempt))
+		}
+	}
+	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxAttempts, err)
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -508,42 +561,10 @@ func main() {
 	tracer = otel.Tracer("esc-points-converter")
 
 	// ── Database ──────────────────────────────────────────────────────────────
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-		getEnv("DB_USER", "esc_user"),
-		getEnv("DB_PASS", "esc_password"),
-		getEnv("DB_HOST", "localhost"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_NAME", "esc_voting"),
-	)
-
-	const (
-		maxDBAttempts  = 30
-		dbAttemptDelay = 3 * time.Second
-	)
-
-	var db *sql.DB
-	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
-		var openErr error
-		db, openErr = sql.Open("mysql", dsn)
-		if openErr == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			pingErr := db.PingContext(ctx)
-			cancel()
-			if pingErr == nil {
-				break
-			}
-			openErr = pingErr
-		}
-		logger.Warn("DB not ready, retrying",
-			slog.Int("attempt", attempt),
-			slog.Int("max", maxDBAttempts),
-			"error", openErr,
-		)
-		if attempt == maxDBAttempts {
-			logger.Error("failed to reach DB after all retries", "error", openErr)
-			os.Exit(1)
-		}
-		time.Sleep(dbAttemptDelay * time.Duration(attempt))
+	db, err := connectToDatabase()
+	if err != nil {
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 	logger.Info("database connection established")
