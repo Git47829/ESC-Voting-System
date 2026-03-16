@@ -200,6 +200,20 @@ async def _run_vote_ingestor():
             logger.error(f"Vote ingestor error, retrying in 5s: {e}")
             await asyncio.sleep(5)
 
+    # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
+    ts = int(vote.timestamp.seconds) if hasattr(vote.timestamp, "seconds") else int(vote.timestamp)
+
+    new_row = pd.DataFrame([{
+        "song_id": int(vote.song_id),
+        "song_name": vote.song_name,
+        "country_voted_for": vote.country_voted_for,
+        "country_voted_for_name": vote.country_voted_for_name,
+        "voter_country": vote.voter_country,
+        "voter_country_name": vote.voter_country_name,
+        "vote_count": int(vote.vote_count),
+        "timestamp": ts,
+    }])
+    _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
 
 # ---------------------------------------------------------------------------
 # Application lifecycle
@@ -281,12 +295,33 @@ async def websocket_votes_endpoint(websocket: WebSocket):
     """Stream raw vote events to connected clients."""
     await websocket.accept()
     logger.info("WebSocket client connected to votes stream")
+    try:
+        # Send snapshot of all accumulated votes so late-joiners get current state
+        if not _vote_df.empty:
+            snapshot = _vote_df.to_dict(orient="records")
+            await websocket.send_json({"type": "snapshot", "data": snapshot})
+        # Keep alive with periodic pings
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "ping"})
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected from votes stream")
+    except asyncio.CancelledError:
+        logger.info("WebSocket votes connection cancelled")
+    except Exception as e:
+        logger.error(f"Votes WebSocket error: {e}")
+    finally:
+        votes_manager.disconnect(websocket)
 
-    if not vote_consumer:
-        await websocket.send_json({"error": "gRPC consumer not initialized"})
-        await websocket.close(code=1008)
-        return
 
+# ---------------------------------------------------------------------------
+# WebSocket: live statistics charts
+# ---------------------------------------------------------------------------
+@app.websocket("/ws/stats")
+async def websocket_stats_endpoint(websocket: WebSocket):
+    """Push matplotlib pie charts to connected clients whenever votes change."""
+    await stats_manager.connect(websocket)
+    logger.info("WebSocket client connected to stats stream")
     try:
         async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
             await websocket.send_json(
@@ -305,9 +340,9 @@ async def websocket_votes_endpoint(websocket: WebSocket):
                 }
             )
     except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected from votes stream")
+        logger.info("WebSocket stats client disconnected")
     except asyncio.CancelledError:
-        logger.info("WebSocket connection cancelled")
+        logger.info("WebSocket stats connection cancelled")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         await websocket.send_json({"type": "error", "message": str(e)})

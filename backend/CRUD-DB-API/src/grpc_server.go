@@ -247,7 +247,11 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 	})
 
 	g.Go(func() error {
-		if voterCountry == "" || voterCountry == "SYSTEM" || voterCountry == "JURY" {
+		if voterCountry == "JURY" {
+			voterCountryName = "Jury"
+			return nil
+		}
+		if voterCountry == "" || voterCountry == "SYSTEM" {
 			voterCountryName = "Unknown"
 			return nil
 		}

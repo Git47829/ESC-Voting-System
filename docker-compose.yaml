@@ -130,6 +130,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - frontend
       - observability
     restart: unless-stopped
     healthcheck:

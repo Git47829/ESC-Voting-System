@@ -514,6 +514,10 @@ def admin_reset_votes():
     token = session.get("token", "")
     status, data = api_delete("/admin/deleteVotes/", params={"Token": token})
     if status in (200, 202):
+        try:
+            requests.post(f"{EUROSTATS_URL}/reset", timeout=API_TIMEOUT)
+        except Exception as e:
+            app.logger.warning(f"Failed to reset EuroStats in-memory state: {e}")
         app.logger.warning("all votes reset by admin")
         flash("All votes have been reset!", "success")
     else:

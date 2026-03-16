@@ -9,7 +9,7 @@
             Live Results
         </h1>
         <p class="text-esc-muted text-sm max-w-md mx-auto">
-            Scores update automatically every 10 seconds.
+            Scores update in real-time as votes arrive.
         </p>
     </div>
 
@@ -210,6 +210,23 @@
                 document.getElementById('error-state').classList.remove('hidden');
             }
         }
+        // vote_count is cumulative — take max per song_id (latest value)
+        const rawCounts = {};
+        rows.forEach(function(row) {
+            const sid = row.song_id;
+            rawCounts[sid] = Math.max(rawCounts[sid] || 0, row.vote_count || 0);
+        });
+        // Update localState with raw counts and compute escRatio
+        Object.keys(rawCounts).forEach(function(sid) {
+            const id = parseInt(sid, 10);
+            if (!localState[id]) return;
+            const raw = rawCounts[sid];
+            localState[id].rawVoteCount = raw;
+            if (raw > 0 && localState[id].escPublicPts > 0) {
+                localState[id].escRatio = localState[id].escPublicPts / raw;
+            }
+        });
+        rerenderResults();
     }
 
     // ---------------------------------------------------------------------------
@@ -237,6 +254,9 @@
         }, 10000);
     }
 
+    // ---------------------------------------------------------------------------
+    // Pause / resume
+    // ---------------------------------------------------------------------------
     function togglePause() {
         paused = !paused;
         const btn      = document.getElementById('pause-btn');
