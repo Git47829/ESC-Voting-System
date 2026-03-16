@@ -516,17 +516,36 @@ func main() {
 		getEnv("DB_NAME", "esc_voting"),
 	)
 
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		logger.Error("failed to open DB connection", "error", err)
-		os.Exit(1)
+	const (
+		maxDBAttempts  = 30
+		dbAttemptDelay = 3 * time.Second
+	)
+
+	var db *sql.DB
+	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
+		var openErr error
+		db, openErr = sql.Open("mysql", dsn)
+		if openErr == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			pingErr := db.PingContext(ctx)
+			cancel()
+			if pingErr == nil {
+				break
+			}
+			openErr = pingErr
+		}
+		logger.Warn("DB not ready, retrying",
+			slog.Int("attempt", attempt),
+			slog.Int("max", maxDBAttempts),
+			"error", openErr,
+		)
+		if attempt == maxDBAttempts {
+			logger.Error("failed to reach DB after all retries", "error", openErr)
+			os.Exit(1)
+		}
+		time.Sleep(dbAttemptDelay * time.Duration(attempt))
 	}
 	defer db.Close()
-
-	if err := db.Ping(); err != nil {
-		logger.Error("failed to reach DB", "error", err)
-		os.Exit(1)
-	}
 	logger.Info("database connection established")
 
 	// ── Routes ────────────────────────────────────────────────────────────────
