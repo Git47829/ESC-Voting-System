@@ -17,12 +17,12 @@ All observability services are **internal-only** — no ports are exposed direct
 ## Architecture
 
 ```
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│  CRUD API    │   │  Frontend    │   │  EuroStats   │
-│  (Go)        │   │  (Flask)     │   │  (Python)    │
-└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-       │ OTLP/HTTP         │ OTLP/HTTP         │ OTLP/gRPC
-       └───────────────────┼───────────────────┘
+┌──────────────┐    ┌──────────────┐   ┌──────────────┐   ┌────────────────────┐
+│  CRUD API    │    │  Frontend    │   │  EuroStats   │   │ PublicVoteConverter│
+│  (Go)        │    │  (Flask)     │   │  (Python)    │   │       (Go)         │
+└──────┬───────┘    └──────┬───────┘   └──────┬───────┘   └────────┬───────────┘
+       │ OTLP/HTTP         │ OTLP/HTTP         │ OTLP/gRPC          │ OTLP/HTTP
+       └───────────────────┼───────────────────┴────────────────────┘
                            ▼
               ┌────────────────────────┐
               │    OTel Collector      │
@@ -141,6 +141,7 @@ Caddy is attached to both the `frontend` and `observability` networks, making it
 | CRUD DB API (Go) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics/`) |
 | Frontend (Flask) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics`); custom metrics: `backend_call_duration_seconds`, `votes_total`, `active_sessions` |
 | EuroStats (Python) | OTLP/gRPC → `otel-collector:4317` | Traces, Metrics |
+| PublicVoteConverter (Go) | OTLP/HTTP → `otel-collector:4318` | Traces, Metrics (Prometheus scrape at `/metrics`); custom metrics: `esc_converter_http_requests_total`, `esc_converter_http_request_duration_seconds` |
 
 ## Application Metrics (Frontend)
 

@@ -194,7 +194,7 @@ The tracer is configured via the `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` environment 
 
 `grpc_server.go` implements the `VoteService` protobuf service on port `50051`.
 
-**`StreamVotes(VoteStreamRequest) returns (stream Vote)`**
+### `StreamVotes(VoteStreamRequest) returns (stream Vote)`
 
 - Clients subscribe and receive a real-time stream of `Vote` messages.
 - If `include_historical = true`, the current vote totals for all songs are sent first (queried from MySQL), followed by live updates.
@@ -202,6 +202,27 @@ The tracer is configured via the `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` environment 
 - Subscriber channels are buffered (capacity 100). Slow consumers are skipped with a warning log rather than blocking the broadcaster.
 
 The [EuroStats](../EuroStats/README.md) service connects as a gRPC client and consumes this stream.
+
+### `GetSongsWithVotes(GetSongsRequest) returns (GetSongsResponse)`
+
+- Unary RPC that returns the current list of all songs with their public vote counts.
+- Queries `Song` and `Land` tables and returns a `GetSongsResponse` containing a repeated `SongVoteData` with `song_id`, `song_name`, `country_id`, `country_name`, and `public_votes`.
+- Used by the [PublicVoteConverter](../PublicVoteConverter/README.md) to retrieve song data without accessing the database directly.
+
+### Proto definition
+
+```
+backend/CRUD-DB-API/src/proto/votes.proto
+```
+
+Generated Go stubs (`votes.pb.go`, `votes_grpc.pb.go`) are committed alongside the proto source. To regenerate after editing the proto:
+
+```bash
+cd backend/CRUD-DB-API/src
+protoc --go_out=. --go-grpc_out=. \
+  --go_opt=paths=source_relative --go-grpc_opt=paths=source_relative \
+  proto/votes.proto
+```
 
 ## Design Patterns
 
