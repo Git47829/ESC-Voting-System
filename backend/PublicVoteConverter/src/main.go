@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -14,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	pb "esc-points-converter/proto"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -31,6 +30,9 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // ---------------------------------------------------------------------------
@@ -86,7 +88,6 @@ var (
 		},
 		[]string{"method", "path", "status"},
 	)
-
 )
 
 // ---------------------------------------------------------------------------
@@ -285,26 +286,23 @@ func observabilityMiddleware(next http.Handler) http.Handler {
 // Business logic
 // ---------------------------------------------------------------------------
 
-func fetchSongs(ctx context.Context, db *sql.DB) ([]Song, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT s.ID, s.Name, l.Name, l.ID, s.PublikumsPunkte
-		FROM Song s
-		JOIN Land l ON s.Land_ID = l.ID
-	`)
+func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error) {
+	resp, err := client.GetSongsWithVotes(ctx, &pb.GetSongsRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("query songs: %w", err)
+		return nil, fmt.Errorf("GetSongsWithVotes: %w", err)
 	}
-	defer rows.Close()
 
-	var songs []Song
-	for rows.Next() {
-		var s Song
-		if err := rows.Scan(&s.ID, &s.Name, &s.Country, &s.LandID, &s.RawVotes); err != nil {
-			return nil, fmt.Errorf("scan row: %w", err)
-		}
-		songs = append(songs, s)
+	songs := make([]Song, 0, len(resp.Songs))
+	for _, s := range resp.Songs {
+		songs = append(songs, Song{
+			ID:       int(s.SongId),
+			Name:     s.SongName,
+			Country:  s.CountryName,
+			LandID:   s.CountryId,
+			RawVotes: int(s.PublicVotes),
+		})
 	}
-	return songs, rows.Err()
+	return songs, nil
 }
 
 // rankAndConvert sorts songs by raw public votes (desc), breaks ties by song
@@ -333,13 +331,13 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func handlePreview(db *sql.DB, juryScale int) http.HandlerFunc {
+func handlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		_, span := tracer.Start(ctx, "preview.fetchAndRank")
 		defer span.End()
 
-		songs, err := fetchSongs(ctx, db)
+		songs, err := fetchSongs(ctx, client)
 		if err != nil {
 			logger.ErrorContext(ctx, "preview: failed to fetch songs", "error", err)
 			span.RecordError(err)
@@ -382,57 +380,54 @@ func getEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-func connectToDatabase() (*sql.DB, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",
-		getEnv("DB_USER", "esc_user"),
-		url.QueryEscape(getEnv("DB_PASS", "esc_password")),
-		getEnv("DB_HOST", "localhost"),
-		getEnv("DB_PORT", "3306"),
-		getEnv("DB_NAME", "esc_voting"),
-	)
+func connectToGRPC() (*grpc.ClientConn, error) {
+	host := getEnv("GRPC_HOST", "db-crud-api")
+	port := getEnv("GRPC_PORT", "50051")
+	target := fmt.Sprintf("%s:%s", host, port)
 
 	const (
-		maxAttempts = 60
+		maxAttempts = 20
 		retryDelay  = 3 * time.Second
 	)
 
-	logger.Info("connecting to database",
-		slog.String("host", getEnv("DB_HOST", "localhost")),
-		slog.String("port", getEnv("DB_PORT", "3306")),
-		slog.String("db", getEnv("DB_NAME", "esc_voting")),
-	)
+	logger.Info("connecting to CrudAPI gRPC", slog.String("target", target))
 
-	var (
-		conn *sql.DB
-		err  error
-	)
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		conn, err = sql.Open("mysql", dsn)
-		if err == nil {
-			conn.SetMaxOpenConns(25)
-			conn.SetMaxIdleConns(5)
-			conn.SetConnMaxLifetime(5 * time.Minute)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			pingErr := conn.PingContext(ctx)
-			cancel()
-
-			if pingErr == nil {
-				logger.Info("database connected", slog.Int("attempt", attempt))
-				return conn, nil
+		conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			logger.Warn("gRPC dial failed, retrying",
+				slog.Int("attempt", attempt),
+				slog.Int("max", maxAttempts),
+				"error", err,
+			)
+			if attempt < maxAttempts {
+				time.Sleep(retryDelay)
 			}
-			err = pingErr
+			continue
 		}
-		logger.Warn("database not ready, retrying",
+
+		// Probe with a short-timeout RPC to verify the server is ready.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		client := pb.NewVoteServiceClient(conn)
+		_, probeErr := client.GetSongsWithVotes(ctx, &pb.GetSongsRequest{})
+		cancel()
+
+		if probeErr == nil {
+			logger.Info("gRPC connection established", slog.Int("attempt", attempt))
+			return conn, nil
+		}
+
+		conn.Close()
+		logger.Warn("gRPC server not ready, retrying",
 			slog.Int("attempt", attempt),
 			slog.Int("max", maxAttempts),
-			"error", err,
+			"error", probeErr,
 		)
 		if attempt < maxAttempts {
-			time.Sleep(retryDelay * time.Duration(attempt))
+			time.Sleep(retryDelay)
 		}
 	}
-	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxAttempts, err)
+	return nil, fmt.Errorf("could not connect to gRPC after %d attempts", maxAttempts)
 }
 
 // ---------------------------------------------------------------------------
@@ -475,14 +470,16 @@ func main() {
 
 	tracer = otel.Tracer("esc-points-converter")
 
-	// ── Database ──────────────────────────────────────────────────────────────
-	db, err := connectToDatabase()
+	// ── gRPC connection to CrudAPI ─────────────────────────────────────────────
+	conn, err := connectToGRPC()
 	if err != nil {
-		logger.Error("failed to connect to database", "error", err)
+		logger.Error("failed to connect to CrudAPI gRPC", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
-	logger.Info("database connection established")
+	defer conn.Close()
+	logger.Info("CrudAPI gRPC connection established")
+
+	grpcClient := pb.NewVoteServiceClient(conn)
 
 	// ── Routes ────────────────────────────────────────────────────────────────
 	port := getEnv("PORT", "8090")
@@ -494,12 +491,14 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("GET /api/esc-points", handlePreview(db, juryScale))
+	mux.HandleFunc("GET /api/esc-points", handlePreview(grpcClient, juryScale))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	logger.Info("ESC points converter starting",
 		slog.String("port", port),
 		slog.Int("jury_scale", juryScale),
+		slog.String("grpc_host", getEnv("GRPC_HOST", "db-crud-api")),
+		slog.String("grpc_port", getEnv("GRPC_PORT", "50051")),
 		slog.String("otel_endpoint", getEnv("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318")),
 	)
 
