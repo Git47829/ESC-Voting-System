@@ -1,93 +1,71 @@
-{% extends "base.html" %} {% block title %}Live Results — ESC Voting System{%
-endblock %} {% block content %}
+{% extends "base.html" %} {% block title %}Live Results — ESC Voting System{% endblock %}
+
+{% block content %}
 <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10">
-    <div class="text-center mb-10">
-        <h1
-            class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3"
-        >
+
+    <!-- Page Header -->
+    <div class="text-center mb-8">
+        <h1 class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3">
             Live Results
         </h1>
         <p class="text-esc-muted text-sm max-w-md mx-auto">
             Scores update automatically every 10 seconds.
         </p>
-        <div class="mt-4 flex items-center justify-center gap-3">
-            <span
-                id="refresh-indicator"
-                class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted"
-            >
-                <span class="relative flex h-1.5 w-1.5">
-                    <span
-                        id="ping-dot"
-                        class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"
-                    ></span>
-                    <span
-                        class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"
-                    ></span>
-                </span>
-                <span id="refresh-text"
-                    >Live — updates in <span id="countdown">10</span>s</span
-                >
-            </span>
+    </div>
+
+    <!-- View Toggle Tabs -->
+    <div class="flex justify-center mb-8">
+        <div class="inline-flex rounded-xl border border-esc-surface bg-esc-surface/30 p-1 gap-1">
             <button
-                id="pause-btn"
-                onclick="togglePause()"
-                class="text-[11px] text-esc-muted/60 hover:text-esc-yellow transition-colors underline underline-offset-2"
-                title="Pause auto-refresh"
-            >
-                Pause
-            </button>
+                id="tab-raw"
+                onclick="switchView('raw')"
+                class="tab-btn px-5 py-2 rounded-lg text-sm font-heading font-semibold transition-all"
+            >Raw Votes</button>
+            <button
+                id="tab-esc"
+                onclick="switchView('esc')"
+                class="tab-btn px-5 py-2 rounded-lg text-sm font-heading font-semibold transition-all"
+            >ESC Ranking</button>
         </div>
     </div>
 
-    <div
-        id="loading-state"
-        class="flex flex-col items-center justify-center py-20"
-    >
-        <svg
-            class="animate-spin h-8 w-8 text-esc-yellow mb-4"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-        >
-            <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-            ></circle>
-            <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-            ></path>
+    <!-- Refresh indicator -->
+    <div class="flex items-center justify-center gap-3 mb-8">
+        <span id="refresh-indicator" class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted">
+            <span class="relative flex h-1.5 w-1.5">
+                <span id="ping-dot" class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                <span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"></span>
+            </span>
+            <span id="refresh-text">Live — updates in <span id="countdown">10</span>s</span>
+        </span>
+        <button
+            id="pause-btn"
+            onclick="togglePause()"
+            class="text-[11px] text-esc-muted/60 hover:text-esc-yellow transition-colors underline underline-offset-2"
+        >Pause</button>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loading-state" class="flex flex-col items-center justify-center py-20">
+        <svg class="animate-spin h-8 w-8 text-esc-yellow mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
         </svg>
         <p class="text-sm text-esc-muted">Loading results&hellip;</p>
     </div>
 
-    <div
-        id="empty-state"
-        class="hidden flex flex-col items-center justify-center py-20 text-center"
-    >
+    <!-- Empty state -->
+    <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-center">
         <span class="text-5xl mb-4">📊</span>
-        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">
-            No Results Yet
-        </h2>
-        <p class="text-sm text-esc-muted max-w-sm">
-            No votes have been cast yet. Results will appear here once voting
-            begins.
-        </p>
+        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">No Results Yet</h2>
+        <p class="text-sm text-esc-muted max-w-sm">No votes have been cast yet. Results will appear here once voting begins.</p>
     </div>
 
+    <!-- Raw Votes container -->
     <div id="results-container" class="hidden space-y-3">
-        <div
-            class="flex items-center justify-end gap-5 mb-6 text-[11px] text-esc-muted"
-        >
+        <div class="flex items-center justify-end gap-5 mb-6 text-[11px] text-esc-muted">
             <span class="flex items-center gap-1.5">
-                <span
-                    class="inline-block w-3 h-3 rounded-sm bg-esc-yellow"
-                ></span>
+                <span class="inline-block w-3 h-3 rounded-sm bg-esc-yellow"></span>
                 Public Votes
             </span>
             <span class="flex items-center gap-1.5">
@@ -95,230 +73,308 @@ endblock %} {% block content %}
                 Jury Votes
             </span>
         </div>
-
         <div id="chart-rows" class="space-y-2.5"></div>
     </div>
 
-    <div
-        id="error-state"
-        class="hidden flex flex-col items-center justify-center py-20 text-center"
-    >
+    <!-- ESC Ranking container -->
+    <div id="esc-container" class="hidden space-y-3">
+        <div class="flex items-center justify-between mb-6">
+            <p class="text-[11px] text-esc-muted">Points awarded by ESC televote system: 1st→12, 2nd→10, 3rd→8, 4th–10th→7…1</p>
+        </div>
+        <div id="esc-rows" class="space-y-2.5"></div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-state" class="hidden flex flex-col items-center justify-center py-20 text-center">
         <span class="text-5xl mb-4">⚠️</span>
-        <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">
-            Failed to Load Results
-        </h2>
-        <p class="text-sm text-esc-muted max-w-sm mb-4">
-            Could not connect to the voting server. Retrying
-            automatically&hellip;
-        </p>
-        <button
-            onclick="fetchResults()"
-            class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors"
-        >
+        <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">Failed to Load Results</h2>
+        <p class="text-sm text-esc-muted max-w-sm mb-4">Could not connect to the voting server. Retrying automatically&hellip;</p>
+        <button onclick="fetchResults()" class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors">
             Retry Now
         </button>
     </div>
+
 </div>
-{% endblock %} {% block scripts %}
+{% endblock %}
+
+{% block scripts %}
 <script>
+    // ---------------------------------------------------------------------------
+    // Flag helpers
+    // ---------------------------------------------------------------------------
     const countryToAlpha2 = {
-        Germany: "de",
-        Sweden: "se",
-        France: "fr",
-        Spain: "es",
-        Italy: "it",
-        "United Kingdom": "gb",
-        Norway: "no",
-        Finland: "fi",
-        Austria: "at",
-        Belgium: "be",
-        Netherlands: "nl",
-        Switzerland: "ch",
-        Portugal: "pt",
-        Greece: "gr",
-        Ireland: "ie",
-        Denmark: "dk",
-        Iceland: "is",
-        Croatia: "hr",
-        Serbia: "rs",
-        Ukraine: "ua",
-        Poland: "pl",
-        "Czech Republic": "cz",
-        Czechia: "cz",
-        Romania: "ro",
-        Bulgaria: "bg",
-        Hungary: "hu",
-        Slovenia: "si",
-        Slovakia: "sk",
-        Estonia: "ee",
-        Latvia: "lv",
-        Lithuania: "lt",
-        Cyprus: "cy",
-        Malta: "mt",
-        Israel: "il",
-        Georgia: "ge",
-        Armenia: "am",
-        Azerbaijan: "az",
-        Moldova: "md",
-        Montenegro: "me",
-        "North Macedonia": "mk",
-        Albania: "al",
-        "Bosnia and Herzegovina": "ba",
-        "San Marino": "sm",
-        Andorra: "ad",
-        Luxembourg: "lu",
-        Australia: "au",
+        Germany:"de",Sweden:"se",France:"fr",Spain:"es",Italy:"it",
+        "United Kingdom":"gb",Norway:"no",Finland:"fi",Austria:"at",Belgium:"be",
+        Netherlands:"nl",Switzerland:"ch",Portugal:"pt",Greece:"gr",Ireland:"ie",
+        Denmark:"dk",Iceland:"is",Croatia:"hr",Serbia:"rs",Ukraine:"ua",
+        Poland:"pl","Czech Republic":"cz",Czechia:"cz",Romania:"ro",Bulgaria:"bg",
+        Hungary:"hu",Slovenia:"si",Slovakia:"sk",Estonia:"ee",Latvia:"lv",
+        Lithuania:"lt",Cyprus:"cy",Malta:"mt",Israel:"il",Georgia:"ge",
+        Armenia:"am",Azerbaijan:"az",Moldova:"md",Montenegro:"me",
+        "North Macedonia":"mk",Albania:"al","Bosnia and Herzegovina":"ba",
+        "San Marino":"sm",Andorra:"ad",Luxembourg:"lu",Australia:"au",
     };
 
     function getFlagUrl(country) {
         const code = countryToAlpha2[country];
-        if (code) return "https://flagcdn.com/w40/" + code + ".png";
-        return null;
+        return code ? "https://flagcdn.com/w40/" + code + ".png" : null;
     }
 
+    // ---------------------------------------------------------------------------
+    // View state
+    // ---------------------------------------------------------------------------
+    let currentView = 'raw'; // 'raw' | 'esc'
+    let paused = false;
+    let secondsLeft = 10;
     let pollInterval = null;
     let countdownInterval = null;
-    let secondsLeft = 10;
-    let paused = false;
-    let previousData = null;
+    let previousRawData = null;
+    let previousEscData = null;
 
-    function renderChart(results) {
-        const container = document.getElementById("chart-rows");
-        const loadingEl = document.getElementById("loading-state");
-        const emptyEl = document.getElementById("empty-state");
-        const resultsEl = document.getElementById("results-container");
-        const errorEl = document.getElementById("error-state");
+    const ESC_POINT_COLORS = {
+        12: '#FFD700', 10: '#FFD700',
+         8: '#C0C0C0', 7: '#C0C0C0',
+         6: '#60a5fa', 5: '#60a5fa', 4: '#60a5fa',
+         3: '#86efac', 2: '#86efac', 1: '#86efac',
+         0: '#374151',
+    };
 
-        loadingEl.classList.add("hidden");
-        errorEl.classList.add("hidden");
+    function switchView(view) {
+        currentView = view;
+        const tabRaw = document.getElementById('tab-raw');
+        const tabEsc = document.getElementById('tab-esc');
+        const rawCon = document.getElementById('results-container');
+        const escCon = document.getElementById('esc-container');
+
+        if (view === 'raw') {
+            tabRaw.classList.add('bg-esc-yellow', 'text-esc-black');
+            tabRaw.classList.remove('text-esc-muted');
+            tabEsc.classList.remove('bg-esc-yellow', 'text-esc-black');
+            tabEsc.classList.add('text-esc-muted');
+            if (previousRawData)  { rawCon.classList.remove('hidden'); escCon.classList.add('hidden'); }
+        } else {
+            tabEsc.classList.add('bg-esc-yellow', 'text-esc-black');
+            tabEsc.classList.remove('text-esc-muted');
+            tabRaw.classList.remove('bg-esc-yellow', 'text-esc-black');
+            tabRaw.classList.add('text-esc-muted');
+            if (previousEscData) { escCon.classList.remove('hidden'); rawCon.classList.add('hidden'); }
+        }
+
+        fetchResults();
+    }
+
+    // ---------------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------------
+    function showLoading() {
+        document.getElementById('loading-state').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+        document.getElementById('results-container').classList.add('hidden');
+        document.getElementById('esc-container').classList.add('hidden');
+        document.getElementById('error-state').classList.add('hidden');
+    }
+
+    function renderRaw(results) {
+        const loadingEl  = document.getElementById('loading-state');
+        const emptyEl    = document.getElementById('empty-state');
+        const resultsEl  = document.getElementById('results-container');
+        const escEl      = document.getElementById('esc-container');
+        const errorEl    = document.getElementById('error-state');
+
+        loadingEl.classList.add('hidden');
+        errorEl.classList.add('hidden');
+        escEl.classList.add('hidden');
 
         if (!results || results.length === 0) {
-            emptyEl.classList.remove("hidden");
-            resultsEl.classList.add("hidden");
+            emptyEl.classList.remove('hidden');
+            resultsEl.classList.add('hidden');
             return;
         }
+        emptyEl.classList.add('hidden');
+        resultsEl.classList.remove('hidden');
 
-        emptyEl.classList.add("hidden");
-        resultsEl.classList.remove("hidden");
-
-        const maxTotal = Math.max(...results.map((r) => r.totalVotes || 0), 1);
-
-        let html = "";
-        results.forEach(function (entry, index) {
-            const rank = index + 1;
+        const maxTotal = Math.max(...results.map(r => r.totalVotes || 0), 1);
+        let html = '';
+        results.forEach(function(entry, index) {
+            const rank       = index + 1;
             const publicVotes = entry.publicVotes || 0;
-            const juryVotes = entry.juryVotes || 0;
-            const totalVotes = entry.totalVotes || 0;
-            const publicPct = (publicVotes / maxTotal) * 100;
-            const juryPct = (juryVotes / maxTotal) * 100;
-            const flagUrl = getFlagUrl(entry.country);
-
-            let changed = false;
-            if (previousData) {
-                const prev = previousData.find((p) => p.id === entry.id);
-                if (prev && prev.totalVotes !== totalVotes) {
-                    changed = true;
-                }
-            }
-
-            const changeClass = changed
-                ? "ring-1 ring-esc-yellow/30 bg-esc-yellow/5"
-                : "";
+            const juryVotes   = entry.juryVotes   || 0;
+            const totalVotes  = entry.totalVotes  || 0;
+            const publicPct  = (publicVotes / maxTotal) * 100;
+            const juryPct    = (juryVotes   / maxTotal) * 100;
+            const flagUrl    = getFlagUrl(entry.country);
+            const changed    = previousRawData
+                ? ((previousRawData.find(p => p.id === entry.id) || {}).totalVotes !== totalVotes)
+                : false;
 
             html += `
-                <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changeClass}">
-
-                    <!-- Rank -->
-                    <div class="flex-shrink-0 w-8 text-right">
-                        <span class="font-heading font-bold text-sm ${rank <= 3 ? "text-esc-yellow" : "text-esc-muted"}">
-                            ${rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "#" + rank}
-                        </span>
-                    </div>
-
-                    <!-- Flag -->
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-esc-surface flex items-center justify-center bg-esc-black">
-                        ${
-                            flagUrl
-                                ? `<img src="${flagUrl}" alt="${entry.country}" class="w-full h-full object-cover" onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
-                                : '<span class="text-sm">🏳️</span>'
-                        }
-                    </div>
-
-                    <!-- Country + Song Name -->
-                    <div class="flex-shrink-0 w-32 sm:w-44 min-w-0">
-                        <p class="font-heading font-semibold text-sm text-esc-text truncate leading-tight">${entry.country}</p>
-                        <p class="text-[10px] text-esc-muted truncate leading-tight">${entry.name}</p>
-                    </div>
-
-                    <!-- Bar -->
-                    <div class="flex-1 min-w-0">
-                        <div class="flex h-6 rounded-md overflow-hidden bg-esc-black/50">
-                            <div
-                                class="h-full bg-esc-yellow transition-all duration-700 ease-out"
-                                style="width: ${publicPct}%"
-                                title="Public: ${publicVotes} pts"
-                            ></div>
-                            <div
-                                class="h-full bg-sky-400 transition-all duration-700 ease-out"
-                                style="width: ${juryPct}%"
-                                title="Jury: ${juryVotes} pts"
-                            ></div>
-                        </div>
-                    </div>
-
-                    <!-- Total Points -->
-                    <div class="flex-shrink-0 w-16 text-right">
-                        <span class="font-heading font-bold text-base ${rank === 1 ? "text-esc-yellow" : "text-esc-text"}">${totalVotes}</span>
-                        <span class="text-[10px] text-esc-muted block leading-none">pts</span>
-                    </div>
-
-                    <!-- Breakdown tooltip on hover -->
-                    <div class="flex-shrink-0 hidden sm:flex flex-col items-end w-20 text-right">
-                        <span class="text-[10px] text-esc-yellow/70">pub ${publicVotes}</span>
-                        <span class="text-[10px] text-sky-400/70">jury ${juryVotes}</span>
+            <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changed ? 'ring-1 ring-esc-yellow/30 bg-esc-yellow/5' : ''}">
+                <div class="flex-shrink-0 w-8 text-right">
+                    <span class="font-heading font-bold text-sm ${rank <= 3 ? 'text-esc-yellow' : 'text-esc-muted'}">
+                        ${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}
+                    </span>
+                </div>
+                <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-esc-surface flex items-center justify-center bg-esc-black">
+                    ${flagUrl
+                        ? `<img src="${flagUrl}" alt="${escHtml(entry.country)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
+                        : '<span class="text-sm">🏳️</span>'}
+                </div>
+                <div class="flex-shrink-0 w-32 sm:w-44 min-w-0">
+                    <p class="font-heading font-semibold text-sm text-esc-text truncate leading-tight">${escHtml(entry.country)}</p>
+                    <p class="text-[10px] text-esc-muted truncate leading-tight">${escHtml(entry.name)}</p>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex h-6 rounded-md overflow-hidden bg-esc-black/50">
+                        <div class="h-full bg-esc-yellow transition-all duration-700 ease-out" style="width:${publicPct}%" title="Public: ${publicVotes} pts"></div>
+                        <div class="h-full bg-sky-400 transition-all duration-700 ease-out"  style="width:${juryPct}%"   title="Jury: ${juryVotes} pts"></div>
                     </div>
                 </div>
-            `;
+                <div class="flex-shrink-0 w-16 text-right">
+                    <span class="font-heading font-bold text-base ${rank === 1 ? 'text-esc-yellow' : 'text-esc-text'}">${totalVotes}</span>
+                    <span class="text-[10px] text-esc-muted block leading-none">pts</span>
+                </div>
+                <div class="flex-shrink-0 hidden sm:flex flex-col items-end w-20 text-right">
+                    <span class="text-[10px] text-esc-yellow/70">pub ${publicVotes}</span>
+                    <span class="text-[10px] text-sky-400/70">jury ${juryVotes}</span>
+                </div>
+            </div>`;
         });
 
-        container.innerHTML = html;
-        previousData = results;
+        document.getElementById('chart-rows').innerHTML = html;
+        previousRawData = results;
     }
 
+    function renderESC(results) {
+        const loadingEl = document.getElementById('loading-state');
+        const emptyEl   = document.getElementById('empty-state');
+        const rawEl     = document.getElementById('results-container');
+        const escEl     = document.getElementById('esc-container');
+        const errorEl   = document.getElementById('error-state');
+
+        loadingEl.classList.add('hidden');
+        errorEl.classList.add('hidden');
+        rawEl.classList.add('hidden');
+
+        if (!results || results.length === 0) {
+            emptyEl.classList.remove('hidden');
+            escEl.classList.add('hidden');
+            return;
+        }
+        emptyEl.classList.add('hidden');
+        escEl.classList.remove('hidden');
+
+        const maxESC = Math.max(...results.map(r => r.escPoints || 0), 1);
+
+        let html = '';
+        results.forEach(function(entry) {
+            const rank      = entry.rank;
+            const escPts    = entry.escPoints  || 0;
+            const rawVotes  = entry.rawPublicVotes || 0;
+            const barPct    = (escPts / maxESC) * 100;
+            const flagUrl   = getFlagUrl(entry.country);
+            const ptColor   = ESC_POINT_COLORS[escPts] || '#374151';
+            const changed   = previousEscData
+                ? ((previousEscData.find(p => p.songId === entry.songId) || {}).escPoints !== escPts)
+                : false;
+
+            // Badge colours per point tier
+            const badgeCls = escPts === 12 || escPts === 10
+                ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30'
+                : escPts >= 7
+                ? 'bg-sky-400/15 text-sky-300 border-sky-400/30'
+                : escPts >= 1
+                ? 'bg-green-500/15 text-green-300 border-green-500/30'
+                : 'bg-esc-surface/50 text-esc-muted/50 border-esc-surface';
+
+            html += `
+            <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changed ? 'ring-1 ring-esc-yellow/30 bg-esc-yellow/5' : ''}">
+
+                <!-- Rank -->
+                <div class="flex-shrink-0 w-8 text-right">
+                    <span class="font-heading font-bold text-sm ${rank <= 3 ? 'text-esc-yellow' : 'text-esc-muted'}">
+                        ${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}
+                    </span>
+                </div>
+
+                <!-- Flag -->
+                <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-esc-surface flex items-center justify-center bg-esc-black">
+                    ${flagUrl
+                        ? `<img src="${flagUrl}" alt="${escHtml(entry.country)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
+                        : '<span class="text-sm">🏳️</span>'}
+                </div>
+
+                <!-- Country + Song -->
+                <div class="flex-shrink-0 w-32 sm:w-44 min-w-0">
+                    <p class="font-heading font-semibold text-sm text-esc-text truncate leading-tight">${escHtml(entry.country)}</p>
+                    <p class="text-[10px] text-esc-muted truncate leading-tight">${escHtml(entry.songName)}</p>
+                </div>
+
+                <!-- Bar (proportional to ESC points) -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex h-6 rounded-md overflow-hidden bg-esc-black/50">
+                        <div class="h-full transition-all duration-700 ease-out"
+                             style="width:${barPct}%; background-color:${ptColor};"
+                             title="${escPts} ESC pts"></div>
+                    </div>
+                </div>
+
+                <!-- ESC points badge -->
+                <div class="flex-shrink-0 text-right flex items-center gap-2">
+                    <span class="inline-flex items-center rounded-md border px-2 py-0.5 font-heading font-bold text-sm ${badgeCls}">
+                        ${escPts} pts
+                    </span>
+                </div>
+
+                <!-- Raw votes (muted, desktop only) -->
+                <div class="flex-shrink-0 hidden sm:block w-20 text-right">
+                    <span class="text-[10px] text-esc-muted">${rawVotes} raw votes</span>
+                </div>
+            </div>`;
+        });
+
+        document.getElementById('esc-rows').innerHTML = html;
+        previousEscData = results;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Fetch
+    // ---------------------------------------------------------------------------
     async function fetchResults() {
+        const endpoint = currentView === 'esc' ? '/api/esc-results' : '/api/results';
         try {
-            const resp = await fetch("/api/results");
-            if (!resp.ok) throw new Error("HTTP " + resp.status);
+            const resp = await fetch(endpoint);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
-            renderChart(data);
+            if (currentView === 'esc') renderESC(data);
+            else                        renderRaw(data);
         } catch (err) {
-            console.error("Failed to fetch results:", err);
-            if (!previousData) {
-                document
-                    .getElementById("loading-state")
-                    .classList.add("hidden");
-                document
-                    .getElementById("error-state")
-                    .classList.remove("hidden");
+            console.error('Failed to fetch results:', err);
+            const hasCache = currentView === 'esc' ? previousEscData : previousRawData;
+            if (!hasCache) {
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('error-state').classList.remove('hidden');
             }
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Polling + pause
+    // ---------------------------------------------------------------------------
     function resetCountdown() {
         secondsLeft = 10;
-        document.getElementById("countdown").textContent = secondsLeft;
+        const el = document.getElementById('countdown');
+        if (el) el.textContent = secondsLeft;
     }
 
     function startPolling() {
         fetchResults();
-
         countdownInterval = setInterval(function () {
             if (paused) return;
             secondsLeft--;
             if (secondsLeft < 0) secondsLeft = 0;
-            document.getElementById("countdown").textContent = secondsLeft;
+            const el = document.getElementById('countdown');
+            if (el) el.textContent = secondsLeft;
         }, 1000);
-
         pollInterval = setInterval(function () {
             if (paused) return;
             fetchResults();
@@ -328,28 +384,37 @@ endblock %} {% block content %}
 
     function togglePause() {
         paused = !paused;
-        const btn = document.getElementById("pause-btn");
-        const pingDot = document.getElementById("ping-dot");
-        const refreshText = document.getElementById("refresh-text");
-
+        const btn      = document.getElementById('pause-btn');
+        const pingDot  = document.getElementById('ping-dot');
+        const refreshT = document.getElementById('refresh-text');
         if (paused) {
-            btn.textContent = "Resume";
-            pingDot.classList.remove("animate-ping");
-            pingDot.classList.add("bg-esc-muted");
-            pingDot.classList.remove("bg-green-400");
-            refreshText.innerHTML = "Paused";
+            btn.textContent = 'Resume';
+            pingDot.classList.remove('animate-ping', 'bg-green-400');
+            pingDot.classList.add('bg-esc-muted');
+            refreshT.innerHTML = 'Paused';
         } else {
-            btn.textContent = "Pause";
-            pingDot.classList.add("animate-ping");
-            pingDot.classList.remove("bg-esc-muted");
-            pingDot.classList.add("bg-green-400");
-            refreshText.innerHTML =
-                'Live — updates in <span id="countdown">10</span>s';
+            btn.textContent = 'Pause';
+            pingDot.classList.add('animate-ping', 'bg-green-400');
+            pingDot.classList.remove('bg-esc-muted');
+            refreshT.innerHTML = 'Live — updates in <span id="countdown">10</span>s';
             resetCountdown();
             fetchResults();
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------------
+    function escHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ---------------------------------------------------------------------------
+    // Boot
+    // ---------------------------------------------------------------------------
+    // Set initial active tab styling
+    switchView('raw');
     startPolling();
 </script>
 {% endblock %}

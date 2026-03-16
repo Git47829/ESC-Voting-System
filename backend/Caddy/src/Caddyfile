@@ -56,6 +56,11 @@ https:// {
 		reverse_proxy eurostats:8880
 	}
 
+	# ── Public Vote Converter ──────────────────────────────────────────────────
+	handle_path /esc-converter/* {
+		reverse_proxy public-vote-converter:8090
+	}
+
 	# ── Grafana ───────────────────────────────────────────────────────────────
 	# No prefix strip – Grafana serves under /grafana via GF_SERVER_ROOT_URL.
 	handle /grafana* {

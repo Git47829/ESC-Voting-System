@@ -65,16 +65,49 @@ services:
       OTEL_ENVIRONMENT: production
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_GRPC_ENDPOINT: http://otel-collector:4317
+      ESC_CONVERTER_URL: http://public-vote-converter:8090
     depends_on:
       api:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      public-vote-converter:
+        condition: service_healthy
     networks:
       - frontend
       - observability
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  public-vote-converter:
+    build: ./backend/PublicVoteConverter/
+    container_name: public-vote-converter
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: esc_voting
+      DB_USER: esc_user
+      DB_PASS: esc_password
+      PORT: 8090
+      OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      db:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - backend
+      - frontend
+      - observability
+    healthcheck:
+      test: ["CMD", "/healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -206,6 +239,7 @@ services:
       - frontend
       - api
       - eurostats
+      - public-vote-converter
       - grafana
       - prometheus
       - tempo

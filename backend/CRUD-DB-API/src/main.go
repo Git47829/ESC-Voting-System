@@ -1782,7 +1782,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const juryWeight int = 5
+	const juryWeight int = 1
 	totalPoints := juryWeight * parsedPoints
 
 	dbQuery := `UPDATE Song
