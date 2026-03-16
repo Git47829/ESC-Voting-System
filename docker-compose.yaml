@@ -66,6 +66,7 @@ services:
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
       OTEL_EXPORTER_OTLP_GRPC_ENDPOINT: http://otel-collector:4317
       ESC_CONVERTER_URL: http://public-vote-converter:8090
+      EUROSTATS_URL: http://eurostats:8880
     depends_on:
       api:
         condition: service_healthy
@@ -130,6 +131,7 @@ services:
         condition: service_started
     networks:
       - backend
+      - frontend
       - observability
     restart: unless-stopped
     healthcheck:

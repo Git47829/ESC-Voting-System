@@ -296,6 +296,22 @@ async def subscribe_to_votes(include_historical: bool = True):
     return {"votes": votes, "count": len(votes)}
 
 
+@app.post("/reset")
+async def reset_votes():
+    """Clear the in-memory vote store and push empty state to all WebSocket clients."""
+    global _vote_df
+    _vote_df = pd.DataFrame(columns=[
+        "song_id", "song_name",
+        "country_voted_for", "country_voted_for_name",
+        "voter_country", "voter_country_name",
+        "vote_count", "timestamp",
+    ])
+    await votes_manager.broadcast({"type": "snapshot", "data": []})
+    await stats_manager.broadcast({"type": "stats", "charts": None, "vote_count": 0})
+    logger.info("Vote store reset by admin")
+    return {"status": "reset"}
+
+
 # ---------------------------------------------------------------------------
 # WebSocket: raw vote stream (fan-out from single ingestor)
 # ---------------------------------------------------------------------------
