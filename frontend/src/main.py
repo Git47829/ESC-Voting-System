@@ -279,10 +279,14 @@ def results_page():
 
 @app.route("/api/results")
 def api_results():
-    """JSON endpoint polled by the results page every 10 s."""
+    """JSON endpoint polled by the results page — combined jury + public ranking."""
     data = api_get("/votes/")
     if data and "payload" in data:
-        return jsonify(data["payload"])
+        entries = data["payload"]
+        # CRUD API returns rows sorted by totalVotes DESC; assign rank here.
+        for i, entry in enumerate(entries):
+            entry["rank"] = i + 1
+        return jsonify(entries)
     return jsonify([])
 
 

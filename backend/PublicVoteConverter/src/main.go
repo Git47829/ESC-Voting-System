@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -339,7 +340,7 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func handlePreview(db *sql.DB) http.HandlerFunc {
+func handlePreview(db *sql.DB, juryScale int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		_, span := tracer.Start(ctx, "preview.fetchAndRank")
@@ -355,6 +356,9 @@ func handlePreview(db *sql.DB) http.HandlerFunc {
 		}
 
 		result := rankAndConvert(songs)
+		for i := range result {
+			result[i].ESCPoints *= juryScale
+		}
 		span.SetAttributes(attribute.Int("songs.count", len(result)))
 
 		w.Header().Set("Content-Type", "application/json")
@@ -365,7 +369,7 @@ func handlePreview(db *sql.DB) http.HandlerFunc {
 	}
 }
 
-func handleApply(db *sql.DB, adminPassword string) http.HandlerFunc {
+func handleApply(db *sql.DB, adminPassword string, juryScale int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		w.Header().Set("Content-Type", "application/json")
@@ -398,6 +402,9 @@ func handleApply(db *sql.DB, adminPassword string) http.HandlerFunc {
 		}
 
 		result := rankAndConvert(songs)
+		for i := range result {
+			result[i].ESCPoints *= juryScale
+		}
 
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
@@ -463,6 +470,15 @@ func handleApply(db *sql.DB, adminPassword string) http.HandlerFunc {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
 	}
 	return fallback
 }
@@ -573,14 +589,20 @@ func main() {
 	adminPassword := getEnv("adminPassword", "")
 	port := getEnv("PORT", "8090")
 
+	// juryScale equalises the 50/50 jury vs televote weighting.
+	// The public vote produces one ESC set (max 12 pts); multiplying by the
+	// number of jury members brings it to the same maximum as the combined jury.
+	juryScale := getEnvInt("NUM_JURY_MEMBERS", 3)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("GET /api/esc-points", handlePreview(db))
-	mux.HandleFunc("POST /api/esc-points/apply", handleApply(db, adminPassword))
+	mux.HandleFunc("GET /api/esc-points", handlePreview(db, juryScale))
+	mux.HandleFunc("POST /api/esc-points/apply", handleApply(db, adminPassword, juryScale))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	logger.Info("ESC points converter starting",
 		slog.String("port", port),
+		slog.Int("jury_scale", juryScale),
 		slog.String("otel_endpoint", getEnv("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318")),
 	)
 
