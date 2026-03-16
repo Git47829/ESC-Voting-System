@@ -40,3 +40,9 @@ scrape_configs:
       - targets: ["caddy:2019"]
     metrics_path: /metrics
     scrape_interval: 15s
+
+  - job_name: "esc-points-converter"
+    static_configs:
+      - targets: ["public-vote-converter:8090"]
+    metrics_path: /metrics
+    scrape_interval: 15s
