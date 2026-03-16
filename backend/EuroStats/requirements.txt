@@ -26,3 +26,11 @@ opentelemetry-instrumentation-asgi==0.49b0
 # Propagators / semantic conventions needed by the instrumentors
 opentelemetry-propagator-b3==1.9.1
 opentelemetry-semantic-conventions==0.49b0
+
+# WebSocket protocol support (required by Starlette/FastAPI)
+websockets==12.0
+
+# Statistical processing and visualisation
+pandas==2.2.2
+numpy==1.26.4
+matplotlib==3.8.4
