@@ -279,65 +279,54 @@ def results_page():
 
 @app.route("/api/results")
 def api_results():
-    """JSON endpoint polled by the results page — combined jury + public ranking."""
-    data = api_get("/votes/")
-    if data and "payload" in data:
-        entries = data["payload"]
-        # CRUD API returns rows sorted by totalVotes DESC; assign rank here.
-        for i, entry in enumerate(entries):
-            entry["rank"] = i + 1
-        return jsonify(entries)
-    return jsonify([])
-
-
-@app.route("/api/esc-results")
-def api_esc_results():
-    """Proxy to the ESC points converter — returns ESC-ranked songs."""
+    """Combined jury + ESC-converted public ranking, computed on-the-fly."""
     t0 = time.perf_counter()
-    status_code = 500
+    esc_status = 500
+    jury_status = 500
     try:
-        resp = requests.get(
+        esc_resp = requests.get(
             f"{ESC_CONVERTER_URL}/api/esc-points", timeout=API_TIMEOUT
         )
-        status_code = resp.status_code
-        resp.raise_for_status()
-        data = resp.json()
-        if data and "payload" in data:
-            return jsonify(data["payload"])
-        return jsonify([])
+        esc_status = esc_resp.status_code
+        esc_resp.raise_for_status()
+        esc_data = esc_resp.json()
     except requests.exceptions.RequestException as e:
         app.logger.error("converter GET failed", extra={"error": str(e)})
         return jsonify([]), 503
     finally:
-        record_backend_call("/api/esc-points", status_code, time.perf_counter() - t0)
+        record_backend_call("/api/esc-points", esc_status, time.perf_counter() - t0)
 
+    jury_data = api_get("/votes/")
+    jury_status = 200 if jury_data else 503
 
-@app.route("/admin/apply-esc-points", methods=["POST"])
-@login_required("admin")
-def admin_apply_esc_points():
-    """Call the ESC points converter to rank raw votes and write ESC points to DB."""
-    token = session.get("token", "")
-    t0 = time.perf_counter()
-    status_code = 500
-    try:
-        resp = requests.post(
-            f"{ESC_CONVERTER_URL}/api/esc-points/apply",
-            params={"Token": token},
-            timeout=API_TIMEOUT,
-        )
-        status_code = resp.status_code
-        data = resp.json()
-    except requests.exceptions.RequestException as e:
-        app.logger.error("converter POST failed", extra={"error": str(e)})
-        return jsonify({"error": "Could not reach ESC converter service"}), 503
-    finally:
-        record_backend_call(
-            "/api/esc-points/apply", status_code, time.perf_counter() - t0
-        )
+    # Build a map of song_id → jury points from the CRUD API response.
+    jury_map = {}
+    if jury_data and "payload" in jury_data:
+        for entry in jury_data["payload"]:
+            jury_map[entry["id"]] = entry.get("juryVotes", 0)
 
-    flask_response = jsonify(data)
-    flask_response.status_code = status_code
-    return flask_response
+    # Merge ESC-converted public points with jury points.
+    results = []
+    if esc_data and "payload" in esc_data:
+        for song in esc_data["payload"]:
+            song_id = song["songId"]
+            esc_pts = song.get("escPoints", 0)
+            jury_pts = jury_map.get(song_id, 0)
+            results.append({
+                "id": song_id,
+                "name": song.get("songName", ""),
+                "country": song.get("country", ""),
+                "escPublicPts": esc_pts,
+                "juryPts": jury_pts,
+                "totalPts": esc_pts + jury_pts,
+            })
+
+    # Sort by combined total descending, assign rank.
+    results.sort(key=lambda x: (-x["totalPts"], x["id"]))
+    for i, entry in enumerate(results):
+        entry["rank"] = i + 1
+
+    return jsonify(results)
 
 
 @app.route("/vote/submit", methods=["POST"])

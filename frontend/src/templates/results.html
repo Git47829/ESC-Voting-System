@@ -118,14 +118,14 @@
         emptyEl.classList.add('hidden');
         containerEl.classList.remove('hidden');
 
-        const maxTotal = Math.max(...results.map(r => r.totalVotes || 0), 1);
+        const maxTotal = Math.max(...results.map(r => r.totalPts || 0), 1);
 
         let html = '';
         results.forEach(function(entry) {
             const rank       = entry.rank;
-            const publicPts  = entry.publicVotes  || 0;
-            const juryPts    = entry.juryVotes    || 0;
-            const totalPts   = entry.totalVotes   || 0;
+            const publicPts  = entry.escPublicPts || 0;
+            const juryPts    = entry.juryPts      || 0;
+            const totalPts   = entry.totalPts     || 0;
             const barPct     = (totalPts / maxTotal) * 100;
             const flagUrl    = getFlagUrl(entry.country);
             const changed    = previousData

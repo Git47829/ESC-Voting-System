@@ -87,15 +87,6 @@ var (
 		[]string{"method", "path", "status"},
 	)
 
-	applyOpsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "esc_converter_apply_total",
-		Help: "Total number of successful ESC points apply operations",
-	})
-
-	songsConverted = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "esc_converter_songs_converted_last_apply",
-		Help: "Number of songs updated in the most recent apply operation",
-	})
 )
 
 // ---------------------------------------------------------------------------
@@ -369,100 +360,6 @@ func handlePreview(db *sql.DB, juryScale int) http.HandlerFunc {
 	}
 }
 
-func handleApply(db *sql.DB, adminPassword string, juryScale int) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		w.Header().Set("Content-Type", "application/json")
-
-		token := r.URL.Query().Get("Token")
-		if token == "" || token != adminPassword {
-			logger.WarnContext(ctx, "apply: unauthorized attempt",
-				slog.String("remote_addr", r.RemoteAddr))
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
-			return
-		}
-
-		_, span := tracer.Start(ctx, "apply.convertAndWrite")
-		defer span.End()
-
-		songs, err := fetchSongs(ctx, db)
-		if err != nil {
-			logger.ErrorContext(ctx, "apply: failed to fetch songs", "error", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to fetch songs"})
-			return
-		}
-
-		if len(songs) == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{"error": "no songs found"})
-			return
-		}
-
-		result := rankAndConvert(songs)
-		for i := range result {
-			result[i].ESCPoints *= juryScale
-		}
-
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			logger.ErrorContext(ctx, "apply: failed to begin transaction", "error", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to start transaction"})
-			return
-		}
-		defer tx.Rollback()
-
-		stmt, err := tx.PrepareContext(ctx, `UPDATE Song SET PublikumsPunkte = ? WHERE ID = ?`)
-		if err != nil {
-			logger.ErrorContext(ctx, "apply: failed to prepare statement", "error", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to prepare update"})
-			return
-		}
-		defer stmt.Close()
-
-		for _, s := range result {
-			if _, err := stmt.ExecContext(ctx, s.ESCPoints, s.ID); err != nil {
-				logger.ErrorContext(ctx, "apply: failed to update song",
-					slog.Int("song_id", s.ID), "error", err)
-				span.RecordError(err)
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": fmt.Sprintf("failed to update song %d", s.ID),
-				})
-				return
-			}
-		}
-
-		if err := tx.Commit(); err != nil {
-			logger.ErrorContext(ctx, "apply: failed to commit", "error", err)
-			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"error": "failed to commit transaction"})
-			return
-		}
-
-		span.SetAttributes(attribute.Int("songs.updated", len(result)))
-		applyOpsTotal.Inc()
-		songsConverted.Set(float64(len(result)))
-
-		logger.InfoContext(ctx, "ESC points applied to DB",
-			slog.Int("songs_updated", len(result)))
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message":       "ESC points applied successfully",
-			"songs_updated": len(result),
-			"payload":       result,
-		})
-	}
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -586,7 +483,6 @@ func main() {
 	logger.Info("database connection established")
 
 	// ── Routes ────────────────────────────────────────────────────────────────
-	adminPassword := getEnv("adminPassword", "")
 	port := getEnv("PORT", "8090")
 
 	// juryScale equalises the 50/50 jury vs televote weighting.
@@ -597,7 +493,6 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /api/esc-points", handlePreview(db, juryScale))
-	mux.HandleFunc("POST /api/esc-points/apply", handleApply(db, adminPassword, juryScale))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	logger.Info("ESC points converter starting",
