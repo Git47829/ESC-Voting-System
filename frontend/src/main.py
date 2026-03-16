@@ -277,6 +277,12 @@ def results_page():
     return render_template("results.html")
 
 
+@app.route("/stats")
+def stats_page():
+    """Live statistics page — pie charts from EuroStats WebSocket."""
+    return render_template("stats.html")
+
+
 @app.route("/api/results")
 def api_results():
     """Combined jury + ESC-converted public ranking, computed on-the-fly."""

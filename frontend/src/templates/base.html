@@ -131,6 +131,12 @@
                                 Results
                             </a>
                             <a
+                                href="/stats"
+                                class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors {% if request.path == '/stats' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
+                            >
+                                Stats
+                            </a>
+                            <a
                                 href="/now"
                                 class="px-3 py-2 text-sm rounded-md hover:bg-esc-surface hover:text-esc-yellow transition-colors flex items-center gap-1.5 {% if request.path == '/now' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
                             >
@@ -244,6 +250,12 @@
                         class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors {% if request.path == '/results' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
                     >
                         Results
+                    </a>
+                    <a
+                        href="/stats"
+                        class="block rounded-md px-3 py-2 text-sm hover:bg-esc-surface hover:text-esc-yellow transition-colors {% if request.path == '/stats' %}text-esc-yellow bg-esc-surface{% else %}text-esc-text{% endif %}"
+                    >
+                        Stats
                     </a>
                     <a
                         href="/now"
