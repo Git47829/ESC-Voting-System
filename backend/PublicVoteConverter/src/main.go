@@ -318,9 +318,7 @@ func rankAndConvert(songs []Song) []Song {
 	})
 	for i := range songs {
 		songs[i].Rank = i + 1
-		if songs[i].RawVotes > 0 {
-			songs[i].ESCPoints = escPointsForRank(i)
-		}
+		songs[i].ESCPoints = escPointsForRank(i)
 	}
 	return songs
 }
