@@ -242,6 +242,15 @@
     // Handle WebSocket snapshot (full current state for late-joiners)
     // ---------------------------------------------------------------------------
     function handleSnapshot(rows) {
+        if (rows.length === 0) {
+            Object.keys(localState).forEach(function(id) {
+                localState[id].escPublicPts = 0;
+                localState[id].rawVoteCount = 0;
+                localState[id].escRatio = 0;
+            });
+            rerenderResults();
+            return;
+        }
         // vote_count is cumulative — take max per song_id (latest value)
         const rawCounts = {};
         rows.forEach(function(row) {
