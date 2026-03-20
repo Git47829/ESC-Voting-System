@@ -35,10 +35,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// ---------------------------------------------------------------------------
-// ESC points table
-// ---------------------------------------------------------------------------
-
 // escPointTable maps 0-indexed rank to ESC televote points.
 // Rank 0 = 1st place (12 pts) … rank 9 = 10th place (1 pt), rank 10+ = 0 pts.
 var escPointTable = []int{12, 10, 8, 7, 6, 5, 4, 3, 2, 1}
@@ -50,10 +46,6 @@ func escPointsForRank(rank int) int {
 	return 0
 }
 
-// ---------------------------------------------------------------------------
-// Domain types
-// ---------------------------------------------------------------------------
-
 type Song struct {
 	ID        int    `json:"songId"`
 	Name      string `json:"songName"`
@@ -63,10 +55,6 @@ type Song struct {
 	ESCPoints int    `json:"escPoints"`
 	Rank      int    `json:"rank"`
 }
-
-// ---------------------------------------------------------------------------
-// Observability globals
-// ---------------------------------------------------------------------------
 
 var (
 	logger *slog.Logger
@@ -89,10 +77,6 @@ var (
 		[]string{"method", "path", "status"},
 	)
 )
-
-// ---------------------------------------------------------------------------
-// OTel setup — mirrors the CRUD API pattern
-// ---------------------------------------------------------------------------
 
 func otlpEndpointHostPort() string {
 	raw := getEnv("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318")
@@ -158,8 +142,6 @@ func initLogProvider() (*sdklog.LoggerProvider, error) {
 	return lp, nil
 }
 
-// otelSlogHandler bridges slog records to the OTel log API so every log line
-// is forwarded to the collector (→ Loki) in addition to being written to stdout.
 type otelSlogHandler struct {
 	inner  slog.Handler
 	otelLg otellog.Logger
@@ -220,10 +202,6 @@ func (h *otelSlogHandler) WithGroup(name string) slog.Handler {
 	return &otelSlogHandler{inner: h.inner.WithGroup(name), otelLg: h.otelLg}
 }
 
-// ---------------------------------------------------------------------------
-// HTTP observability middleware
-// ---------------------------------------------------------------------------
-
 type statusWriter struct {
 	http.ResponseWriter
 	status int
@@ -282,10 +260,6 @@ func observabilityMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Business logic
-// ---------------------------------------------------------------------------
-
 func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error) {
 	resp, err := client.GetSongsWithVotes(ctx, &pb.GetSongsRequest{})
 	if err != nil {
@@ -323,10 +297,6 @@ func rankAndConvert(songs []Song) []Song {
 	return songs
 }
 
-// ---------------------------------------------------------------------------
-// HTTP handlers
-// ---------------------------------------------------------------------------
-
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
@@ -341,7 +311,7 @@ func handlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc 
 		if err != nil {
 			logger.ErrorContext(ctx, "preview: failed to fetch songs", "error", err)
 			span.RecordError(err)
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]string{"error": "failed to fetch songs"})
 			return
 		}
@@ -359,10 +329,6 @@ func handlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc 
 		})
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -430,17 +396,11 @@ func connectToGRPC() (*grpc.ClientConn, error) {
 	return nil, fmt.Errorf("could not connect to gRPC after %d attempts", maxAttempts)
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
-
 func main() {
-	// ── Logging bootstrap (stdout JSON before OTel is ready) ─────────────────
 	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
 	logger = slog.New(baseHandler)
 	slog.SetDefault(logger)
 
-	// ── OTel tracing ──────────────────────────────────────────────────────────
 	tp, err := initTracer()
 	if err != nil {
 		log.Printf("warning: tracing unavailable: %v", err)
@@ -452,7 +412,6 @@ func main() {
 		}()
 	}
 
-	// ── OTel logging (→ Loki) ─────────────────────────────────────────────────
 	lp, err := initLogProvider()
 	if err != nil {
 		log.Printf("warning: OTLP log forwarding unavailable: %v", err)
@@ -464,13 +423,11 @@ func main() {
 		}()
 	}
 
-	// Replace stdout-only logger with the OTel-bridged one.
 	logger = slog.New(newOtelSlogHandler(baseHandler))
 	slog.SetDefault(logger)
 
 	tracer = otel.Tracer("esc-points-converter")
 
-	// ── gRPC connection to CrudAPI ─────────────────────────────────────────────
 	conn, err := connectToGRPC()
 	if err != nil {
 		logger.Error("failed to connect to CrudAPI gRPC", "error", err)
@@ -481,7 +438,6 @@ func main() {
 
 	grpcClient := pb.NewVoteServiceClient(conn)
 
-	// ── Routes ────────────────────────────────────────────────────────────────
 	port := getEnv("PORT", "8090")
 
 	// juryScale equalises the 50/50 jury vs televote weighting.

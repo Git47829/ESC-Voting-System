@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import List
 
 import matplotlib
+
 matplotlib.use("Agg")  # must be called before any other matplotlib import
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -21,20 +22,20 @@ logger = logging.getLogger(__name__)
 
 vote_consumer: VoteStreamConsumer = None
 
-# ---------------------------------------------------------------------------
-# In-memory vote store
-# ---------------------------------------------------------------------------
-_vote_df: pd.DataFrame = pd.DataFrame(columns=[
-    "song_id", "song_name",
-    "country_voted_for", "country_voted_for_name",
-    "voter_country", "voter_country_name",
-    "vote_count", "timestamp",
-])
+_vote_df: pd.DataFrame = pd.DataFrame(
+    columns=[
+        "song_id",
+        "song_name",
+        "country_voted_for",
+        "country_voted_for_name",
+        "voter_country",
+        "voter_country_name",
+        "vote_count",
+        "timestamp",
+    ]
+)
 
 
-# ---------------------------------------------------------------------------
-# WebSocket connection manager — reusable fan-out pattern
-# ---------------------------------------------------------------------------
 class _ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -61,18 +62,31 @@ class _ConnectionManager:
 stats_manager = _ConnectionManager()
 votes_manager = _ConnectionManager()
 
-# ---------------------------------------------------------------------------
-# Chart colour palette (ESC dark theme)
-# ---------------------------------------------------------------------------
-_BG_COLOR = "#0a0a0a"
+
 _TEXT_COLOR = "#e8e8e8"
 _YELLOW = "#ffde00"
 
 _SLICE_COLORS = [
-    "#ffde00", "#e05c5c", "#5c9de0", "#5ce09d", "#e09d5c",
-    "#9d5ce0", "#5ce0e0", "#e05ce0", "#9de05c", "#e0c65c",
-    "#5c6de0", "#e07d5c", "#5ce07d", "#c6e05c", "#7d5ce0",
-    "#5cc6e0", "#e05c9d", "#9de0c6", "#c65ce0", "#e0e05c",
+    "#ffde00",
+    "#e05c5c",
+    "#5c9de0",
+    "#5ce09d",
+    "#e09d5c",
+    "#9d5ce0",
+    "#5ce0e0",
+    "#e05ce0",
+    "#9de05c",
+    "#e0c65c",
+    "#5c6de0",
+    "#e07d5c",
+    "#5ce07d",
+    "#c6e05c",
+    "#7d5ce0",
+    "#5cc6e0",
+    "#e05c9d",
+    "#9de0c6",
+    "#c65ce0",
+    "#e0e05c",
 ]
 
 
@@ -99,8 +113,7 @@ def _make_pie_chart(labels: list, values: list, title: str) -> str:
         autotext.set_fontsize(8)
 
     legend_patches = [
-        mpatches.Patch(color=colors[i], label=labels[i])
-        for i in range(n)
+        mpatches.Patch(color=colors[i], label=labels[i]) for i in range(n)
     ]
     ax.legend(
         handles=legend_patches,
@@ -122,16 +135,15 @@ def _make_pie_chart(labels: list, values: list, title: str) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
-# ---------------------------------------------------------------------------
-# Stats computation and broadcast
-# ---------------------------------------------------------------------------
 async def _compute_and_broadcast() -> None:
     """Recompute both pie charts and broadcast to all /ws/stats clients."""
     if not stats_manager.active_connections:
         return
 
     if _vote_df.empty:
-        await stats_manager.broadcast({"type": "stats", "charts": None, "vote_count": 0})
+        await stats_manager.broadcast(
+            {"type": "stats", "charts": None, "vote_count": 0}
+        )
         return
 
     voter_counts = (
@@ -156,19 +168,18 @@ async def _compute_and_broadcast() -> None:
         title="Votes Received by Country",
     )
 
-    await stats_manager.broadcast({
-        "type": "stats",
-        "vote_count": int(_vote_df["vote_count"].sum()),
-        "charts": {
-            "voters_by_country": chart1,
-            "votes_received_by_country": chart2,
-        },
-    })
+    await stats_manager.broadcast(
+        {
+            "type": "stats",
+            "vote_count": int(_vote_df["vote_count"].sum()),
+            "charts": {
+                "voters_by_country": chart1,
+                "votes_received_by_country": chart2,
+            },
+        }
+    )
 
 
-# ---------------------------------------------------------------------------
-# Vote handler — appends to DataFrame and triggers broadcasts
-# ---------------------------------------------------------------------------
 async def handle_vote(vote) -> None:
     global _vote_df
     logger.info(
@@ -177,43 +188,47 @@ async def handle_vote(vote) -> None:
         f"votes={vote.vote_count}"
     )
 
-    # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
-    ts = int(vote.timestamp.seconds) if hasattr(vote.timestamp, "seconds") else int(vote.timestamp)
+    ts = (
+        int(vote.timestamp.seconds)
+        if hasattr(vote.timestamp, "seconds")
+        else int(vote.timestamp)
+    )
 
-    new_row = pd.DataFrame([{
-        "song_id": int(vote.song_id),
-        "song_name": vote.song_name,
-        "country_voted_for": vote.country_voted_for,
-        "country_voted_for_name": vote.country_voted_for_name,
-        "voter_country": vote.voter_country,
-        "voter_country_name": vote.voter_country_name,
-        "vote_count": int(vote.vote_count),
-        "timestamp": ts,
-    }])
+    new_row = pd.DataFrame(
+        [
+            {
+                "song_id": int(vote.song_id),
+                "song_name": vote.song_name,
+                "country_voted_for": vote.country_voted_for,
+                "country_voted_for_name": vote.country_voted_for_name,
+                "voter_country": vote.voter_country,
+                "voter_country_name": vote.voter_country_name,
+                "vote_count": int(vote.vote_count),
+                "timestamp": ts,
+            }
+        ]
+    )
     _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
 
-    # Broadcast raw vote event to all /ws/votes clients
-    await votes_manager.broadcast({
-        "type": "vote",
-        "data": {
-            "song_id": int(vote.song_id),
-            "song_name": vote.song_name,
-            "country_voted_for": vote.country_voted_for,
-            "country_voted_for_name": vote.country_voted_for_name,
-            "voter_country": vote.voter_country,
-            "voter_country_name": vote.voter_country_name,
-            "vote_count": int(vote.vote_count),
-            "timestamp": ts,
-        },
-    })
+    await votes_manager.broadcast(
+        {
+            "type": "vote",
+            "data": {
+                "song_id": int(vote.song_id),
+                "song_name": vote.song_name,
+                "country_voted_for": vote.country_voted_for,
+                "country_voted_for_name": vote.country_voted_for_name,
+                "voter_country": vote.voter_country,
+                "voter_country_name": vote.voter_country_name,
+                "vote_count": int(vote.vote_count),
+                "timestamp": ts,
+            },
+        }
+    )
 
-    # Recompute and broadcast pie charts to all /ws/stats clients
     await _compute_and_broadcast()
 
 
-# ---------------------------------------------------------------------------
-# Background task: single gRPC stream consumer for state accumulation
-# ---------------------------------------------------------------------------
 async def _run_vote_ingestor():
     while True:
         try:
@@ -224,9 +239,6 @@ async def _run_vote_ingestor():
             await asyncio.sleep(5)
 
 
-# ---------------------------------------------------------------------------
-# Application lifecycle
-# ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global vote_consumer
@@ -250,13 +262,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Initialize OpenTelemetry metrics and tracing
 setup_telemetry(app)
 
 
-# ---------------------------------------------------------------------------
-# HTTP endpoints
-# ---------------------------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
@@ -291,7 +299,7 @@ async def subscribe_to_votes(include_historical: bool = True):
                 break
     except Exception as e:
         logger.error(f"Error subscribing to votes: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=502, content={"error": str(e)})
 
     return {"votes": votes, "count": len(votes)}
 
@@ -300,21 +308,24 @@ async def subscribe_to_votes(include_historical: bool = True):
 async def reset_votes():
     """Clear the in-memory vote store and push empty state to all WebSocket clients."""
     global _vote_df
-    _vote_df = pd.DataFrame(columns=[
-        "song_id", "song_name",
-        "country_voted_for", "country_voted_for_name",
-        "voter_country", "voter_country_name",
-        "vote_count", "timestamp",
-    ])
+    _vote_df = pd.DataFrame(
+        columns=[
+            "song_id",
+            "song_name",
+            "country_voted_for",
+            "country_voted_for_name",
+            "voter_country",
+            "voter_country_name",
+            "vote_count",
+            "timestamp",
+        ]
+    )
     await votes_manager.broadcast({"type": "snapshot", "data": []})
     await stats_manager.broadcast({"type": "stats", "charts": None, "vote_count": 0})
     logger.info("Vote store reset by admin")
     return {"status": "reset"}
 
 
-# ---------------------------------------------------------------------------
-# WebSocket: raw vote stream (fan-out from single ingestor)
-# ---------------------------------------------------------------------------
 @app.websocket("/ws/votes")
 async def websocket_votes_endpoint(websocket: WebSocket):
     """Stream raw vote events to connected clients via fan-out from the single ingestor."""
@@ -339,9 +350,6 @@ async def websocket_votes_endpoint(websocket: WebSocket):
         votes_manager.disconnect(websocket)
 
 
-# ---------------------------------------------------------------------------
-# WebSocket: live statistics charts
-# ---------------------------------------------------------------------------
 @app.websocket("/ws/stats")
 async def websocket_stats_endpoint(websocket: WebSocket):
     """Push matplotlib pie charts to connected clients whenever votes change."""
