@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package votes;
 
-option go_package = "main/proto";
+option go_package = "esc-points-converter/proto";
 
 message Vote {
   string country_voted_for = 1;

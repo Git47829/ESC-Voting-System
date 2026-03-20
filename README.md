@@ -12,20 +12,21 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
                          │   tls internal (local CA)   │
                          └──────────────┬──────────────┘
                                         │ routes by subpath
-          ┌─────────────────────────────┼──────────────────────────────┐
-          │ /                           │ /crud-api/   /eurostats/     │
-          ▼                             ▼              ▼               │
+          ┌─────────────────────────────┼─────────────────────────────┐
+          │ /                           │ /crud-api/   /eurostats/    │
+          ▼                             ▼              ▼              │
 ┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐    │
 │     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │    │
 │  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │    │
 │  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │    │
 └──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘    │
-           │                         │ SQL               │            │
-           │                         ▼                   │            │
-           │               ┌──────────────────┐          │            │
-           │               │   MySQL 8.0      │          │            │
-           │               │   Port 3306      │          │            │
-           │               └──────────────────┘          │            │
+           │                         │ SQL    ▲  gRPC     │           │
+           │                         ▼        │            │          │
+           │               ┌──────────────────┐            │          │
+           │               │   MySQL 8.0      │ ┌──────────────────-┐ │
+           │               │   Port 3306      │ │PublicVoteConverter│ │
+           │               └──────────────────┘ │  Go, Port 8090    │ │
+           │                                    └──────────────────-┘ │
            │                                             │            │
            │  /grafana  /prometheus  /tempo  /loki       │            │
            └─────────────────────────────────────────────┘            │
@@ -38,12 +39,12 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 │  │ OTel Collector   │  │ Prometheus │  │  Tempo  │  │  Loki   │  │  │
 │  │ 4317 / 4318      │─►│   9090     │  │  3200   │  │  3100   │  │  │
 │  └──────────────────┘  └─────┬──────┘  └────┬────┘  └────┬────┘  │  │
-│                              └──────────────┼─────────────┘       │  │
-│                                             ▼                     │  │
-│                                    ┌─────────────┐                │  │
-│                                    │   Grafana   │                │  │
-│                                    │    3000     │                │  │
-│                                    └─────────────┘                │  │
+│                              └──────────────┼─────────────┘      │  │
+│                                             ▼                    │  │
+│                                    ┌─────────────┐               │  │
+│                                    │   Grafana   │               │  │
+│                                    │    3000     │               │  │
+│                                    └─────────────┘               │  │
 └──────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -99,6 +100,7 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 | Caddy | `caddy:2.8-alpine` | 80, 443 | [backend/Caddy/README.md](backend/Caddy/README.md) |
 | Frontend | Python 3.12, Flask 3.x, Gunicorn, Tailwind CSS | 5000 | [frontend/README.md](frontend/README.md) |
 | CRUD DB API | Go 1.24, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
+| PublicVoteConverter | Go 1.24, net/http, gRPC client, Prometheus, OTel | 8090 | [backend/PublicVoteConverter/README.md](backend/PublicVoteConverter/README.md) |
 | EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8880 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
 | MySQL | MySQL 8.0 | 3306 | [backend/DB/README.md](backend/DB/README.md) |
 | Observability | OTel Collector, Prometheus, Grafana, Loki, Tempo | 4317–4318, 9090, 3000, 3100, 3200 | [backend/Observability/README.md](backend/Observability/README.md) |
@@ -259,18 +261,18 @@ Services communicate over isolated Docker networks. No service other than Caddy 
 
 | Network | Connected Services |
 |---|---|
-| `backend` | `db`, `api`, `eurostats` |
-| `frontend` | `api`, `frontend`, `caddy` |
-| `observability` | `api`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo`, `caddy` |
+| `backend` | `db`, `api`, `public-vote-converter`, `eurostats` |
+| `frontend` | `api`, `public-vote-converter`, `frontend`, `caddy` |
+| `observability` | `api`, `public-vote-converter`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo`, `caddy` |
 
 ## 🔭 Observability Pipeline
 
 ```
-CRUD API  ──OTLP/HTTP──►
-Frontend  ──OTLP/HTTP──►  OTel Collector ──► Tempo      (traces)
-EuroStats ──OTLP/gRPC──►                 ──► Prometheus  (metrics)
-                                         ──► Loki        (logs)
-                                                │
-                                                └──► Grafana (unified view)
-                                                     https://<host>/grafana/
+CRUD API             ──OTLP/HTTP──►
+Frontend             ──OTLP/HTTP──►  OTel Collector ──► Tempo      (traces)
+EuroStats            ──OTLP/gRPC──►                 ──► Prometheus  (metrics)
+PublicVoteConverter  ──OTLP/HTTP──►                 ──► Loki        (logs)
+                                                           │
+                                                           └──► Grafana (unified view)
+                                                                https://<host>/grafana/
 ```

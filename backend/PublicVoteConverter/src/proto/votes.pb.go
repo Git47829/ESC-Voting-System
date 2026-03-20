@@ -350,8 +350,7 @@ const file_proto_votes_proto_rawDesc = "" +
 	"\x05songs\x18\x01 \x03(\v2\x13.votes.SongVoteDataR\x05songs2\x8b\x01\n" +
 	"\vVoteService\x126\n" +
 	"\vStreamVotes\x12\x18.votes.VoteStreamRequest\x1a\v.votes.Vote0\x01\x12D\n" +
-	"\x11GetSongsWithVotes\x12\x16.votes.GetSongsRequest\x1a\x17.votes.GetSongsResponseB\fZ\n" +
-	"main/protob\x06proto3"
+	"\x11GetSongsWithVotes\x12\x16.votes.GetSongsRequest\x1a\x17.votes.GetSongsResponseB\x1cZ\x1aesc-points-converter/protob\x06proto3"
 
 var (
 	file_proto_votes_proto_rawDescOnce sync.Once

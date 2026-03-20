@@ -174,6 +174,37 @@ func (s *voteServer) BroadcastVote(vote *pb.Vote) {
 	}
 }
 
+func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequest) (*pb.GetSongsResponse, error) {
+	logger.InfoContext(ctx, "GetSongsWithVotes called")
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT s.ID, s.Name, l.ID, l.Name, s.PublikumsPunkte
+		FROM Song s
+		JOIN Land l ON s.Land_ID = l.ID
+	`)
+	if err != nil {
+		logger.ErrorContext(ctx, "GetSongsWithVotes: query failed", slog.Any("error", err))
+		return nil, err
+	}
+	defer rows.Close()
+
+	var songs []*pb.SongVoteData
+	for rows.Next() {
+		var s pb.SongVoteData
+		if err := rows.Scan(&s.SongId, &s.SongName, &s.CountryId, &s.CountryName, &s.PublicVotes); err != nil {
+			logger.ErrorContext(ctx, "GetSongsWithVotes: scan failed", slog.Any("error", err))
+			return nil, err
+		}
+		songs = append(songs, &s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	logger.InfoContext(ctx, "GetSongsWithVotes complete", slog.Int("count", len(songs)))
+	return &pb.GetSongsResponse{Songs: songs}, nil
+}
+
 func StartGRPCServer(database *sql.DB, port string) (*voteServer, error) {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
