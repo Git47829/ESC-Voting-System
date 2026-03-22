@@ -2,10 +2,10 @@ INSERT INTO Voting_Status (VotingID, isOpen, lastChange) VALUES
     (1, TRUE, '12:00:00');
 
 INSERT INTO Land (ID, Name, POT) VALUES
-    ('DEU', 'Germany', 10),
-    ('SWE', 'Sweden', 12),
-    ('FRA', 'France', 8),
-    ('ESP', 'Spain', 6);
+    ('DE', 'Germany', 10),
+    ('SE', 'Sweden', 12),
+    ('FR', 'France', 8),
+    ('ES', 'Spain', 6);
 
 INSERT INTO Komponist (Vorname, Name) VALUES
     ('"Nena"', 'Gabrielle Susanne Kerner'),

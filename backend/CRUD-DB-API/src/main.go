@@ -150,58 +150,6 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// alpha3ToAlpha2 maps ISO 3166-1 alpha-3 codes (used as primary keys in the
-// Land table) to the alpha-2 codes expected by the phonenumbers library.
-var alpha3ToAlpha2 = map[string]string{
-	"ALB": "AL", // Albania
-	"ARM": "AM", // Armenia
-	"AUT": "AT", // Austria
-	"AZE": "AZ", // Azerbaijan
-	"BIH": "BA", // Bosnia and Herzegovina
-	"BEL": "BE", // Belgium
-	"BGR": "BG", // Bulgaria
-	"BLR": "BY", // Belarus
-	"CHE": "CH", // Switzerland
-	"CYP": "CY", // Cyprus
-	"CZE": "CZ", // Czech Republic
-	"DEU": "DE", // Germany
-	"DNK": "DK", // Denmark
-	"EST": "EE", // Estonia
-	"ESP": "ES", // Spain
-	"FIN": "FI", // Finland
-	"FRA": "FR", // France
-	"GBR": "GB", // United Kingdom
-	"GEO": "GE", // Georgia
-	"GRC": "GR", // Greece
-	"HRV": "HR", // Croatia
-	"HUN": "HU", // Hungary
-	"IRL": "IE", // Ireland
-	"ISR": "IL", // Israel
-	"ISL": "IS", // Iceland
-	"ITA": "IT", // Italy
-	"LTU": "LT", // Lithuania
-	"LUX": "LU", // Luxembourg
-	"LVA": "LV", // Latvia
-	"MCO": "MC", // Monaco
-	"MDA": "MD", // Moldova
-	"MNE": "ME", // Montenegro
-	"MKD": "MK", // North Macedonia
-	"MLT": "MT", // Malta
-	"NLD": "NL", // Netherlands
-	"NOR": "NO", // Norway
-	"POL": "PL", // Poland
-	"PRT": "PT", // Portugal
-	"ROU": "RO", // Romania
-	"SRB": "RS", // Serbia
-	"RUS": "RU", // Russia
-	"SWE": "SE", // Sweden
-	"SVN": "SI", // Slovenia
-	"SVK": "SK", // Slovakia
-	"SMR": "SM", // San Marino
-	"TUR": "TR", // Turkey
-	"UKR": "UA", // Ukraine
-}
-
 func checkPhoneNum(num string) (string, error) {
 
 	parsed, err := phonenumbers.Parse(num, "")
@@ -214,21 +162,8 @@ func checkPhoneNum(num string) (string, error) {
 	}
 
 	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
-	alpha3 := regionAlpha2ToAlpha3(numRegion)
-	if alpha3 == "" {
-		return "", fmt.Errorf("phone number is not from a valid European / ESC-participating country (region: %q)", numRegion)
-	}
 
-	return alpha3, nil
-}
-
-func regionAlpha2ToAlpha3(alpha2 string) string {
-	for a3, a2 := range alpha3ToAlpha2 {
-		if a2 == alpha2 {
-			return a3
-		}
-	}
-	return ""
+	return numRegion, nil
 }
 
 func hashPassword(password string) (string, error) {
@@ -602,8 +537,6 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set the cookie now that we are back on the handler goroutine —
-	// http.ResponseWriter is not safe to use from multiple goroutines.
 	if cookieVal != "" {
 		http.SetCookie(w, &http.Cookie{
 			Name:     cookieName,
@@ -821,7 +754,10 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 		var komponentID sql.NullInt64
 		var komponentVorname sql.NullString
 		var komponentName sql.NullString
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID,
+			&c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID,
+			&komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
+
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
 		}
@@ -935,7 +871,10 @@ func getSongbyID(w http.ResponseWriter, r *http.Request) {
 		var komponentID sql.NullInt64
 		var komponentVorname sql.NullString
 		var komponentName sql.NullString
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT,
+			&c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName,
+			&c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
+
 			logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
 		}
