@@ -1372,7 +1372,7 @@ func juryVote(w http.ResponseWriter, r *http.Request) {
 	validJuryPoints := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 10: true, 12: true}
 	if !validJuryPoints[parsedPoints] {
 		logger.WarnContext(ctx, "invalid jury points value", slog.Int("points", parsedPoints))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Invalid points value - must be one of: 1, 2, 3, 4, 5, 6, 7, 8, 10, 12",
 		})
