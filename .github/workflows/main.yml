@@ -52,7 +52,7 @@ jobs:
 
       - name: Run EuroStats unit tests
         working-directory: backend/EuroStats
-        run: pytest
+        run: python -m pytest
 
   test:
     name: Check all containers start
