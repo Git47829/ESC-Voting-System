@@ -48,11 +48,9 @@ var (
 		"GET /countries/": {RequestsPerSecond: 10, BurstSize: 20},
 		"GET /songs/":     {RequestsPerSecond: 10, BurstSize: 20},
 
-		// User voting - strict limits
 		"POST /vote/":     {RequestsPerSecond: 1, BurstSize: 1},
 		"POST /jury/vote": {RequestsPerSecond: 5, BurstSize: 5},
 
-		// Admin endpoints - moderate limits
 		"POST /admin/open/":        {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/close":        {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/addCountry":   {RequestsPerSecond: 5, BurstSize: 5},
@@ -61,7 +59,6 @@ var (
 		"POST /admin/addInterpret": {RequestsPerSecond: 5, BurstSize: 5},
 		"DELETE /admin/delteVotes": {RequestsPerSecond: 1, BurstSize: 1},
 
-		// Metrics - unlimited
 		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
 	}
 )
@@ -80,6 +77,7 @@ type cookieVoteState struct {
 
 var signedCookieSecret []byte
 
+// User AdminPassword als signing Secret
 func initCookieSecret() {
 	if pw := os.Getenv("adminPassword"); pw != "" {
 		sum := sha256.Sum256([]byte("cookie-secret:" + pw))
@@ -418,6 +416,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		INSERT INTO Phone_Nums (Phone_Number, votes_remaining, votes_cast)
 		VALUES (?, ?, JSON_OBJECT())
 		ON DUPLICATE KEY UPDATE Phone_Number = Phone_Number`
+
 	if _, upsertErr := db.ExecContext(ctx, upsertQuery, phoneHash, totalVotePoints); upsertErr != nil {
 		logger.ErrorContext(ctx, "failed to upsert phone number", slog.Any("error", upsertErr))
 		w.WriteHeader(http.StatusBadGateway)
@@ -435,6 +434,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 				COALESCE(JSON_EXTRACT(votes_cast, CONCAT('$."', ?, '"')), 0) + ?
 			)
 		WHERE Phone_Number = ? AND votes_remaining >= ?`
+
 	deductResult, deductErr := db.ExecContext(ctx, deductQuery,
 		points,    // subtract
 		rawID,     // JSON key (song ID as string)
@@ -443,6 +443,7 @@ func vote(w http.ResponseWriter, r *http.Request) {
 		phoneHash, // WHERE clause
 		points,    // votes_remaining >= points guard
 	)
+
 	if deductErr != nil {
 		logger.ErrorContext(ctx, "failed to deduct vote points", slog.Any("error", deductErr))
 		w.WriteHeader(http.StatusBadGateway)
@@ -713,7 +714,7 @@ func httpGetSongs(w http.ResponseWriter, r *http.Request) {
 		logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
 		w.WriteHeader(http.StatusBadGateway)
 		json.NewEncoder(w).Encode(map[string]any{
-			"error": "Faules querying Database",
+			"error": "Error querying Database",
 		})
 		return
 	}

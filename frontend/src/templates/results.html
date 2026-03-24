@@ -1,11 +1,11 @@
-{% extends "base.html" %} {% block title %}Live Results — ESC Voting System{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% block title %}Live Results — ESC Voting System{%
+endblock %} {% block content %}
 <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-10">
-
     <!-- Page Header -->
     <div class="text-center mb-8">
-        <h1 class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3">
+        <h1
+            class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3"
+        >
             Live Results
         </h1>
         <p class="text-esc-muted text-sm max-w-md mx-auto">
@@ -15,10 +15,19 @@
 
     <!-- Status bar -->
     <div class="flex items-center justify-center gap-3 mb-8">
-        <span id="status-badge" class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted">
+        <span
+            id="status-badge"
+            class="inline-flex items-center gap-1.5 text-[11px] text-esc-muted"
+        >
             <span class="relative flex h-1.5 w-1.5">
-                <span id="ping-dot" class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
-                <span id="ping-dot-solid" class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"></span>
+                <span
+                    id="ping-dot"
+                    class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"
+                ></span>
+                <span
+                    id="ping-dot-solid"
+                    class="relative inline-flex h-1.5 w-1.5 rounded-full bg-green-400"
+                ></span>
             </span>
             <span id="status-text">Connecting&hellip;</span>
         </span>
@@ -26,67 +35,143 @@
             id="pause-btn"
             onclick="togglePause()"
             class="text-[11px] text-esc-muted/60 hover:text-esc-yellow transition-colors underline underline-offset-2"
-        >Pause</button>
+        >
+            Pause
+        </button>
     </div>
 
     <!-- Loading state -->
-    <div id="loading-state" class="flex flex-col items-center justify-center py-20">
-        <svg class="animate-spin h-8 w-8 text-esc-yellow mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+    <div
+        id="loading-state"
+        class="flex flex-col items-center justify-center py-20"
+    >
+        <svg
+            class="animate-spin h-8 w-8 text-esc-yellow mb-4"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+            ></circle>
+            <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            ></path>
         </svg>
         <p class="text-sm text-esc-muted">Loading results&hellip;</p>
     </div>
 
     <!-- Empty state -->
-    <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-center">
+    <div
+        id="empty-state"
+        class="hidden flex flex-col items-center justify-center py-20 text-center"
+    >
         <span class="text-5xl mb-4">📊</span>
-        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">No Results Yet</h2>
-        <p class="text-sm text-esc-muted max-w-sm">No votes have been cast yet. Results will appear here once voting begins.</p>
+        <h2 class="font-heading text-xl font-semibold text-esc-text mb-2">
+            No Results Yet
+        </h2>
+        <p class="text-sm text-esc-muted max-w-sm">
+            No votes have been cast yet. Results will appear here once voting
+            begins.
+        </p>
     </div>
 
     <!-- Rankings container -->
     <div id="results-container" class="hidden space-y-3">
         <div class="flex items-center justify-between mb-6">
-            <p class="text-[11px] text-esc-muted">Combined jury + public televote ranking. Public votes converted to ESC scale, jury points awarded directly.</p>
+            <p class="text-[11px] text-esc-muted">
+                Combined jury + public televote ranking. Public votes converted
+                to ESC scale, jury points awarded directly.
+            </p>
         </div>
         <div id="results-rows" class="space-y-2.5"></div>
     </div>
 
     <!-- Error state -->
-    <div id="error-state" class="hidden flex flex-col items-center justify-center py-20 text-center">
+    <div
+        id="error-state"
+        class="hidden flex flex-col items-center justify-center py-20 text-center"
+    >
         <span class="text-5xl mb-4">⚠️</span>
-        <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">Failed to Load Results</h2>
-        <p class="text-sm text-esc-muted max-w-sm mb-4">Could not connect to the voting server. Retrying automatically&hellip;</p>
-        <button onclick="fetchInitialResults()" class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors">
+        <h2 class="font-heading text-xl font-semibold text-red-400 mb-2">
+            Failed to Load Results
+        </h2>
+        <p class="text-sm text-esc-muted max-w-sm mb-4">
+            Could not connect to the voting server. Retrying
+            automatically&hellip;
+        </p>
+        <button
+            onclick="fetchInitialResults()"
+            class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors"
+        >
             Retry Now
         </button>
     </div>
-
 </div>
-{% endblock %}
-
-{% block scripts %}
+{% endblock %} {% block scripts %}
 <script>
     // ---------------------------------------------------------------------------
     // Flag helpers
     // ---------------------------------------------------------------------------
     const countryToAlpha2 = {
-        Germany:"de",Sweden:"se",France:"fr",Spain:"es",Italy:"it",
-        "United Kingdom":"gb",Norway:"no",Finland:"fi",Austria:"at",Belgium:"be",
-        Netherlands:"nl",Switzerland:"ch",Portugal:"pt",Greece:"gr",Ireland:"ie",
-        Denmark:"dk",Iceland:"is",Croatia:"hr",Serbia:"rs",Ukraine:"ua",
-        Poland:"pl","Czech Republic":"cz",Czechia:"cz",Romania:"ro",Bulgaria:"bg",
-        Hungary:"hu",Slovenia:"si",Slovakia:"sk",Estonia:"ee",Latvia:"lv",
-        Lithuania:"lt",Cyprus:"cy",Malta:"mt",Israel:"il",Georgia:"ge",
-        Armenia:"am",Azerbaijan:"az",Moldova:"md",Montenegro:"me",
-        "North Macedonia":"mk",Albania:"al","Bosnia and Herzegovina":"ba",
-        "San Marino":"sm",Andorra:"ad",Luxembourg:"lu",Australia:"au",
+        Germany: "de",
+        Sweden: "se",
+        France: "fr",
+        Spain: "es",
+        Italy: "it",
+        "United Kingdom": "gb",
+        Norway: "no",
+        Finland: "fi",
+        Austria: "at",
+        Belgium: "be",
+        Netherlands: "nl",
+        Switzerland: "ch",
+        Portugal: "pt",
+        Greece: "gr",
+        Ireland: "ie",
+        Denmark: "dk",
+        Iceland: "is",
+        Croatia: "hr",
+        Serbia: "rs",
+        Ukraine: "ua",
+        Poland: "pl",
+        "Czech Republic": "cz",
+        Czechia: "cz",
+        Romania: "ro",
+        Bulgaria: "bg",
+        Hungary: "hu",
+        Slovenia: "si",
+        Slovakia: "sk",
+        Estonia: "ee",
+        Latvia: "lv",
+        Lithuania: "lt",
+        Cyprus: "cy",
+        Malta: "mt",
+        Israel: "il",
+        Georgia: "ge",
+        Armenia: "am",
+        Azerbaijan: "az",
+        Moldova: "md",
+        Montenegro: "me",
+        "North Macedonia": "mk",
+        Albania: "al",
+        "Bosnia and Herzegovina": "ba",
+        "San Marino": "sm",
+        Andorra: "ad",
+        Luxembourg: "lu",
+        Australia: "au",
     };
 
     function getFlagUrl(country) {
         const code = countryToAlpha2[country];
-        return code ? "https://flagcdn.com/w40/" + code + ".png" : null;
+        return code ? "https://flagfeed.com/flags/" + code + ".png" : null;
     }
 
     // ---------------------------------------------------------------------------
@@ -105,21 +190,21 @@
     // Status indicator
     // ---------------------------------------------------------------------------
     function setStatus(connected) {
-        const pingDot   = document.getElementById('ping-dot');
-        const pingSolid = document.getElementById('ping-dot-solid');
-        const statusText = document.getElementById('status-text');
+        const pingDot = document.getElementById("ping-dot");
+        const pingSolid = document.getElementById("ping-dot-solid");
+        const statusText = document.getElementById("status-text");
         if (connected) {
-            pingDot.classList.add('animate-ping', 'bg-green-400');
-            pingDot.classList.remove('bg-esc-muted');
-            pingSolid.classList.add('bg-green-400');
-            pingSolid.classList.remove('bg-esc-muted');
-            statusText.textContent = 'Live';
+            pingDot.classList.add("animate-ping", "bg-green-400");
+            pingDot.classList.remove("bg-esc-muted");
+            pingSolid.classList.add("bg-green-400");
+            pingSolid.classList.remove("bg-esc-muted");
+            statusText.textContent = "Live";
         } else {
-            pingDot.classList.remove('animate-ping', 'bg-green-400');
-            pingDot.classList.add('bg-esc-muted');
-            pingSolid.classList.remove('bg-green-400');
-            pingSolid.classList.add('bg-esc-muted');
-            statusText.textContent = 'Reconnecting\u2026';
+            pingDot.classList.remove("animate-ping", "bg-green-400");
+            pingDot.classList.add("bg-esc-muted");
+            pingSolid.classList.remove("bg-green-400");
+            pingSolid.classList.add("bg-esc-muted");
+            statusText.textContent = "Reconnecting\u2026";
         }
     }
 
@@ -127,56 +212,60 @@
     // Rendering (unchanged from original)
     // ---------------------------------------------------------------------------
     function renderResults(results) {
-        const loadingEl   = document.getElementById('loading-state');
-        const emptyEl     = document.getElementById('empty-state');
-        const containerEl = document.getElementById('results-container');
-        const errorEl     = document.getElementById('error-state');
+        const loadingEl = document.getElementById("loading-state");
+        const emptyEl = document.getElementById("empty-state");
+        const containerEl = document.getElementById("results-container");
+        const errorEl = document.getElementById("error-state");
 
-        loadingEl.classList.add('hidden');
-        errorEl.classList.add('hidden');
+        loadingEl.classList.add("hidden");
+        errorEl.classList.add("hidden");
 
         if (!results || results.length === 0) {
-            emptyEl.classList.remove('hidden');
-            containerEl.classList.add('hidden');
+            emptyEl.classList.remove("hidden");
+            containerEl.classList.add("hidden");
             return;
         }
-        emptyEl.classList.add('hidden');
-        containerEl.classList.remove('hidden');
+        emptyEl.classList.add("hidden");
+        containerEl.classList.remove("hidden");
 
-        const maxTotal = Math.max(...results.map(r => r.totalPts || 0), 1);
+        const maxTotal = Math.max(...results.map((r) => r.totalPts || 0), 1);
 
-        let html = '';
-        results.forEach(function(entry) {
-            const rank       = entry.rank;
-            const publicPts  = entry.escPublicPts || 0;
-            const juryPts    = entry.juryPts      || 0;
-            const totalPts   = entry.totalPts     || 0;
-            const flagUrl    = getFlagUrl(entry.country);
-            const changed    = previousData
-                ? ((previousData.find(p => p.id === entry.id) || {}).totalPts !== totalPts)
+        let html = "";
+        results.forEach(function (entry) {
+            const rank = entry.rank;
+            const publicPts = entry.escPublicPts || 0;
+            const juryPts = entry.juryPts || 0;
+            const totalPts = entry.totalPts || 0;
+            const flagUrl = getFlagUrl(entry.country);
+            const changed = previousData
+                ? (previousData.find((p) => p.id === entry.id) || {})
+                      .totalPts !== totalPts
                 : false;
 
-            const totalBadgeCls = rank === 1
-                ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/30'
-                : rank <= 3
-                ? 'bg-sky-400/15 text-sky-300 border-sky-400/30'
-                : 'bg-esc-surface/50 text-esc-muted border-esc-surface';
+            const totalBadgeCls =
+                rank === 1
+                    ? "bg-yellow-400/20 text-yellow-300 border-yellow-400/30"
+                    : rank <= 3
+                      ? "bg-sky-400/15 text-sky-300 border-sky-400/30"
+                      : "bg-esc-surface/50 text-esc-muted border-esc-surface";
 
             html += `
-            <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changed ? 'ring-1 ring-esc-yellow/30 bg-esc-yellow/5' : ''}">
+            <div class="group flex items-center gap-3 rounded-xl border border-esc-surface/60 bg-esc-surface/30 px-4 py-3 transition-all duration-500 hover:border-esc-surface ${changed ? "ring-1 ring-esc-yellow/30 bg-esc-yellow/5" : ""}">
 
                 <!-- Rank -->
                 <div class="flex-shrink-0 w-8 text-right">
-                    <span class="font-heading font-bold text-sm ${rank <= 3 ? 'text-esc-yellow' : 'text-esc-muted'}">
-                        ${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}
+                    <span class="font-heading font-bold text-sm ${rank <= 3 ? "text-esc-yellow" : "text-esc-muted"}">
+                        ${rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "#" + rank}
                     </span>
                 </div>
 
                 <!-- Flag -->
                 <div class="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border border-esc-surface flex items-center justify-center bg-esc-black">
-                    ${flagUrl
-                        ? `<img src="${flagUrl}" alt="${escHtml(entry.country)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
-                        : '<span class="text-sm">🏳️</span>'}
+                    ${
+                        flagUrl
+                            ? `<img src="${flagUrl}" alt="${escHtml(entry.country)}" class="w-full h-full object-cover" onerror="this.onerror=null;this.parentElement.innerHTML='<span class=\\'text-sm\\'>🏳️</span>';">`
+                            : '<span class="text-sm">🏳️</span>'
+                    }
                 </div>
 
                 <!-- Country + Song -->
@@ -214,7 +303,7 @@
             </div>`;
         });
 
-        document.getElementById('results-rows').innerHTML = html;
+        document.getElementById("results-rows").innerHTML = html;
         previousData = results;
     }
 
@@ -223,7 +312,7 @@
     // ---------------------------------------------------------------------------
     function rerenderResults() {
         const entries = Object.values(localState)
-            .map(function(e) {
+            .map(function (e) {
                 return {
                     id: e.id,
                     name: e.name,
@@ -233,8 +322,12 @@
                     totalPts: (e.juryPts || 0) + (e.escPublicPts || 0),
                 };
             })
-            .sort(function(a, b) { return b.totalPts - a.totalPts || a.id - b.id; });
-        entries.forEach(function(e, i) { e.rank = i + 1; });
+            .sort(function (a, b) {
+                return b.totalPts - a.totalPts || a.id - b.id;
+            });
+        entries.forEach(function (e, i) {
+            e.rank = i + 1;
+        });
         renderResults(entries);
     }
 
@@ -243,7 +336,7 @@
     // ---------------------------------------------------------------------------
     function handleSnapshot(rows) {
         if (rows.length === 0) {
-            Object.keys(localState).forEach(function(id) {
+            Object.keys(localState).forEach(function (id) {
                 localState[id].escPublicPts = 0;
                 localState[id].rawVoteCount = 0;
                 localState[id].escRatio = 0;
@@ -253,12 +346,12 @@
         }
         // vote_count is cumulative — take max per song_id (latest value)
         const rawCounts = {};
-        rows.forEach(function(row) {
+        rows.forEach(function (row) {
             const sid = row.song_id;
             rawCounts[sid] = Math.max(rawCounts[sid] || 0, row.vote_count || 0);
         });
         // Update localState with raw counts and compute escRatio
-        Object.keys(rawCounts).forEach(function(sid) {
+        Object.keys(rawCounts).forEach(function (sid) {
             const id = parseInt(sid, 10);
             if (!localState[id]) return;
             const raw = rawCounts[sid];
@@ -283,7 +376,9 @@
         // vote_count is cumulative — replace directly
         localState[id].rawVoteCount = data.vote_count;
         if (localState[id].escRatio) {
-            localState[id].escPublicPts = Math.round(data.vote_count * localState[id].escRatio);
+            localState[id].escPublicPts = Math.round(
+                data.vote_count * localState[id].escRatio,
+            );
         }
         rerenderResults();
     }
@@ -293,11 +388,11 @@
     // ---------------------------------------------------------------------------
     async function fetchInitialResults() {
         try {
-            const resp = await fetch('/api/results');
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const resp = await fetch("/api/results");
+            if (!resp.ok) throw new Error("HTTP " + resp.status);
             const data = await resp.json();
 
-            data.forEach(function(entry) {
+            data.forEach(function (entry) {
                 const existing = localState[entry.id] || {};
                 localState[entry.id] = {
                     id: entry.id,
@@ -313,17 +408,25 @@
             hasInitialData = true;
 
             // Stop fallback poll if WebSocket is now connected
-            if (fallbackPollInterval && ws && ws.readyState === WebSocket.OPEN) {
+            if (
+                fallbackPollInterval &&
+                ws &&
+                ws.readyState === WebSocket.OPEN
+            ) {
                 clearInterval(fallbackPollInterval);
                 fallbackPollInterval = null;
             }
 
             rerenderResults();
         } catch (err) {
-            console.error('Failed to fetch results:', err);
+            console.error("Failed to fetch results:", err);
             if (!hasInitialData) {
-                document.getElementById('loading-state').classList.add('hidden');
-                document.getElementById('error-state').classList.remove('hidden');
+                document
+                    .getElementById("loading-state")
+                    .classList.add("hidden");
+                document
+                    .getElementById("error-state")
+                    .classList.remove("hidden");
             }
         }
     }
@@ -333,11 +436,11 @@
     // ---------------------------------------------------------------------------
     function togglePause() {
         paused = !paused;
-        const btn = document.getElementById('pause-btn');
+        const btn = document.getElementById("pause-btn");
         if (paused) {
-            btn.textContent = 'Resume';
+            btn.textContent = "Resume";
         } else {
-            btn.textContent = 'Pause';
+            btn.textContent = "Pause";
             rerenderResults();
         }
     }
@@ -365,10 +468,14 @@
         ws.onmessage = function (event) {
             if (paused) return;
             let msg;
-            try { msg = JSON.parse(event.data); } catch (e) { return; }
-            if (msg.type === 'ping') return;
-            if (msg.type === 'snapshot') handleSnapshot(msg.data);
-            if (msg.type === 'vote') handleVoteEvent(msg.data);
+            try {
+                msg = JSON.parse(event.data);
+            } catch (e) {
+                return;
+            }
+            if (msg.type === "ping") return;
+            if (msg.type === "snapshot") handleSnapshot(msg.data);
+            if (msg.type === "vote") handleVoteEvent(msg.data);
         };
 
         ws.onclose = function () {
@@ -390,8 +497,12 @@
     // Helpers
     // ---------------------------------------------------------------------------
     function escHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        if (!str) return "";
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
     }
 
     // ---------------------------------------------------------------------------
