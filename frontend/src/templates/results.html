@@ -171,7 +171,7 @@ endblock %} {% block content %}
 
     function getFlagUrl(country) {
         const code = countryToAlpha2[country];
-        return code ? "https://flagfeed.com/flags/" + code + ".png" : null;
+        return code ? "https://flagfeed.com/flags/" + code : null;
     }
 
     // ---------------------------------------------------------------------------
