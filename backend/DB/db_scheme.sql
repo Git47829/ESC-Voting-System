@@ -4,7 +4,7 @@
 
 -- Land
 CREATE TABLE Land (
-    ID      CHAR(3)      NOT NULL,
+    ID      CHAR(2)      NOT NULL,
     Name    VARCHAR(100) NOT NULL,
     POT     TINYINT UNSIGNED,
     PRIMARY KEY (ID),
@@ -25,7 +25,7 @@ CREATE TABLE Kuenstler (
     Vorname  VARCHAR(100),
     Name     VARCHAR(200) NOT NULL,
     Typ      ENUM('solo', 'duo', 'gruppe') NOT NULL DEFAULT 'solo',
-    Land_ID  CHAR(3)      NOT NULL,           -- Relation: Künstler tritt für Land an
+    Land_ID  CHAR(2)      NOT NULL,           -- Relation: Künstler tritt für Land an
     PRIMARY KEY (ID),
     CONSTRAINT fk_kuenstler_land FOREIGN KEY (Land_ID) REFERENCES Land(ID)
 );
@@ -34,7 +34,7 @@ CREATE TABLE Kuenstler (
 CREATE TABLE Song (
     ID              INT           NOT NULL AUTO_INCREMENT,
     Name            VARCHAR(200)  NOT NULL,
-    Land_ID         CHAR(3)       NOT NULL,   -- Relation: Song gehört zu Land
+    Land_ID         CHAR(2)       NOT NULL,   -- Relation: Song gehört zu Land
     Kuenstler_ID    INT           NOT NULL,   -- Relation: Song wird von Künstler gespielt
     PublikumsPunkte SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     JuryPunkte      SMALLINT UNSIGNED NOT NULL DEFAULT 0,

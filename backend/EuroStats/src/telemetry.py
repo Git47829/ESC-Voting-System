@@ -46,17 +46,11 @@ def setup_telemetry(app: FastAPI):
             "OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317"
         )
 
-        # ------------------------------------------------------------------ #
-        # Traces
-        # ------------------------------------------------------------------ #
         tracer_provider = TracerProvider(resource=resource)
         span_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
         tracer_provider.add_span_processor(BatchSpanProcessor(span_exporter))
         trace.set_tracer_provider(tracer_provider)
 
-        # ------------------------------------------------------------------ #
-        # Metrics
-        # ------------------------------------------------------------------ #
         metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
         metric_reader = PeriodicExportingMetricReader(
             metric_exporter, export_interval_millis=15_000
@@ -66,12 +60,6 @@ def setup_telemetry(app: FastAPI):
         )
         metrics.set_meter_provider(meter_provider)
 
-        # ------------------------------------------------------------------ #
-        # Logs  — attach OTel handler to the root logger so that every
-        # logging.getLogger(...) call in the service flows to Loki via the
-        # collector.  The handler is added at WARNING level by default;
-        # lower it to INFO so structured request logs are captured.
-        # ------------------------------------------------------------------ #
         logger_provider = LoggerProvider(resource=resource)
         log_exporter = OTLPLogExporter(endpoint=otlp_endpoint, insecure=True)
         logger_provider.add_log_record_processor(BatchLogRecordProcessor(log_exporter))
@@ -80,20 +68,10 @@ def setup_telemetry(app: FastAPI):
         otel_log_handler = LoggingHandler(
             level=logging.INFO, logger_provider=logger_provider
         )
-        # Attach to the root logger so all loggers in the process inherit it.
         logging.getLogger().addHandler(otel_log_handler)
 
-        # ------------------------------------------------------------------ #
-        # Instrumentation
-        # ------------------------------------------------------------------ #
-
-        # FastAPI / ASGI — emits http.server.* metrics (old semconv default)
         FastAPIInstrumentor.instrument_app(app)
 
-        # gRPC async client — must use GrpcAioInstrumentorClient, NOT
-        # GrpcInstrumentorClient, because the channel is grpc.aio (asyncio).
-        # GrpcInstrumentorClient only patches the synchronous grpc stubs and
-        # would silently produce no metrics or traces for grpc.aio calls.
         GrpcAioInstrumentorClient().instrument()
 
         logger.info(

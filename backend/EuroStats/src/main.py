@@ -241,7 +241,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Initialize OpenTelemetry metrics and tracing
 setup_telemetry(app)
 
 
@@ -282,7 +281,7 @@ async def subscribe_to_votes(include_historical: bool = True):
                 break
     except Exception as e:
         logger.error(f"Error subscribing to votes: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=502, content={"error": str(e)})
 
     return {"votes": votes, "count": len(votes)}
 
