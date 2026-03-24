@@ -184,7 +184,12 @@
                 <!-- Flag / country badge -->
                 <div class="shrink-0 flex flex-col items-center gap-1">
                     <span class="flag-emoji">
-                        {{ "🏳" }}
+                        <img
+                            src="https://flagfeed.com/flags/{{ song.countryId[:2]|lower }}"
+                            alt="{{ song.countryName }} flag"
+                            class="w-full h-full object-cover"
+                            onerror="this.onerror=null; this.parentElement.innerHTML='<span class=\'text-2xl\'>🏳️</span>';"
+                        >
                     </span>
                     <span
                         id="flag-display"
