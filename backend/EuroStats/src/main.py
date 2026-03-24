@@ -309,8 +309,6 @@ async def websocket_votes_endpoint(websocket: WebSocket):
         logger.info("WebSocket votes connection cancelled")
     except Exception as e:
         logger.error(f"Votes WebSocket error: {e}")
-    finally:
-        votes_manager.disconnect(websocket)
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-package main
+package converter
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 // Rank 0 = 1st place (12 pts) … rank 9 = 10th place (1 pt), rank 10+ = 0 pts.
 var escPointTable = []int{12, 10, 8, 7, 6, 5, 4, 3, 2, 1}
 
-func escPointsForRank(rank int) int {
+func EscPointsForRank(rank int) int {
 	if rank < len(escPointTable) {
 		return escPointTable[rank]
 	}
@@ -62,9 +62,9 @@ func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error
 	return songs, nil
 }
 
-// rankAndConvert sorts songs by raw public votes (desc), breaks ties by song
+// RankAndConvert sorts songs by raw public votes (desc), breaks ties by song
 // ID (asc) for determinism, then assigns ESC points based on final position.
-func rankAndConvert(songs []Song) []Song {
+func RankAndConvert(songs []Song) []Song {
 	sort.SliceStable(songs, func(i, j int) bool {
 		if songs[i].RawVotes != songs[j].RawVotes {
 			return songs[i].RawVotes > songs[j].RawVotes
@@ -74,32 +74,32 @@ func rankAndConvert(songs []Song) []Song {
 	for i := range songs {
 		songs[i].Rank = i + 1
 		if songs[i].RawVotes > 0 {
-			songs[i].ESCPoints = escPointsForRank(i)
+			songs[i].ESCPoints = EscPointsForRank(i)
 		}
 	}
 	return songs
 }
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func handlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc {
+func HandlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		_, span := tracer.Start(ctx, "preview.fetchAndRank")
+		_, span := Tracer.Start(ctx, "preview.fetchAndRank")
 		defer span.End()
 
 		songs, err := fetchSongs(ctx, client)
 		if err != nil {
-			logger.ErrorContext(ctx, "preview: failed to fetch songs", "error", err)
+			Logger.ErrorContext(ctx, "preview: failed to fetch songs", "error", err)
 			span.RecordError(err)
 			w.WriteHeader(http.StatusBadGateway)
 			json.NewEncoder(w).Encode(map[string]string{"error": "failed to fetch songs"})
 			return
 		}
 
-		result := rankAndConvert(songs)
+		result := RankAndConvert(songs)
 		for i := range result {
 			result[i].ESCPoints *= juryScale
 		}
@@ -120,7 +120,7 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-func getEnvInt(key string, fallback int) int {
+func GetEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
@@ -139,12 +139,12 @@ func connectToGRPC() (*grpc.ClientConn, error) {
 		retryDelay  = 3 * time.Second
 	)
 
-	logger.Info("connecting to CrudAPI gRPC", slog.String("target", target))
+	Logger.Info("connecting to CrudAPI gRPC", slog.String("target", target))
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			logger.Warn("gRPC dial failed, retrying",
+			Logger.Warn("gRPC dial failed, retrying",
 				slog.Int("attempt", attempt),
 				slog.Int("max", maxAttempts),
 				"error", err,
@@ -162,12 +162,12 @@ func connectToGRPC() (*grpc.ClientConn, error) {
 		cancel()
 
 		if probeErr == nil {
-			logger.Info("gRPC connection established", slog.Int("attempt", attempt))
+			Logger.Info("gRPC connection established", slog.Int("attempt", attempt))
 			return conn, nil
 		}
 
 		conn.Close()
-		logger.Warn("gRPC server not ready, retrying",
+		Logger.Warn("gRPC server not ready, retrying",
 			slog.Int("attempt", attempt),
 			slog.Int("max", maxAttempts),
 			"error", probeErr,
@@ -179,10 +179,10 @@ func connectToGRPC() (*grpc.ClientConn, error) {
 	return nil, fmt.Errorf("could not connect to gRPC after %d attempts", maxAttempts)
 }
 
-func main() {
+func Run() {
 	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	logger = slog.New(baseHandler)
-	slog.SetDefault(logger)
+	Logger = slog.New(baseHandler)
+	slog.SetDefault(Logger)
 
 	tp, err := initTracer()
 	if err != nil {
@@ -206,18 +206,18 @@ func main() {
 		}()
 	}
 
-	logger = slog.New(newOtelSlogHandler(baseHandler))
-	slog.SetDefault(logger)
+	Logger = slog.New(newOtelSlogHandler(baseHandler))
+	slog.SetDefault(Logger)
 
-	tracer = otel.Tracer("esc-points-converter")
+	Tracer = otel.Tracer("esc-points-converter")
 
 	conn, err := connectToGRPC()
 	if err != nil {
-		logger.Error("failed to connect to CrudAPI gRPC", "error", err)
+		Logger.Error("failed to connect to CrudAPI gRPC", "error", err)
 		os.Exit(1)
 	}
 	defer conn.Close()
-	logger.Info("CrudAPI gRPC connection established")
+	Logger.Info("CrudAPI gRPC connection established")
 
 	grpcClient := pb.NewVoteServiceClient(conn)
 
@@ -226,14 +226,14 @@ func main() {
 	// juryScale equalises the 50/50 jury vs televote weighting.
 	// The public vote produces one ESC set (max 12 pts); multiplying by the
 	// number of jury members brings it to the same maximum as the combined jury.
-	juryScale := getEnvInt("NUM_JURY_MEMBERS", 3)
+	juryScale := GetEnvInt("NUM_JURY_MEMBERS", 3)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("GET /api/esc-points", handlePreview(grpcClient, juryScale))
+	mux.HandleFunc("GET /health", HandleHealth)
+	mux.HandleFunc("GET /api/esc-points", HandlePreview(grpcClient, juryScale))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
-	logger.Info("ESC points converter starting",
+	Logger.Info("ESC points converter starting",
 		slog.String("port", port),
 		slog.Int("jury_scale", juryScale),
 		slog.String("grpc_host", getEnv("GRPC_HOST", "db-crud-api")),
@@ -242,7 +242,7 @@ func main() {
 	)
 
 	if err := http.ListenAndServe(":"+port, observabilityMiddleware(mux)); err != nil {
-		logger.Error("server error", "error", err)
+		Logger.Error("server error", "error", err)
 		os.Exit(1)
 	}
 }

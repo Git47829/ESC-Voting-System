@@ -2,14 +2,15 @@ FROM golang:latest AS builder
 
 WORKDIR /src
 
-COPY /src/go.mod /src/go.sum ./
+COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY src/*.go ./
-COPY src/proto ./proto
+COPY main.go ./
+COPY server/ ./server/
+COPY proto/ ./proto/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /crud-db-api
+RUN CGO_ENABLED=0 GOOS=linux go build -o /crud-db-api .
 
 RUN printf 'package main\n\nimport (\n\t"net/http"\n\t"os"\n)\n\nfunc main() {\n\tresp, err := http.Get("http://localhost:8000/health")\n\tif err != nil || resp.StatusCode != 200 {\n\t\tos.Exit(1)\n\t}\n\tos.Exit(0)\n}\n' > /tmp/healthcheck.go && \
     CGO_ENABLED=0 GOOS=linux go build -o /healthcheck /tmp/healthcheck.go
