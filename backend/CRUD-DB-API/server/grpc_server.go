@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	pb "main/proto"
+	pb "crud-db-api/proto"
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -32,7 +32,7 @@ func newVoteServer(database *sql.DB) *voteServer {
 
 func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteService_StreamVotesServer) error {
 	ctx := stream.Context()
-	logger.Info("new client subscribed to vote stream", slog.Bool("include_historical", req.IncludeHistorical))
+	Logger.Info("new client subscribed to vote stream", slog.Bool("include_historical", req.IncludeHistorical))
 
 	voteChan := make(chan *pb.Vote, 100)
 
@@ -41,7 +41,7 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 	subscriberCount := len(s.subscribers)
 	s.mu.Unlock()
 
-	logger.Info("subscriber registered", slog.Int("total_subscribers", subscriberCount))
+	Logger.Info("subscriber registered", slog.Int("total_subscribers", subscriberCount))
 
 	defer func() {
 		s.mu.Lock()
@@ -54,28 +54,28 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 		remainingSubscribers := len(s.subscribers)
 		s.mu.Unlock()
 		close(voteChan)
-		logger.Info("client disconnected from vote stream", slog.Int("remaining_subscribers", remainingSubscribers))
+		Logger.Info("client disconnected from vote stream", slog.Int("remaining_subscribers", remainingSubscribers))
 	}()
 
 	if req.IncludeHistorical {
 		if err := s.sendCurrentVotes(ctx, stream); err != nil {
-			logger.ErrorContext(ctx, "failed to send current votes", slog.Any("error", err))
+			Logger.ErrorContext(ctx, "failed to send current votes", slog.Any("error", err))
 			return err
 		}
 	}
 
-	logger.Info("streaming new votes in real-time")
+	Logger.Info("streaming new votes in real-time")
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("client context cancelled")
+			Logger.Info("client context cancelled")
 			return ctx.Err()
 		case vote := <-voteChan:
 			if err := stream.Send(vote); err != nil {
-				logger.ErrorContext(ctx, "failed to send vote", slog.Any("error", err))
+				Logger.ErrorContext(ctx, "failed to send vote", slog.Any("error", err))
 				return err
 			}
-			logger.Debug("vote sent to subscriber",
+			Logger.Debug("vote sent to subscriber",
 				slog.Int("song_id", int(vote.SongId)),
 				slog.String("country", vote.CountryVotedFor),
 			)
@@ -84,7 +84,7 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 }
 
 func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService_StreamVotesServer) error {
-	logger.Info("querying database for current votes")
+	Logger.Info("querying database for current votes")
 
 	query := `
 		SELECT
@@ -102,7 +102,7 @@ func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService
 
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
-		logger.ErrorContext(ctx, "failed to query current votes", slog.Any("error", err))
+		Logger.ErrorContext(ctx, "failed to query current votes", slog.Any("error", err))
 		return err
 	}
 	defer rows.Close()
@@ -120,7 +120,7 @@ func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService
 		)
 
 		if err := rows.Scan(&songID, &songName, &countryID, &countryName, &publicVotes, &juryVotes, &totalVotes); err != nil {
-			logger.ErrorContext(ctx, "failed to scan vote row", slog.Any("error", err))
+			Logger.ErrorContext(ctx, "failed to scan vote row", slog.Any("error", err))
 			continue
 		}
 
@@ -136,13 +136,13 @@ func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService
 		}
 
 		if err := stream.Send(vote); err != nil {
-			logger.ErrorContext(ctx, "failed to send current vote", slog.Any("error", err))
+			Logger.ErrorContext(ctx, "failed to send current vote", slog.Any("error", err))
 			return err
 		}
 		voteCount++
 	}
 
-	logger.Info("sent all current votes", slog.Int("count", voteCount))
+	Logger.Info("sent all current votes", slog.Int("count", voteCount))
 	return rows.Err()
 }
 
@@ -157,7 +157,7 @@ func (s *voteServer) BroadcastVote(vote *pb.Vote) {
 		return
 	}
 
-	logger.Info("broadcasting vote to subscribers",
+	Logger.Info("broadcasting vote to subscribers",
 		slog.Int("subscriber_count", subscriberCount),
 		slog.Int("song_id", int(vote.SongId)),
 		slog.String("country", vote.CountryVotedFor),
@@ -169,13 +169,13 @@ func (s *voteServer) BroadcastVote(vote *pb.Vote) {
 
 		default:
 
-			logger.Warn("subscriber channel full, skipping vote broadcast", slog.Int("subscriber_index", i))
+			Logger.Warn("subscriber channel full, skipping vote broadcast", slog.Int("subscriber_index", i))
 		}
 	}
 }
 
 func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequest) (*pb.GetSongsResponse, error) {
-	logger.InfoContext(ctx, "GetSongsWithVotes called")
+	Logger.InfoContext(ctx, "GetSongsWithVotes called")
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.ID, s.Name, l.ID, l.Name, s.PublikumsPunkte
@@ -183,7 +183,7 @@ func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequ
 		JOIN Land l ON s.Land_ID = l.ID
 	`)
 	if err != nil {
-		logger.ErrorContext(ctx, "GetSongsWithVotes: query failed", slog.Any("error", err))
+		Logger.ErrorContext(ctx, "GetSongsWithVotes: query failed", slog.Any("error", err))
 		return nil, err
 	}
 	defer rows.Close()
@@ -192,7 +192,7 @@ func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequ
 	for rows.Next() {
 		var s pb.SongVoteData
 		if err := rows.Scan(&s.SongId, &s.SongName, &s.CountryId, &s.CountryName, &s.PublicVotes); err != nil {
-			logger.ErrorContext(ctx, "GetSongsWithVotes: scan failed", slog.Any("error", err))
+			Logger.ErrorContext(ctx, "GetSongsWithVotes: scan failed", slog.Any("error", err))
 			return nil, err
 		}
 		songs = append(songs, &s)
@@ -201,7 +201,7 @@ func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequ
 		return nil, err
 	}
 
-	logger.InfoContext(ctx, "GetSongsWithVotes complete", slog.Int("count", len(songs)))
+	Logger.InfoContext(ctx, "GetSongsWithVotes complete", slog.Int("count", len(songs)))
 	return &pb.GetSongsResponse{Songs: songs}, nil
 }
 
@@ -218,12 +218,12 @@ func StartGRPCServer(database *sql.DB, port string) (*voteServer, error) {
 	reflection.Register(grpcServer)
 
 	log.Printf("gRPC server listening on port %s", port)
-	logger.Info("gRPC vote stream server starting", slog.String("port", port))
+	Logger.Info("gRPC vote stream server starting", slog.String("port", port))
 
 	// Start server in goroutine
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			logger.Error("gRPC server error", slog.Any("error", err))
+			Logger.Error("gRPC server error", slog.Any("error", err))
 		}
 	}()
 
@@ -238,7 +238,7 @@ func SetGlobalVoteServer(vs *voteServer) {
 
 func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 	if globalVoteServer == nil {
-		logger.Warn("vote server not initialized, skipping notification")
+		Logger.Warn("vote server not initialized, skipping notification")
 		return
 	}
 
@@ -269,7 +269,7 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 		err := db.QueryRowContext(gctx, query, songID).
 			Scan(&id, &songName, &countryID, &countryName, &totalVotes)
 		if err != nil {
-			logger.ErrorContext(gctx, "failed to get vote details for notification",
+			Logger.ErrorContext(gctx, "failed to get vote details for notification",
 				slog.Any("error", err),
 				slog.Int("song_id", songID),
 			)
@@ -289,7 +289,7 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 		err := db.QueryRowContext(ctx, "SELECT Name FROM Land WHERE ID = ?", voterCountry).Scan(&voterCountryName)
 		if err != nil {
 			voterCountryName = voterCountry
-			logger.Debug("could not get voter country name",
+			Logger.Debug("could not get voter country name",
 				slog.String("country_id", voterCountry),
 				slog.Any("error", err),
 			)
@@ -300,7 +300,7 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 	})
 
 	if err := g.Wait(); err != nil {
-		logger.ErrorContext(ctx, "NotifyVote: aborting broadcast due to DB error",
+		Logger.ErrorContext(ctx, "NotifyVote: aborting broadcast due to DB error",
 			slog.Any("error", err),
 			slog.Int("song_id", songID),
 		)
@@ -320,7 +320,7 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 
 	globalVoteServer.BroadcastVote(vote)
 
-	logger.Info("vote notification complete",
+	Logger.Info("vote notification complete",
 		slog.Int("song_id", songID),
 		slog.String("country_voted_for", countryID),
 		slog.Int("total_votes", totalVotes),

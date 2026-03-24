@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -24,33 +24,52 @@ import (
 )
 
 var (
-	logger *slog.Logger
-	tracer trace.Tracer
+	Logger *slog.Logger
 
-	requestCounter = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "esc_converter_http_requests_total",
-			Help: "Total HTTP requests handled by the ESC points converter",
+	Tracer trace.Tracer
+
+	requestSizeBytes = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_request_size_bytes",
+			Help:    "Size of HTTP request bodies in bytes",
+			Buckets: prometheus.ExponentialBuckets(100, 10, 8), //100B to 100 MB
+		},
+		[]string{"method", "path"},
+	)
+
+	responseSizeBytes = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "http_response_size_bytes",
+			Help:    "Size of HTTP response bodies in bytes",
+			Buckets: prometheus.ExponentialBuckets(100, 10, 8),
 		},
 		[]string{"method", "path", "status"},
 	)
 
 	requestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "esc_converter_http_request_duration_seconds",
-			Help:    "HTTP request duration for the ESC points converter",
+			Name:    "http_request_duration_seconds",
+			Help:    "Duration of HTTP requests in seconds",
 			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path", "status"},
+	)
+
+	requestCounter = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Total number of HTTP requests",
 		},
 		[]string{"method", "path", "status"},
 	)
 )
 
 func otlpEndpointHostPort() string {
-	raw := getEnv("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318")
-	if parsed, err := url.Parse(raw); err == nil && parsed.Host != "" {
+	otlpEndpoint := getEnvOrDefault("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "localhost:4318")
+	if parsed, err := url.Parse(otlpEndpoint); err == nil && parsed.Host != "" {
 		return parsed.Host
 	}
-	return raw
+	return otlpEndpoint
 }
 
 func initTracer() (*sdktrace.TracerProvider, error) {
@@ -60,24 +79,27 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create OTLP trace exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
+
 	res, err := resource.New(
 		context.Background(),
 		resource.WithAttributes(
-			semconv.ServiceName("esc-points-converter"),
-			semconv.ServiceVersion("1.0.0"),
-			attribute.String("environment", getEnv("ENVIRONMENT", "production")),
+			semconv.ServiceName("esc-voting-crud-api"),
+			semconv.ServiceVersion("0.1.0"),
+			attribute.String("environment", "development"),
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create resource: %w", err)
+		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
+
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.AlwaysSample()),
 	)
+
 	otel.SetTracerProvider(tp)
 	return tp, nil
 }
@@ -89,35 +111,39 @@ func initLogProvider() (*sdklog.LoggerProvider, error) {
 		otlploghttp.WithInsecure(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create OTLP log exporter: %w", err)
+		return nil, fmt.Errorf("failed to create OTLP log exporter: %w", err)
 	}
+
 	res, err := resource.New(
 		context.Background(),
 		resource.WithAttributes(
-			semconv.ServiceName("esc-points-converter"),
-			semconv.ServiceVersion("1.0.0"),
+			semconv.ServiceName("esc-voting-crud-api"),
+			semconv.ServiceVersion("0.1.0"),
+			attribute.String("environment", "development"),
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create resource: %w", err)
+		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
+
 	lp := sdklog.NewLoggerProvider(
 		sdklog.WithProcessor(sdklog.NewBatchProcessor(exporter)),
 		sdklog.WithResource(res),
 	)
+
 	global.SetLoggerProvider(lp)
 	return lp, nil
 }
 
 type otelSlogHandler struct {
 	inner  slog.Handler
-	otelLg otellog.Logger
+	logger otellog.Logger
 }
 
 func newOtelSlogHandler(inner slog.Handler) *otelSlogHandler {
 	return &otelSlogHandler{
 		inner:  inner,
-		otelLg: global.GetLoggerProvider().Logger("esc-points-converter"),
+		logger: global.GetLoggerProvider().Logger("esc-voting-crud-api"),
 	}
 }
 
@@ -129,9 +155,11 @@ func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 	if err := h.inner.Handle(ctx, r); err != nil {
 		return err
 	}
+
 	var rec otellog.Record
 	rec.SetTimestamp(r.Time)
 	rec.SetBody(otellog.StringValue(r.Message))
+
 	switch {
 	case r.Level >= slog.LevelError:
 		rec.SetSeverity(otellog.SeverityError)
@@ -146,83 +174,108 @@ func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 		rec.SetSeverity(otellog.SeverityDebug)
 		rec.SetSeverityText("DEBUG")
 	}
+
 	attrs := make([]otellog.KeyValue, 0, r.NumAttrs()+2)
 	r.Attrs(func(a slog.Attr) bool {
 		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
 		return true
 	})
-	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
+
+	if spanCtx := trace.SpanFromContext(ctx).SpanContext(); spanCtx.IsValid() {
 		attrs = append(attrs,
-			otellog.String("traceID", sc.TraceID().String()),
-			otellog.String("spanID", sc.SpanID().String()),
+			otellog.String("traceID", spanCtx.TraceID().String()),
+			otellog.String("spanID", spanCtx.SpanID().String()),
 		)
 	}
+
 	rec.AddAttributes(attrs...)
-	h.otelLg.Emit(ctx, rec)
+
+	h.logger.Emit(ctx, rec)
 	return nil
 }
 
 func (h *otelSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return &otelSlogHandler{inner: h.inner.WithAttrs(attrs), otelLg: h.otelLg}
+	return &otelSlogHandler{inner: h.inner.WithAttrs(attrs), logger: h.logger}
 }
+
 func (h *otelSlogHandler) WithGroup(name string) slog.Handler {
-	return &otelSlogHandler{inner: h.inner.WithGroup(name), otelLg: h.otelLg}
+	return &otelSlogHandler{inner: h.inner.WithGroup(name), logger: h.logger}
 }
 
-type statusWriter struct {
+type responseWriter struct {
 	http.ResponseWriter
-	status int
+	statusCode int
+	size       int
 }
 
-func (sw *statusWriter) WriteHeader(code int) {
-	sw.status = code
-	sw.ResponseWriter.WriteHeader(code)
+func (rw *responseWriter) WriteHeader(statusCode int) {
+	rw.statusCode = statusCode
+	rw.ResponseWriter.WriteHeader(statusCode)
 }
 
-func observabilityMiddleware(next http.Handler) http.Handler {
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	size, err := rw.ResponseWriter.Write(b)
+	rw.size += size
+	return size, err
+}
+
+func ObservabilityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip tracing + metrics for health and metrics endpoints to avoid noise.
-		if r.URL.Path == "/health" || r.URL.Path == "/metrics" {
-			next.ServeHTTP(w, r)
-			return
-		}
+		startTime := time.Now()
 
-		start := time.Now()
-		ctx, span := tracer.Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+		ctx, span := Tracer.Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 		defer span.End()
 
 		span.SetAttributes(
 			attribute.String("http.method", r.Method),
+			attribute.String("http.url", r.URL.String()),
 			attribute.String("http.path", r.URL.Path),
 			attribute.String("http.remote_addr", r.RemoteAddr),
+			attribute.Int64("http.request_content_length", r.ContentLength),
 		)
 
-		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		rw := &responseWriter{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
 
-		logger.InfoContext(ctx, "incoming request",
+		if r.ContentLength > 0 {
+			requestSizeBytes.WithLabelValues(r.Method, r.URL.Path).Observe(float64(r.ContentLength))
+		}
+
+		// Start request
+		Logger.InfoContext(ctx, "incoming request",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
-			slog.String("remote_addr", r.RemoteAddr),
+			slog.Int64("content_length", r.ContentLength),
+			slog.String("remoteaddr", r.RemoteAddr),
+			slog.String("user_agent", r.UserAgent()),
 			slog.String("trace_id", span.SpanContext().TraceID().String()),
+			slog.String("span_id", span.SpanContext().SpanID().String()),
 		)
 
-		next.ServeHTTP(sw, r.WithContext(ctx))
+		next.ServeHTTP(rw, r.WithContext(ctx))
 
-		dur := time.Since(start)
-		statusStr := fmt.Sprintf("%d", sw.status)
+		duration := time.Since(startTime)
 
 		span.SetAttributes(
-			attribute.Int("http.status_code", sw.status),
-			attribute.Float64("http.duration_ms", float64(dur.Milliseconds())),
+			attribute.Int("http.status_code", rw.statusCode),
+			attribute.Int("http.response_size", rw.size),
+			attribute.Float64("http.duration_ms", float64(duration.Milliseconds())),
 		)
-		requestCounter.WithLabelValues(r.Method, r.URL.Path, statusStr).Inc()
-		requestDuration.WithLabelValues(r.Method, r.URL.Path, statusStr).Observe(dur.Seconds())
 
-		logger.InfoContext(ctx, "request completed",
+		statusStr := fmt.Sprintf("%d", rw.statusCode)
+		requestCounter.WithLabelValues(r.Method, r.URL.Path, statusStr).Inc()
+		requestDuration.WithLabelValues(r.Method, r.URL.Path, statusStr).Observe(duration.Seconds())
+		responseSizeBytes.WithLabelValues(r.Method, r.URL.Path, statusStr).Observe(float64(rw.size))
+
+		Logger.InfoContext(ctx, "request completed",
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
-			slog.Int("status", sw.status),
-			slog.Duration("duration", dur),
+			slog.Int("status", rw.statusCode),
+			slog.Int("response_size", rw.size),
+			slog.Duration("duration", duration),
+			slog.String("trace_id", span.SpanContext().TraceID().String()),
 		)
 	})
 }

@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func getEnvOrDefaultInt(key string, fallback int) int {
 }
 
 // Singleton Pattern
-var db *sql.DB
+var DB *sql.DB
 
 var (
 	maxDBAttempts  = 60
