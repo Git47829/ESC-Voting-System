@@ -34,7 +34,7 @@ jobs:
 
       - name: Install EuroStats dependencies
         working-directory: backend/EuroStats
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt -r requirements-test.txt
 
       - name: Generate EuroStats proto files
         working-directory: backend/EuroStats
