@@ -1,5 +1,5 @@
 pytest
 pytest-asyncio
 anyio[asyncio]
-httpx
+httpx<0.27.0
 pytest-timeout
