@@ -144,7 +144,7 @@ func TestGetCountryByName_ExistingID_Returns200(t *testing.T) {
 	}
 }
 
-func TestGetCountryByName_NonExistent_Returns200EmptyArray(t *testing.T) {
+func TestGetCountryByName_NonExistent_Returns406EmptyArray(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -160,8 +160,8 @@ func TestGetCountryByName_NonExistent_Returns200EmptyArray(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	if rr.Code != http.StatusNotAcceptable {
+		t.Errorf("expected 406, got %d", rr.Code)
 	}
 }
 
