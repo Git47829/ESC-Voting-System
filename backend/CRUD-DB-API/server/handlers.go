@@ -1075,9 +1075,19 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 	Name := query.Get("Name")
 	POTstr := query.Get("Pot")
 	POT, err := strconv.Atoi(POTstr)
+
+	if len(ID) != 2 {
+		Logger.ErrorContext(ctx, "Invalid Input, CountryID must be 2 Characters as length", slog.String("Input", ID))
+		w.WriteHeader(http.StatusNotAcceptable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "CountryID must be 2 Charakters of length",
+		})
+		return
+	}
+
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid POT value", slog.Any("error", err), slog.String("POT", POTstr))
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotAcceptable)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Pot Value must be Integer",
 		})
