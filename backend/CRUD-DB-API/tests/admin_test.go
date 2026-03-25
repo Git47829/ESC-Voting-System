@@ -243,15 +243,15 @@ func TestAddCountry_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddCountry_InvalidPot_Returns400(t *testing.T) {
+func TestAddCountry_InvalidPot_Returns406(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addCountry/?Token=test-admin-pw&ID=DE&Name=Germany&Pot=notanumber", nil)
 	rr := httptest.NewRecorder()
 	server.AddCountry(rr, req)
 
 	// Pot parsing happens BEFORE auth — so 400 regardless of token.
-	if rr.Code != http.StatusBadRequest {
-		t.Errorf("expected 400, got %d", rr.Code)
+	if rr.Code != http.StatusNotAcceptable {
+		t.Errorf("expected 406, got %d", rr.Code)
 	}
 }
 
