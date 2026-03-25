@@ -401,18 +401,6 @@
     const SERVER_VOTES_CAST = {{ votes_cast | tojson }};
     const OUT_OF_POINTS     = {{ 'true' if out_of_points else 'false' }};
 
-    // Country ID (alpha-3) → alpha-2 flag code map
-    const ALPHA3_TO_ALPHA2 = {
-        'DEU':'de','SWE':'se','FRA':'fr','ESP':'es','ITA':'it','GBR':'gb',
-        'NOR':'no','FIN':'fi','AUT':'at','BEL':'be','NLD':'nl','CHE':'ch',
-        'PRT':'pt','GRC':'gr','IRL':'ie','DNK':'dk','ISL':'is','HRV':'hr',
-        'SRB':'rs','UKR':'ua','POL':'pl','CZE':'cz','ROU':'ro','BGR':'bg',
-        'HUN':'hu','SVN':'si','SVK':'sk','EST':'ee','LVA':'lv','LTU':'lt',
-        'CYP':'cy','MLT':'mt','ISR':'il','GEO':'ge','ARM':'am','AZE':'az',
-        'MDA':'md','MNE':'me','MKD':'mk','ALB':'al','BIH':'ba','SMR':'sm',
-        'AND':'ad','LUX':'lu','AUS':'au',
-    };
-
     // -----------------------------------------------------------------------
     // State
     // -----------------------------------------------------------------------
@@ -550,10 +538,9 @@
             const card = document.querySelector(`.country-card[data-song-id="${songId}"]`);
             const countryName  = card ? card.dataset.countryName  : `Song ${songId}`;
             const countryId    = card ? card.dataset.countryId    : '';
-            const alpha2       = ALPHA3_TO_ALPHA2[countryId] || countryId.substring(0, 2).toLowerCase();
             return `
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-esc-yellow/30 bg-esc-yellow/10 px-2.5 py-1 text-[11px] text-esc-yellow font-medium">
-                    <img src="https://flagcdn.com/w20/${alpha2}.png" alt="" class="w-3.5 h-3.5 rounded-full object-cover shrink-0">
+                    <img src="https://flagfeed.com/flags/${countryId}" alt="" class="w-3.5 h-3.5 rounded-full object-cover shrink-0">
                     ${countryName}
                     <span class="font-bold">${pts}pt${pts !== 1 ? 's' : ''}</span>
                 </span>`;
@@ -587,10 +574,9 @@
             const countryName = card ? card.dataset.countryName : `Song ${songId}`;
             const songName    = card ? card.dataset.songName    : '';
             const countryId   = card ? card.dataset.countryId   : '';
-            const alpha2      = ALPHA3_TO_ALPHA2[countryId] || countryId.substring(0, 2).toLowerCase();
             return `
                 <div class="flex items-center gap-2.5 rounded-lg bg-esc-surface/40 px-3 py-2">
-                    <img src="https://flagcdn.com/w20/${alpha2}.png" alt="" class="w-5 h-5 rounded-full object-cover shrink-0">
+                    <img src="https://flagfeed.com/flags/${countryId}" alt="" class="w-5 h-5 rounded-full object-cover shrink-0">
                     <div class="flex-1 min-w-0">
                         <p class="text-xs font-medium text-esc-text truncate">${countryName}</p>
                         <p class="text-[10px] text-esc-muted truncate">${songName}</p>

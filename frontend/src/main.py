@@ -322,6 +322,7 @@ def api_results():
                 "id": song_id,
                 "name": song.get("songName", ""),
                 "country": song.get("country", ""),
+                "countryId": song.get("countryId", ""),
                 "escPublicPts": esc_pts,
                 "juryPts": jury_pts,
                 "totalPts": esc_pts + jury_pts,
