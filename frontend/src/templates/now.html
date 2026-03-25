@@ -387,35 +387,15 @@ const TOTAL_POINTS    = {{ total_vote_points if total_vote_points is defined els
 let   localRemaining  = {{ votes_remaining if votes_remaining is defined else 20 }};
 let   currentPoints   = 1;
 
-// ---------------------------------------------------------------------------
-// Alpha-3 to Alpha-2 flag map
-// ---------------------------------------------------------------------------
-const ALPHA3_TO_ALPHA2 = {
-    DEU:"de",SWE:"se",FRA:"fr",ESP:"es",ITA:"it",GBR:"gb",NOR:"no",FIN:"fi",
-    AUT:"at",BEL:"be",NLD:"nl",CHE:"ch",PRT:"pt",GRC:"gr",IRL:"ie",DNK:"dk",
-    ISL:"is",HRV:"hr",SRB:"rs",UKR:"ua",POL:"pl",CZE:"cz",ROU:"ro",BGR:"bg",
-    HUN:"hu",SVN:"si",SVK:"sk",EST:"ee",LVA:"lv",LTU:"lt",CYP:"cy",MLT:"mt",
-    ISR:"il",GEO:"ge",ARM:"am",AZE:"az",MDA:"md",MNE:"me",MKD:"mk",ALB:"al",
-    BIH:"ba",SMR:"sm",AND:"ad",LUX:"lu",AUS:"au",
-};
 
-// ---------------------------------------------------------------------------
-// Render country flag emoji from alpha-3 code
-// ---------------------------------------------------------------------------
-function countryFlag(alpha3) {
-    const a2 = ALPHA3_TO_ALPHA2[alpha3];
-    if (!a2) return "🏳";
-    return a2.toUpperCase().replace(/./g, ch =>
-        String.fromCodePoint(0x1F1E6 - 65 + ch.charCodeAt(0))
-    );
-}
+
 
 // Set the flag for the current entry
 (function() {
     const el = document.getElementById("flag-display");
     if (el) {
         const code = el.dataset.countryId;
-        el.textContent = countryFlag(code);
+        el.textContent = countryId;
         // Hide the static placeholder
         el.previousElementSibling && (el.previousElementSibling.style.display = "none");
     }
