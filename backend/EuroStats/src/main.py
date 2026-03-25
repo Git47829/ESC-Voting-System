@@ -360,27 +360,18 @@ async def websocket_stats_endpoint(websocket: WebSocket):
     await stats_manager.connect(websocket)
     logger.info("WebSocket client connected to stats stream")
     try:
-        async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
-            await websocket.send_json(
-                {
-                    "type": "vote",
-                    "data": {
-                        "song_id": vote.song_id,
-                        "song_name": vote.song_name,
-                        "country_voted_for": vote.country_voted_for,
-                        "country_voted_for_name": vote.country_voted_for_name,
-                        "voter_country": vote.voter_country,
-                        "voter_country_name": vote.voter_country_name,
-                        "vote_count": vote.vote_count,
-                        "timestamp": vote.timestamp,
-                    },
-                }
-            )
+        # Send current accumulated state immediately to the newly connected client
+        await _compute_and_broadcast()
+        # Keep connection alive; updates are pushed by handle_vote() → _compute_and_broadcast()
+        while True:
+            await asyncio.sleep(30)
+            await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         logger.info("WebSocket stats client disconnected")
     except asyncio.CancelledError:
         logger.info("WebSocket stats connection cancelled")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        await websocket.send_json({"type": "error", "message": str(e)})
         await websocket.close(code=1011)
+    finally:
+        stats_manager.disconnect(websocket)
