@@ -128,8 +128,6 @@ func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService
 			CountryVotedFor:     countryID,
 			CountryVotedForName: countryName,
 			VoteCount:           int32(totalVotes),
-			VoterCountry:        "INITIAL",
-			VoterCountryName:    "Initial Query",
 			Timestamp:           time.Now().Unix(),
 			SongId:              int32(songID),
 			SongName:            songName,
