@@ -314,6 +314,14 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	ownCountry := r.URL.Query().Get("ownCountry")
 	phone := r.URL.Query().Get("phoneNum")
 
+	if len(ownCountry) != 2 {
+		Logger.ErrorContext(ctx, "Country ID can only be two Characters in Length", slog.String("CountryID:", ownCountry))
+		w.WriteHeader(http.StatusNotAcceptable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Country code can only be two Charakters in length",
+		})
+	}
+
 	phoneCountry, phoneErr := CheckPhoneNum(phone)
 	if phoneErr != nil {
 		Logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.Any("error", phoneErr))
@@ -625,6 +633,14 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 	idStr := r.PathValue("NAME")
+
+	if len(idStr) != 2 {
+		Logger.ErrorContext(ctx, "Country code can only be two Charakters in length", slog.String("CountryID", idStr))
+		w.WriteHeader(http.StatusNotAcceptable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Country must be two Characters in length",
+		})
+	}
 
 	query := `SELECT ID, Name, POT FROM Land WHERE ID = ?`
 
@@ -1161,6 +1177,14 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	country := query.Get("Land")
 	youtubeURL := query.Get("YoutubeURL")
 
+	if len(country) != 2 {
+		Logger.ErrorContext(ctx, "CountryID can only be two charakters in length", slog.String("CountryID: ", country))
+		w.WriteHeader(http.StatusNotAcceptable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "CountryID can only be two characters in length",
+		})
+	}
+
 	autorized, message := CheckAccessAdmin(token)
 
 	if autorized == true {
@@ -1237,6 +1261,14 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	typ := query.Get("typ")
 	country := query.Get("Land")
 	dbQuery := `INSERT INTO Kuenstler (ID, Vorname, Name, Typ, Land_ID) VALUES (?, ?, ?, ?, ?)`
+
+	if len(country) != 2 {
+		Logger.ErrorContext(ctx, "CountryID can only be two charakters in length", slog.String("CountryID: ", country))
+		w.WriteHeader(http.StatusNotAcceptable)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "CountryID can only be two characters in length",
+		})
+	}
 
 	autorized, message := CheckAccessAdmin(token)
 
