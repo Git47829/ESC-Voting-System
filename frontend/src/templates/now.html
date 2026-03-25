@@ -50,7 +50,9 @@
     }
 
     .flag-emoji {
-        font-size: 3rem;
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
         line-height: 1;
     }
 
@@ -395,7 +397,7 @@ let   currentPoints   = 1;
     const el = document.getElementById("flag-display");
     if (el) {
         const code = el.dataset.countryId;
-        el.textContent = countryId;
+        el.textContent = coide;
         // Hide the static placeholder
         el.previousElementSibling && (el.previousElementSibling.style.display = "none");
     }

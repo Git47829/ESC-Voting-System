@@ -122,9 +122,9 @@ endblock %} {% block content %}
     // Flag helpers
     // ---------------------------------------------------------------------------
 
-    function getFlagUrl(country) {
-        const code = country;
-        return code ? "https://flagfeed.com/flags/" + code : null;
+    function getFlagUrl(countryId) {
+        const code = countryId ? countryId.slice(0, 2).toLowerCase() : null;
+        return code ? { url: "https://flagfeed.com/flags/" + code, code } : null;
     }
 
     // ---------------------------------------------------------------------------
@@ -165,7 +165,8 @@ endblock %} {% block content %}
             const juryPts = entry.juryPts || 0;
             const totalPts = entry.totalPts || 0;
             const barPct = (totalPts / maxTotal) * 100;
-            const flagUrl = getFlagUrl(entry.country);
+            const flag = getFlagUrl(entry.countryId);
+            const flagUrl = flag?.url ?? null;
             const changed = previousData
                 ? (previousData.find((p) => p.id === entry.id) || {})
                       .totalVotes !== totalPts
