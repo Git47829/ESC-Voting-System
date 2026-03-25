@@ -151,14 +151,19 @@ func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 		attrs = append(attrs, otellog.String(a.Key, a.Value.String()))
 		return true
 	})
-	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
-		attrs = append(attrs,
-			otellog.String("traceID", sc.TraceID().String()),
-			otellog.String("spanID", sc.SpanID().String()),
-		)
-	}
 	rec.AddAttributes(attrs...)
 	h.otelLg.Emit(ctx, rec)
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		spanAttrs := make([]attribute.KeyValue, 0, r.NumAttrs()+1)
+		spanAttrs = append(spanAttrs, attribute.String("log.severity", r.Level.String()))
+		r.Attrs(func(a slog.Attr) bool {
+			spanAttrs = append(spanAttrs, attribute.String(a.Key, a.Value.String()))
+			return true
+		})
+		span.AddEvent(r.Message, trace.WithAttributes(spanAttrs...))
+	}
+
 	return nil
 }
 

@@ -181,16 +181,20 @@ func (h *otelSlogHandler) Handle(ctx context.Context, r slog.Record) error {
 		return true
 	})
 
-	if spanCtx := trace.SpanFromContext(ctx).SpanContext(); spanCtx.IsValid() {
-		attrs = append(attrs,
-			otellog.String("traceID", spanCtx.TraceID().String()),
-			otellog.String("spanID", spanCtx.SpanID().String()),
-		)
-	}
-
 	rec.AddAttributes(attrs...)
 
 	h.logger.Emit(ctx, rec)
+
+	if span := trace.SpanFromContext(ctx); span.IsRecording() {
+		spanAttrs := make([]attribute.KeyValue, 0, r.NumAttrs()+1)
+		spanAttrs = append(spanAttrs, attribute.String("log.severity", r.Level.String()))
+		r.Attrs(func(a slog.Attr) bool {
+			spanAttrs = append(spanAttrs, attribute.String(a.Key, a.Value.String()))
+			return true
+		})
+		span.AddEvent(r.Message, trace.WithAttributes(spanAttrs...))
+	}
+
 	return nil
 }
 
