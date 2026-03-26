@@ -80,7 +80,7 @@ func TestJuryVote_InvalidPoints_TableDriven(t *testing.T) {
 // Parsing errors
 // ---------------------------------------------------------------------------
 
-func TestJuryVote_InvalidSongID_Returns406(t *testing.T) {
+func TestJuryVote_InvalidSongID_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -93,12 +93,12 @@ func TestJuryVote_InvalidSongID_Returns406(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.JuryVote(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
-func TestJuryVote_InvalidPointsNotInteger_Returns406(t *testing.T) {
+func TestJuryVote_InvalidPointsNotInteger_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -111,8 +111,8 @@ func TestJuryVote_InvalidPointsNotInteger_Returns406(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.JuryVote(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
@@ -199,7 +199,7 @@ func TestJuryVote_SongNotFound_Returns404(t *testing.T) {
 // DB error
 // ---------------------------------------------------------------------------
 
-func TestJuryVote_DBError_Returns502(t *testing.T) {
+func TestJuryVote_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -215,8 +215,8 @@ func TestJuryVote_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.JuryVote(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }
 

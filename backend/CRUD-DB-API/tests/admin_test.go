@@ -82,7 +82,7 @@ func TestOpenVote_ValidToken_Returns202(t *testing.T) {
 	}
 }
 
-func TestOpenVote_ValidToken_DBError_Returns502(t *testing.T) {
+func TestOpenVote_ValidToken_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -96,8 +96,8 @@ func TestOpenVote_ValidToken_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.OpenVote(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -243,15 +243,15 @@ func TestAddCountry_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddCountry_InvalidPot_Returns406(t *testing.T) {
+func TestAddCountry_InvalidPot_Returns422(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addCountry/?Token=test-admin-pw&ID=DE&Name=Germany&Pot=notanumber", nil)
 	rr := httptest.NewRecorder()
 	server.AddCountry(rr, req)
 
-	// Pot parsing happens BEFORE auth — so 400 regardless of token.
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	// Pot parsing happens BEFORE auth — so 422 regardless of token.
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
@@ -290,14 +290,14 @@ func TestAddSong_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddSong_InvalidID_Returns406(t *testing.T) {
+func TestAddSong_InvalidID_Returns422(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addSong/?Token=test-admin-pw&ID=notanumber&Name=TestSong&Land=DE", nil)
 	rr := httptest.NewRecorder()
 	server.AddSong(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
@@ -345,14 +345,14 @@ func TestAddArtist_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddArtist_InvalidID_Returns406(t *testing.T) {
+func TestAddArtist_InvalidID_Returns422(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addArtist/?Token=test-admin-pw&ID=notanumber&Name=Mueller&vorName=Max&typ=solo&Land=DE", nil)
 	rr := httptest.NewRecorder()
 	server.AddArtist(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 

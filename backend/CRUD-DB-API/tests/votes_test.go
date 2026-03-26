@@ -107,7 +107,7 @@ func TestGetVotes_ResponseShape(t *testing.T) {
 	}
 }
 
-func TestGetVotes_DBError_Returns502(t *testing.T) {
+func TestGetVotes_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -121,8 +121,8 @@ func TestGetVotes_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.GetVotes(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 
 	var body map[string]string

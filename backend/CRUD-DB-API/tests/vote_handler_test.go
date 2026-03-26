@@ -135,7 +135,7 @@ func TestVote_ValidRequest_SetsCookieWithHMAC(t *testing.T) {
 // Phone validation errors
 // ---------------------------------------------------------------------------
 
-func TestVote_InvalidPhoneNumber_Returns406(t *testing.T) {
+func TestVote_InvalidPhoneNumber_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -147,8 +147,8 @@ func TestVote_InvalidPhoneNumber_Returns406(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.Vote(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
@@ -243,7 +243,7 @@ func TestVote_VoteForOwnCountry_Returns403(t *testing.T) {
 // Invalid songID / points
 // ---------------------------------------------------------------------------
 
-func TestVote_InvalidSongID_Returns406(t *testing.T) {
+func TestVote_InvalidSongID_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -255,12 +255,12 @@ func TestVote_InvalidSongID_Returns406(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.Vote(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
-func TestVote_PointsZero_Returns404(t *testing.T) {
+func TestVote_PointsZero_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -272,12 +272,12 @@ func TestVote_PointsZero_Returns404(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.Vote(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
-func TestVote_PointsTooHigh_Returns404(t *testing.T) {
+func TestVote_PointsTooHigh_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -289,12 +289,12 @@ func TestVote_PointsTooHigh_Returns404(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.Vote(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
-func TestVote_PointsNotInteger_Returns404(t *testing.T) {
+func TestVote_PointsNotInteger_Returns422(t *testing.T) {
 	mockDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -306,8 +306,8 @@ func TestVote_PointsNotInteger_Returns404(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.Vote(rr, req)
 
-	if rr.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
