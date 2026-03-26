@@ -43,21 +43,27 @@ var clients = make(map[string]*Client)
 
 var (
 	rateLimitConfigs = map[string]RateLimitConfig{
-		"GET /health":     {RequestsPerSecond: 100, BurstSize: 100},
-		"GET /votes/":     {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /countries/": {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /songs/":     {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /health":          {RequestsPerSecond: 100, BurstSize: 100},
+		"GET /votes/":          {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /countries/":      {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /songs/":          {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /songByID/{ID}":   {RequestsPerSecond: 10, BurstSize: 20},
+		"GET /contest/current": {RequestsPerSecond: 10, BurstSize: 20},
 
-		"POST /vote/":     {RequestsPerSecond: 1, BurstSize: 1},
-		"POST /jury/vote": {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /vote/":             {RequestsPerSecond: 1, BurstSize: 1},
+		"POST /jury/vote":         {RequestsPerSecond: 5, BurstSize: 5},
+		"GET /jury/authenticate":  {RequestsPerSecond: 1, BurstSize: 1},
+		"GET /admin/authenticate": {RequestsPerSecond: 1, BurstSize: 1},
 
-		"POST /admin/open/":        {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/close":        {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/addCountry":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addSong":      {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addArtist":    {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addInterpret": {RequestsPerSecond: 5, BurstSize: 5},
-		"DELETE /admin/delteVotes": {RequestsPerSecond: 1, BurstSize: 1},
+		"POST /admin/open/":          {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/close":          {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/addCountry":     {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addSong":        {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addArtist":      {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/addInterpret":   {RequestsPerSecond: 5, BurstSize: 5},
+		"POST /admin/startContest":   {RequestsPerSecond: 5, BurstSize: 5},
+		"POST (admin/advanceContest": {RequestsPerSecond: 5, BurstSize: 5},
+		"DELETE /admin/deleteVotes":  {RequestsPerSecond: 1, BurstSize: 1},
 
 		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
 	}
@@ -1878,7 +1884,7 @@ func Run() {
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
 	router.HandleFunc("GET /songs/", HttpGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
-	router.HandleFunc("POST /admin/open/", OpenVote)
+	router.HandleFunc("POST /admin/open", OpenVote)
 	router.HandleFunc("POST /admin/close", CloseVote)
 	router.HandleFunc("DELETE /admin/deleteVotes/", DeleteVotes)
 	router.HandleFunc("POST /admin/addCountry/", AddCountry)
@@ -1888,9 +1894,9 @@ func Run() {
 	router.HandleFunc("POST /jury/vote/", JuryVote)
 	router.HandleFunc("GET /admin/authenticate", AdminLogin)
 	router.HandleFunc("GET /jury/authenticate", JuryLogin)
-	router.HandleFunc("POST /admin/startContest/", StartContest)
-	router.HandleFunc("POST /admin/advanceContest/", AdvanceContest)
-	router.HandleFunc("GET /contest/current/", GetCurrentSong)
+	router.HandleFunc("POST /admin/startContest", StartContest)
+	router.HandleFunc("POST /admin/advanceContest", AdvanceContest)
+	router.HandleFunc("GET /contest/current", GetCurrentSong)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 
