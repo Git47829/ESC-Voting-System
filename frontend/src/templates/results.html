@@ -124,7 +124,9 @@ endblock %} {% block content %}
 
     function getFlagUrl(countryId) {
         const code = countryId ? countryId.slice(0, 2).toLowerCase() : null;
-        return code ? { url: "https://flagfeed.com/flags/" + code, code } : null;
+        return code
+            ? { url: "https://flagfeed.com/flags/" + code, code }
+            : null;
     }
 
     // ---------------------------------------------------------------------------
@@ -257,23 +259,6 @@ endblock %} {% block content %}
                     .classList.remove("hidden");
             }
         }
-        // vote_count is cumulative — take max per song_id (latest value)
-        const rawCounts = {};
-        rows.forEach(function (row) {
-            const sid = row.song_id;
-            rawCounts[sid] = Math.max(rawCounts[sid] || 0, row.vote_count || 0);
-        });
-        // Update localState with raw counts and compute escRatio
-        Object.keys(rawCounts).forEach(function (sid) {
-            const id = parseInt(sid, 10);
-            if (!localState[id]) return;
-            const raw = rawCounts[sid];
-            localState[id].rawVoteCount = raw;
-            if (raw > 0 && localState[id].escPublicPts > 0) {
-                localState[id].escRatio = localState[id].escPublicPts / raw;
-            }
-        });
-        rerenderResults();
     }
 
     // ---------------------------------------------------------------------------
