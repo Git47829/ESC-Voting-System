@@ -262,7 +262,7 @@ func GetVotes(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.QueryContext(ctx, query)
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to query votes", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to retrieve Votes",
 		})
@@ -291,7 +291,7 @@ func GetVotes(w http.ResponseWriter, r *http.Request) {
 
 	if err := rows.Err(); err != nil {
 		Logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to process votes",
 		})
@@ -316,7 +316,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 
 	if len(ownCountry) != 2 {
 		Logger.ErrorContext(ctx, "Country ID can only be two Characters in Length", slog.String("CountryID:", ownCountry))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Country code can only be two Charakters in length",
 		})
@@ -325,13 +325,13 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	phoneCountry, phoneErr := CheckPhoneNum(phone)
 	if phoneErr != nil {
 		Logger.WarnContext(ctx, "phone number failed validation", slog.String("phone", phone), slog.Any("error", phoneErr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": phoneErr.Error()})
 		return
 	}
 	if phoneCountry == "" {
 		Logger.WarnContext(ctx, "invalid phone number provided", slog.String("phone", phone))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": "invalid phone number"})
 		return
 	}
@@ -342,7 +342,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	songID, err := strconv.Atoi(rawID)
 	if err != nil {
 		Logger.ErrorContext(ctx, "songID must be an integer", slog.Any("error", err), slog.String("songID", rawID))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid songID value - must be an integer"})
 		return
 	}
@@ -351,7 +351,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	points, err := strconv.Atoi(rawPoints)
 	if err != nil || points < 1 || points > totalVotePoints {
 		Logger.WarnContext(ctx, "invalid points value", slog.String("points", rawPoints))
-		w.WriteHeader(http.StatusNotFound)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": fmt.Sprintf("points must be an integer between 1 and %d", totalVotePoints),
 		})
@@ -427,7 +427,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 
 	if _, upsertErr := DB.ExecContext(ctx, upsertQuery, phoneHash, totalVotePoints); upsertErr != nil {
 		Logger.ErrorContext(ctx, "failed to upsert phone number", slog.Any("error", upsertErr))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
 		return
 	}
@@ -454,7 +454,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 
 	if deductErr != nil {
 		Logger.ErrorContext(ctx, "failed to deduct vote points", slog.Any("error", deductErr))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
 		return
 	}
@@ -535,7 +535,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err := g.Wait(); err != nil {
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
 		return
 	}
@@ -585,7 +585,7 @@ func GetCountries(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.QueryContext(ctx, query)
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to query countries", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to retrieve countries",
 		})
@@ -616,7 +616,7 @@ func GetCountries(w http.ResponseWriter, r *http.Request) {
 
 	if err := rows.Err(); err != nil {
 		Logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to process countries",
 		})
@@ -636,7 +636,7 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 
 	if len(idStr) != 2 {
 		Logger.ErrorContext(ctx, "Country code can only be two Charakters in length", slog.String("CountryID", idStr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Country must be two Characters in length",
 		})
@@ -648,7 +648,7 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]any{
 			"error":       "Could not retrieve Country with ID",
 			"requestedID": idStr,
@@ -680,7 +680,7 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 
 	if err := rows.Err(); err != nil {
 		Logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to process countries",
 		})
@@ -728,7 +728,7 @@ func HttpGetSongs(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.QueryContext(ctx, query)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]any{
 			"error": "Error querying Database",
 		})
@@ -791,7 +791,7 @@ func HttpGetSongs(w http.ResponseWriter, r *http.Request) {
 
 	if err := rows.Err(); err != nil {
 		Logger.ErrorContext(ctx, "rows iteration error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to process Song",
 		})
@@ -845,7 +845,7 @@ func GetSongByID(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.QueryContext(ctx, query, ID)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Querying Database", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]any{
 			"error": "Faules querying Database",
 		})
@@ -937,7 +937,7 @@ func OpenVote(w http.ResponseWriter, r *http.Request) {
 
 		result, err := DB.ExecContext(ctx, dbQuery, changeTime)
 		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			Logger.ErrorContext(ctx, "Could not Query Rows", slog.Any("error", err))
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Error querying rows",
@@ -989,7 +989,7 @@ func CloseVote(w http.ResponseWriter, r *http.Request) {
 
 		result, err := DB.ExecContext(ctx, dbQuery, changeTime)
 		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			Logger.ErrorContext(ctx, "Could not Query Rows", slog.Any("error", err))
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "Error querying rows",
@@ -1048,7 +1048,7 @@ func DeleteVotes(w http.ResponseWriter, r *http.Request) {
 	result, err := DB.ExecContext(ctx, `UPDATE Song SET PublikumsPunkte = 0, JuryPunkte = 0`)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error resetting song votes", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to delete Votes"})
 		return
 	}
@@ -1094,7 +1094,7 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 
 	if len(ID) != 2 {
 		Logger.ErrorContext(ctx, "Invalid Input, CountryID must be 2 Characters as length", slog.String("Input", ID))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "CountryID must be 2 Charakters of length",
 		})
@@ -1103,7 +1103,7 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid POT value", slog.Any("error", err), slog.String("POT", POTstr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Pot Value must be Integer",
 		})
@@ -1119,7 +1119,7 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 		result, err := DB.ExecContext(ctx, dbQuery, ID, Name, POT)
 		if err != nil {
 			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "error inserting into DB",
 			})
@@ -1167,7 +1167,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	ID, err := strconv.Atoi(IDstr)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", IDstr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "ID must be an Integer",
 		})
@@ -1179,7 +1179,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 
 	if len(country) != 2 {
 		Logger.ErrorContext(ctx, "CountryID can only be two charakters in length", slog.String("CountryID: ", country))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "CountryID can only be two characters in length",
 		})
@@ -1201,7 +1201,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "error inserting into DB",
 			})
@@ -1250,7 +1250,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	ID, err := strconv.Atoi(IDstr)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "ID must be an Integer",
 		})
@@ -1264,7 +1264,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 
 	if len(country) != 2 {
 		Logger.ErrorContext(ctx, "CountryID can only be two charakters in length", slog.String("CountryID: ", country))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "CountryID can only be two characters in length",
 		})
@@ -1278,7 +1278,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "error inserting into DB",
 			})
@@ -1344,7 +1344,7 @@ func AddInterpret(w http.ResponseWriter, r *http.Request) {
 
 		if err != nil {
 			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusBadGateway)
+			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{
 				"error": "error inserting into DB",
 			})
@@ -1394,7 +1394,7 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	songID, err := strconv.Atoi(songIDStr)
 	if err != nil {
 		Logger.ErrorContext(ctx, "invalid songID value", slog.Any("error", err), slog.String("songID", songIDStr))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Invalid songID value - must be an Integer",
 		})
@@ -1404,7 +1404,7 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	parsedPoints, err := strconv.Atoi(points)
 	if err != nil {
 		Logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", points))
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Invalid points value - must be an Integer",
 		})
@@ -1443,7 +1443,7 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err := g.Wait(); err != nil {
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Error querying DB",
 		})
@@ -1477,7 +1477,7 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	result, err := DB.ExecContext(ctx, dbQuery, totalPoints, songID)
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Failed to record vote",
 		})
@@ -1573,7 +1573,7 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 	rows, err := DB.QueryContext(ctx, "SELECT ID FROM Song ORDER BY ID")
 	if err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to query songs", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to query songs"})
 		return
 	}
@@ -1589,13 +1589,13 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rows.Err(); err != nil {
 		Logger.ErrorContext(ctx, "startContest: rows error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read songs"})
 		return
 	}
 
 	if len(ids) == 0 {
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": "No songs in database"})
 		return
 	}
@@ -1617,7 +1617,7 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := DB.ExecContext(ctx, "UPDATE Contest_Run SET IsActive = FALSE WHERE IsActive = TRUE"); err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to deactivate old runs", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to deactivate previous contest"})
 		return
 	}
@@ -1627,7 +1627,7 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 		string(orderJSON),
 	); err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to insert contest run", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to start contest"})
 		return
 	}
@@ -1668,14 +1668,14 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to query contest"})
 		return
 	}
 
 	var ids []int
 	if err := json.Unmarshal([]byte(orderJSON), &ids); err != nil {
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to parse song order"})
 		return
 	}
@@ -1694,7 +1694,7 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 	if _, err := DB.ExecContext(ctx,
 		"UPDATE Contest_Run SET CurrentIndex = ? WHERE ID = ?", nextIndex, runID,
 	); err != nil {
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to advance contest"})
 		return
 	}
@@ -1727,14 +1727,14 @@ func GetCurrentSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		Logger.ErrorContext(ctx, "getCurrentSong: db error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to query contest"})
 		return
 	}
 
 	var ids []int
 	if err := json.Unmarshal([]byte(orderJSON), &ids); err != nil {
-		w.WriteHeader(http.StatusNotAcceptable)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to parse song order"})
 		return
 	}
@@ -1781,7 +1781,7 @@ func GetCurrentSong(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		Logger.ErrorContext(ctx, "getCurrentSong: song query error", slog.Any("error", err))
-		w.WriteHeader(http.StatusBadGateway)
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to fetch song"})
 		return
 	}

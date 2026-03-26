@@ -110,8 +110,8 @@ func TestGetCountries_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.GetCountries(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -144,7 +144,7 @@ func TestGetCountryByName_ExistingID_Returns200(t *testing.T) {
 	}
 }
 
-func TestGetCountryByName_NonExistent_Returns406EmptyArray(t *testing.T) {
+func TestGetCountryByName_NonExistent_Returns422EmptyArray(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -160,12 +160,12 @@ func TestGetCountryByName_NonExistent_Returns406EmptyArray(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
-func TestGetCountryByName_DBError_Returns502(t *testing.T) {
+func TestGetCountryByName_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -181,7 +181,7 @@ func TestGetCountryByName_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }

@@ -23,7 +23,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "esc-voting-secret-key-chang
 
 API_BASE = os.environ.get("API_BASE_URL", "http://db-crud-api:8000")
 API_TIMEOUT = int(os.environ.get("API_TIMEOUT", "10"))
-ESC_CONVERTER_URL = os.environ.get("ESC_CONVERTER_URL", "http://public-vote-converter:8090")
+ESC_CONVERTER_URL = os.environ.get(
+    "ESC_CONVERTER_URL", "http://public-vote-converter:8090"
+)
 
 # ---------------------------------------------------------------------------
 # Telemetry — initialised immediately after the app object is created, before
@@ -85,7 +87,7 @@ def api_get_auth(endpoint, params=None):
             "backend auth GET failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 500, {"error": str(e)}
+        return 502, {"error": str(e)}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -108,7 +110,7 @@ def api_post(endpoint, params=None, cookies=None):
             "backend POST failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 500, {"error": str(e)}, {}
+        return 502, {"error": str(e)}, {}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -130,7 +132,7 @@ def api_delete(endpoint, params=None):
             "backend DELETE failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 500, {"error": str(e)}
+        return 502, {"error": str(e)}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -318,15 +320,17 @@ def api_results():
             song_id = song["songId"]
             esc_pts = song.get("escPoints", 0)
             jury_pts = jury_map.get(song_id, 0)
-            results.append({
-                "id": song_id,
-                "name": song.get("songName", ""),
-                "country": song.get("country", ""),
-                "countryId": song.get("countryId", ""),
-                "escPublicPts": esc_pts,
-                "juryPts": jury_pts,
-                "totalPts": esc_pts + jury_pts,
-            })
+            results.append(
+                {
+                    "id": song_id,
+                    "name": song.get("songName", ""),
+                    "country": song.get("country", ""),
+                    "countryId": song.get("countryId", ""),
+                    "escPublicPts": esc_pts,
+                    "juryPts": jury_pts,
+                    "totalPts": esc_pts + jury_pts,
+                }
+            )
 
     # Sort by combined total descending, assign rank.
     results.sort(key=lambda x: (-x["totalPts"], x["id"]))
@@ -345,16 +349,16 @@ def submit_vote():
     points = request.form.get("points", "1")
 
     if not song_id or not phone:
-        return jsonify({"error": "Song and phone number are required"}), 400
+        return jsonify({"error": "Song and phone number are required"}), 422
 
     try:
         points_int = int(points)
         if points_int < 1 or points_int > TOTAL_VOTE_POINTS:
             return jsonify(
                 {"error": f"Points must be between 1 and {TOTAL_VOTE_POINTS}"}
-            ), 400
+            ), 422
     except ValueError:
-        return jsonify({"error": "Points must be an integer"}), 400
+        return jsonify({"error": "Points must be an integer"}), 422
 
     # Forward the browser's vote_state cookie to the Go API
     browser_cookies = {}
@@ -438,7 +442,7 @@ def login():
         return redirect(url_for("jury_page"))
     else:
         flash("Invalid role.", "error")
-        return render_template("login.html"), 400
+        return render_template("login.html"), 422
 
 
 @app.route("/logout")
@@ -768,12 +772,12 @@ def jury_submit_vote():
     points = request.form.get("points")
 
     if not song_id or not points:
-        return jsonify({"error": "Song and points are required"}), 400
+        return jsonify({"error": "Song and points are required"}), 422
 
     try:
         points_int = int(points)
     except (ValueError, TypeError):
-        return jsonify({"error": "Invalid points value"}), 400
+        return jsonify({"error": "Invalid points value"}), 422
 
     # --- Cookie-based duplicate guard ---
     # Cookie format: { "songId": points, ... }
@@ -828,6 +832,16 @@ def jury_submit_vote():
 # ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
+
+
+@app.errorhandler(422)
+def unprocessable_entity(e):
+    app.logger.warning("422 unprocessable entity", extra={"path": request.path})
+    return render_template(
+        "error.html",
+        code=422,
+        message="Unprocessable Entity — the submitted data was invalid.",
+    ), 422
 
 
 @app.errorhandler(403)

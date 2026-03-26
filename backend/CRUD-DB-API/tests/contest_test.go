@@ -108,7 +108,7 @@ func TestStartContest_SongOrderIsPermutation(t *testing.T) {
 	}
 }
 
-func TestStartContest_NoSongs_Returns406(t *testing.T) {
+func TestStartContest_NoSongs_Returns422(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -123,8 +123,8 @@ func TestStartContest_NoSongs_Returns406(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.StartContest(rr, req)
 
-	if rr.Code != http.StatusNotAcceptable {
-		t.Errorf("expected 406, got %d", rr.Code)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Errorf("expected 422, got %d", rr.Code)
 	}
 }
 
@@ -138,7 +138,7 @@ func TestStartContest_InvalidToken_Returns403(t *testing.T) {
 	}
 }
 
-func TestStartContest_DBError_Returns502(t *testing.T) {
+func TestStartContest_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -152,8 +152,8 @@ func TestStartContest_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.StartContest(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }
 
@@ -389,7 +389,7 @@ func TestGetCurrentSong_SongNotFoundInDB_Returns404(t *testing.T) {
 	}
 }
 
-func TestGetCurrentSong_DBError_Returns502(t *testing.T) {
+func TestGetCurrentSong_DBError_Returns500(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
@@ -404,7 +404,7 @@ func TestGetCurrentSong_DBError_Returns502(t *testing.T) {
 	rr := httptest.NewRecorder()
 	server.GetCurrentSong(rr, req)
 
-	if rr.Code != http.StatusBadGateway {
-		t.Errorf("expected 502, got %d", rr.Code)
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("expected 500, got %d", rr.Code)
 	}
 }
