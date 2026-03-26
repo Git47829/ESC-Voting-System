@@ -1922,6 +1922,18 @@ func Run() {
 
 	handler := dbReadinessMiddleware(RateLimitingMiddleware(ObservabilityMiddleware(router)))
 
+	srv := &http.Server{
+		Addr:    ":8000",
+		Handler: handler,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			Logger.Error("Server failed", slog.String("error", err.Error()))
+			os.Exit(1)
+		}
+	}()
+
 	go func() {
 		conn, dbErr := connectToDatabase(loadLocalConfig())
 
@@ -1954,19 +1966,22 @@ func Run() {
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-quit
-		Logger.Info("shutdown signal recieved, closing database")
-		if DB != nil {
-			DB.Close()
-		}
-		os.Exit(0)
-	}()
+	<-quit
 
-	// Start Server
-	err := http.ListenAndServe(":8000", handler)
-	if err != nil {
-		Logger.Error("Server failed", slog.String("error", err.Error()))
-		fmt.Println("Error Starting the Server")
+	Logger.Info("shutdown singal recieved, draining connections...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("forced shutdown %v", err)
 	}
+
+	Logger.Info("closing database")
+	if DB != nil {
+		DB.Close()
+	}
+
+	log.Println("server exited cleanly")
+
 }
