@@ -51,8 +51,8 @@ func getEnvOrDefaultInt(key string, fallback int) int {
 var DB *sql.DB
 
 var (
-	maxDBAttempts  = 60
-	dbAttemptDelay = time.Second * 3
+	maxDBAttempts  = 40
+	dbAttemptDelay = time.Second * 10
 	dbReady        = make(chan struct{})
 )
 
@@ -98,7 +98,7 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 		}
 		log.Printf("Database connection attempt %d/%d failed: %s", attempt, maxDBAttempts, errMsg)
 		if attempt < maxDBAttempts {
-			time.Sleep(dbAttemptDelay * time.Duration(attempt))
+			time.Sleep(dbAttemptDelay)
 		}
 	}
 	return nil, fmt.Errorf("could not connect after %d attempts: %w", maxDBAttempts, err)
