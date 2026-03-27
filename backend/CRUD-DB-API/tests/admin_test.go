@@ -27,9 +27,10 @@ func badTokenURL(path string) string {
 // ---------------------------------------------------------------------------
 
 func TestAdminAuthenticate_CorrectToken_Returns202(t *testing.T) {
-	os.Setenv("adminPassword", "test-admin-pw")
+	value := os.Getenv("TESTADMINPW")
+	fullURL := "/admin/authenticate?Token=" + value
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/authenticate?Token=test-admin-pw", nil)
+	req := httptest.NewRequest(http.MethodGet, fullURL, nil)
 	rr := httptest.NewRecorder()
 	server.AdminLogin(rr, req)
 
