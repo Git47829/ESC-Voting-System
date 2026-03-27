@@ -174,7 +174,7 @@ func HashPassword(password string) (string, error) {
 	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	return fmt.Sprintf("%x", sum), nil
