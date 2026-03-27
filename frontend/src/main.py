@@ -26,6 +26,7 @@ API_TIMEOUT = int(os.environ.get("API_TIMEOUT", "10"))
 ESC_CONVERTER_URL = os.environ.get(
     "ESC_CONVERTER_URL", "http://public-vote-converter:8090"
 )
+EUROSTATS_URL = os.environ.get("EUROSTATS_URL", "http://eurostats:8880")
 
 # ---------------------------------------------------------------------------
 # Telemetry — initialised immediately after the app object is created, before
