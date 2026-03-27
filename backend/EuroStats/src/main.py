@@ -224,9 +224,6 @@ async def handle_vote(vote) -> None:
 # ---------------------------------------------------------------------------
 async def _run_vote_ingestor():
     while True:
-        try:
-            async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
-                await handle_vote(vote)
         except Exception as e:
             logger.error(f"Vote ingestor error, retrying in 5s: {e}")
             await asyncio.sleep(5)
