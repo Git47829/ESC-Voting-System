@@ -409,7 +409,11 @@ func TestAddInterpret_InvalidID_Returns400(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
-	os.Setenv("juryPassword1", "jury1")
+	h, err := server.HashPassword("jury1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("juryPassword1", h)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate?Token=jury1", nil)
 	rr := httptest.NewRecorder()
 	server.JuryLogin(rr, req)

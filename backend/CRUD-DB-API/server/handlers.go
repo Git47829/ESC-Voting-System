@@ -177,7 +177,7 @@ func HashPassword(password string) (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%x", sum), nil
+	return string(sum), nil
 }
 
 func CheckPassword(password, storedToken string) bool {

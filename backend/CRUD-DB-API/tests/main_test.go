@@ -16,10 +16,16 @@ func TestMain(m *testing.M) {
 	server.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	server.Tracer = otel.Tracer("test")
 
-	os.Setenv("adminPassword", "test-admin-pw")
-	os.Setenv("juryPassword1", "jury1")
-	os.Setenv("juryPassword2", "jury2")
-	os.Setenv("juryPassword3", "jury3")
+	adminHash, _ := server.HashPassword("test-admin-pw")
+	jury1Hash, _ := server.HashPassword("jury1")
+	jury2Hash, _ := server.HashPassword("jury2")
+	jury3Hash, _ := server.HashPassword("jury3")
+
+	os.Setenv("adminPassword", adminHash)
+	os.Setenv("juryPassword1", jury1Hash)
+	os.Setenv("juryPassword2", jury2Hash)
+	os.Setenv("juryPassword3", jury3Hash)
+	os.Setenv("TESTADMINPW", "test-admin-pw")
 	server.InitCookieSecret()
 
 	// globalVoteServer stays nil — NotifyVote() is a safe no-op when nil.
