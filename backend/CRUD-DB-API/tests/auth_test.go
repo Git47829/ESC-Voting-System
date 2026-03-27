@@ -6,12 +6,21 @@ import (
 	"crud-db-api/server"
 )
 
+func mustHash(t *testing.T, pw string) string {
+	t.Helper()
+	h, err := server.HashPassword(pw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h
+}
+
 // ---------------------------------------------------------------------------
 // CheckAccessAdmin
 // ---------------------------------------------------------------------------
 
 func TestCheckAccessAdmin_CorrectPassword(t *testing.T) {
-	t.Setenv("adminPassword", "secret123")
+	t.Setenv("adminPassword", mustHash(t, "secret123"))
 	ok, msg := server.CheckAccessAdmin("secret123")
 	if !ok {
 		t.Errorf("expected true, got false (msg: %s)", msg)
@@ -19,7 +28,7 @@ func TestCheckAccessAdmin_CorrectPassword(t *testing.T) {
 }
 
 func TestCheckAccessAdmin_WrongPassword(t *testing.T) {
-	t.Setenv("adminPassword", "secret123")
+	t.Setenv("adminPassword", mustHash(t, "secret123"))
 	ok, _ := server.CheckAccessAdmin("wrong")
 	if ok {
 		t.Error("expected false for wrong password")
@@ -27,7 +36,7 @@ func TestCheckAccessAdmin_WrongPassword(t *testing.T) {
 }
 
 func TestCheckAccessAdmin_EmptyToken(t *testing.T) {
-	t.Setenv("adminPassword", "secret123")
+	t.Setenv("adminPassword", mustHash(t, "secret123"))
 	ok, msg := server.CheckAccessAdmin("")
 	if ok {
 		t.Error("expected false for empty token")
@@ -50,9 +59,9 @@ func TestCheckAccessAdmin_EmptyEnvVar_AlwaysFails(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCheckAccessJury_Password1Accepted(t *testing.T) {
-	t.Setenv("juryPassword1", "jp1")
-	t.Setenv("juryPassword2", "jp2")
-	t.Setenv("juryPassword3", "jp3")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
 	ok, _ := server.CheckAccessJury("jp1")
 	if !ok {
 		t.Error("juryPassword1 should be accepted")
@@ -60,9 +69,9 @@ func TestCheckAccessJury_Password1Accepted(t *testing.T) {
 }
 
 func TestCheckAccessJury_Password2Accepted(t *testing.T) {
-	t.Setenv("juryPassword1", "jp1")
-	t.Setenv("juryPassword2", "jp2")
-	t.Setenv("juryPassword3", "jp3")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
 	ok, _ := server.CheckAccessJury("jp2")
 	if !ok {
 		t.Error("juryPassword2 should be accepted")
@@ -70,9 +79,9 @@ func TestCheckAccessJury_Password2Accepted(t *testing.T) {
 }
 
 func TestCheckAccessJury_Password3Accepted(t *testing.T) {
-	t.Setenv("juryPassword1", "jp1")
-	t.Setenv("juryPassword2", "jp2")
-	t.Setenv("juryPassword3", "jp3")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
 	ok, _ := server.CheckAccessJury("jp3")
 	if !ok {
 		t.Error("juryPassword3 should be accepted")
@@ -80,9 +89,9 @@ func TestCheckAccessJury_Password3Accepted(t *testing.T) {
 }
 
 func TestCheckAccessJury_WrongPassword(t *testing.T) {
-	t.Setenv("juryPassword1", "jp1")
-	t.Setenv("juryPassword2", "jp2")
-	t.Setenv("juryPassword3", "jp3")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
 	ok, _ := server.CheckAccessJury("notajurytoken")
 	if ok {
 		t.Error("wrong token should be rejected")
@@ -145,10 +154,12 @@ func TestCheckPhoneNum_EmptyString_ReturnsEmpty(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHashPassword_Deterministic(t *testing.T) {
-	h1, _ := server.HashPassword("mysecret")
-	h2, _ := server.HashPassword("mysecret")
-	if h1 != h2 {
-		t.Error("HashPassword should be deterministic")
+	h, err := server.HashPassword("mysecret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !server.CheckPassword("mysecret", h) {
+		t.Error("hashed password should verify correctly")
 	}
 }
 
@@ -161,13 +172,15 @@ func TestHashPassword_DifferentInputs_DifferentOutputs(t *testing.T) {
 }
 
 func TestCheckPassword_Match(t *testing.T) {
-	if !server.CheckPassword("password", "password") {
+	hash, _ := server.HashPassword("password")
+	if !server.CheckPassword("password", hash) {
 		t.Error("identical strings should match")
 	}
 }
 
 func TestCheckPassword_Mismatch(t *testing.T) {
-	if server.CheckPassword("password", "different") {
+	hash, _ := server.HashPassword("password")
+	if server.CheckPassword("different", hash) {
 		t.Error("different strings should not match")
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -24,6 +23,7 @@ import (
 	"go.opentelemetry.io/otel"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 
@@ -171,12 +171,18 @@ func CheckPhoneNum(num string) (string, error) {
 }
 
 func HashPassword(password string) (string, error) {
-	sum := sha256.Sum256([]byte(password))
-	return fmt.Sprintf("%x", sum), nil
+	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+
+	if err != nil {
+		return "", err
+	}
+
+	return string(sum), nil
 }
 
 func CheckPassword(password, storedToken string) bool {
-	return subtle.ConstantTimeCompare([]byte(password), []byte(storedToken)) == 1
+	err := bcrypt.CompareHashAndPassword([]byte(storedToken), []byte(password))
+	return err == nil
 }
 
 func CheckAccessAdmin(input string) (bool, string) {
