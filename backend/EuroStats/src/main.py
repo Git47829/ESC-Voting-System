@@ -223,15 +223,7 @@ async def handle_vote(vote) -> None:
 # Background task: single gRPC stream consumer for state accumulation
 # ---------------------------------------------------------------------------
 async def _run_vote_ingestor():
-    while True:
-        try:
-            async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
-                await handle_vote(vote)
-        except Exception as e:
-            logger.error(f"Vote ingestor error, retrying in 5s: {e}")
-            await asyncio.sleep(5)
-
-    # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
+        # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
     ts = (
         int(vote.timestamp.seconds)
         if hasattr(vote.timestamp, "seconds")
