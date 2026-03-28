@@ -41,6 +41,41 @@ type RateLimitConfig struct {
 
 var clients = make(map[string]*Client)
 
+type Countrys struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Pot  *int   `json:"pot"`
+}
+
+type Komponist struct {
+	ID      int `json:"id"`
+	vorname string
+	name    string
+}
+
+type CompleteESCEntryWithComposers struct {
+	SongID          int    `json:"songId"`
+	SongName        string `json:"songName"`
+	PublikumsPunkte int    `json:"publicVotes"`
+	JuryPunkte      int    `json:"juryVotes"`
+	GesamtPunkte    int    `json:"totalVotes"`
+
+	LandID   string `json:"countryId"`
+	LandName string `json:"countryName"`
+	LandPOT  *int   `json:"countryPot,omitempty"`
+
+	KuenstlerID      int    `json:"artistId"`
+	KuenstlerVorname string `json:"artistFirstName"`
+	KuenstlerName    string `json:"artistLastName"`
+	KuenstlerTyp     string `json:"artistType"`
+
+	Komponisten []Komponist `json:"composers"`
+
+	VotingID         int    `json:"votingId"`
+	VotingIsOpen     bool   `json:"votingIsOpen"`
+	VotingLastChange string `json:"votingLastChange"`
+}
+
 var (
 	rateLimitConfigs = map[string]RateLimitConfig{
 		"GET /health":          {RequestsPerSecond: 100, BurstSize: 100},
@@ -605,15 +640,9 @@ func GetCountries(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	type Country struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-		Pot  *int   `json:"pot"`
-	}
-
-	var countries []Country
+	var countries []Countrys
 	for rows.Next() {
-		var c Country
+		var c Countrys
 		var potValue sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.Name, &potValue); err != nil {
 			Logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
@@ -669,15 +698,9 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	type Country struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-		Pot  *int   `json:"pot"`
-	}
-
-	var countries []Country
+	var countries []Countrys
 	for rows.Next() {
-		var c Country
+		var c Countrys
 		var potValue sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.Name, &potValue); err != nil {
 			Logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
@@ -747,35 +770,6 @@ func HttpGetSongs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-
-	type Komponist struct {
-		ID      int `json:"id"`
-		vorname string
-		name    string
-	}
-
-	type CompleteESCEntryWithComposers struct {
-		SongID          int    `json:"songId"`
-		SongName        string `json:"songName"`
-		PublikumsPunkte int    `json:"publicVotes"`
-		JuryPunkte      int    `json:"juryVotes"`
-		GesamtPunkte    int    `json:"totalVotes"`
-
-		LandID   string `json:"countryId"`
-		LandName string `json:"countryName"`
-		LandPOT  *int   `json:"countryPot,omitempty"`
-
-		KuenstlerID      int    `json:"artistId"`
-		KuenstlerVorname string `json:"artistFirstName"`
-		KuenstlerName    string `json:"artistLastName"`
-		KuenstlerTyp     string `json:"artistType"`
-
-		Komponisten []Komponist `json:"composers"`
-
-		VotingID         int    `json:"votingId"`
-		VotingIsOpen     bool   `json:"votingIsOpen"`
-		VotingLastChange string `json:"votingLastChange"`
-	}
 
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
@@ -864,35 +858,6 @@ func GetSongByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-
-	type Komponist struct {
-		ID      int `json:"id"`
-		vorname string
-		name    string
-	}
-
-	type CompleteESCEntryWithComposers struct {
-		SongID          int    `json:"songId"`
-		SongName        string `json:"songName"`
-		PublikumsPunkte int    `json:"publicVotes"`
-		JuryPunkte      int    `json:"juryVotes"`
-		GesamtPunkte    int    `json:"totalVotes"`
-
-		LandID   string `json:"countryId"`
-		LandName string `json:"countryName"`
-		LandPOT  *int   `json:"countryPot,omitempty"`
-
-		KuenstlerID      int    `json:"artistId"`
-		KuenstlerVorname string `json:"artistFirstName"`
-		KuenstlerName    string `json:"artistLastName"`
-		KuenstlerTyp     string `json:"artistType"`
-
-		Komponisten []Komponist `json:"composers"`
-
-		VotingID         int    `json:"votingId"`
-		VotingIsOpen     bool   `json:"votingIsOpen"`
-		VotingLastChange string `json:"votingLastChange"`
-	}
 
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
