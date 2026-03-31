@@ -120,8 +120,8 @@ var SignedCookieSecret []byte
 
 // User AdminPassword als signing Secret
 func InitCookieSecret() {
-	if pw := os.Getenv("adminPassword"); pw != "" {
-		sum := sha256.Sum256([]byte("cookie-secret:" + pw))
+	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
+		sum := sha256.Sum256([]byte("cookie-secret:" + key))
 		SignedCookieSecret = sum[:]
 		return
 	}
