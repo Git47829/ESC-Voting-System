@@ -223,28 +223,31 @@ async def handle_vote(vote) -> None:
 # Background task: single gRPC stream consumer for state accumulation
 # ---------------------------------------------------------------------------
 async def _run_vote_ingestor():
+    global _vote_df
+    async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
         # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
-    ts = (
-        int(vote.timestamp.seconds)
-        if hasattr(vote.timestamp, "seconds")
-        else int(vote.timestamp)
-    )
+        ts = (
+            int(vote.timestamp.seconds)
+            if hasattr(vote.timestamp, "seconds")
+            else int(vote.timestamp)
+        )
 
-    new_row = pd.DataFrame(
-        [
-            {
-                "song_id": int(vote.song_id),
-                "song_name": vote.song_name,
-                "country_voted_for": vote.country_voted_for,
-                "country_voted_for_name": vote.country_voted_for_name,
-                "voter_country": vote.voter_country,
-                "voter_country_name": vote.voter_country_name,
-                "vote_count": int(vote.vote_count),
-                "timestamp": ts,
-            }
-        ]
-    )
-    _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
+        new_row = pd.DataFrame(
+            [
+                {
+                    "song_id": int(vote.song_id),
+                    "song_name": vote.song_name,
+                    "country_voted_for": vote.country_voted_for,
+                    "country_voted_for_name": vote.country_voted_for_name,
+                    "voter_country": vote.voter_country,
+                    "voter_country_name": vote.voter_country_name,
+                    "vote_count": int(vote.vote_count),
+                    "timestamp": ts,
+                }
+            ]
+        )
+        _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
+        await _compute_and_broadcast()
 
 
 # ---------------------------------------------------------------------------

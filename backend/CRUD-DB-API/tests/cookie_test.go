@@ -93,14 +93,14 @@ func TestEncodeCookieValue_DifferentStates_DifferentValues(t *testing.T) {
 }
 
 func TestInitCookieSecret_DerivedFromAdminPassword(t *testing.T) {
-	t.Setenv("adminPassword", "known-password")
+	t.Setenv("COOKIESIGNINGKEY", "known-password")
 	server.InitCookieSecret()
 
 	sum := sha256.Sum256([]byte("cookie-secret:known-password"))
 	expected := sum[:]
 
 	if !bytes.Equal(server.SignedCookieSecret, expected) {
-		t.Error("cookie secret should be sha256(cookie-secret:<adminPassword>)")
+		t.Error("cookie secret should be sha256(cookie-secret:<COOKIESIGNINGKEY>)")
 	}
 }
 
