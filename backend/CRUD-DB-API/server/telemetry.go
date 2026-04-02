@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otellog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
+	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -101,6 +102,7 @@ func initTracer() (*sdktrace.TracerProvider, error) {
 	)
 
 	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	return tp, nil
 }
 
@@ -227,7 +229,8 @@ func ObservabilityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
 
-		ctx, span := Tracer.Start(r.Context(), fmt.Sprintf("%s %s", r.Method, r.URL.Path))
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		ctx, span := Tracer.Start(ctx, fmt.Sprintf("%s %s", r.Method, r.URL.Path))
 		defer span.End()
 
 		span.SetAttributes(
