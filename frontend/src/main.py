@@ -488,7 +488,7 @@ def admin_dashboard():
 def admin_open_vote():
     """Open voting."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/open/", params={"Token": token})
+    status, data, _ = api_post("/admin/open", params={"Token": token})
     if status in (200, 202):
         app.logger.info("voting opened by admin")
         flash("Voting has been opened!", "success")
@@ -629,8 +629,8 @@ def admin_add_song():
 def admin_start_contest():
     """Shuffle all songs into a random order and start the contest."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/startContest/", params={"Token": token})
-    if status == 200:
+    status, data, _ = api_post("/admin/startContest", params={"Token": token})
+    if status in (200, 201):
         song_count = data.get("songCount", 0)
         app.logger.info("contest started", extra={"song_count": song_count})
         flash(f"Contest started! {song_count} songs queued in random order.", "success")
@@ -646,7 +646,7 @@ def admin_start_contest():
 def admin_advance_contest():
     """Advance the contest to the next song."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/advanceContest/", params={"Token": token})
+    status, data, _ = api_post("/admin/advanceContest", params={"Token": token})
     if status == 200:
         if data.get("finished"):
             flash("The contest has finished! All songs have performed.", "success")
@@ -665,7 +665,7 @@ def admin_advance_contest():
 @app.route("/now")
 def now_playing():
     """Running Now page — shows the current song with YouTube embed and voting."""
-    data = api_get("/contest/current/")
+    data = api_get("/contest/current")
     if data is None or "error" in data:
         return render_template(
             "now.html",

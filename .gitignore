@@ -37,5 +37,5 @@ __pycache__/
 backend/EuroStats/src/proto/
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.idea/
+.vscode/
