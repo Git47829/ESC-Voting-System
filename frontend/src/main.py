@@ -665,7 +665,7 @@ def admin_advance_contest():
 @app.route("/now")
 def now_playing():
     """Running Now page — shows the current song with YouTube embed and voting."""
-    data = api_get("/contest/current/")
+    data = api_get("/contest/current")
     if data is None or "error" in data:
         return render_template(
             "now.html",
