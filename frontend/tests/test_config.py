@@ -1,5 +1,5 @@
 """
-Smoke tests for frontend/src/main.py configuration.
+Smoke tests for frontend/src/config.py configuration.
 
 These tests use the stdlib ast module only, so they can run without
 installing any third-party dependencies.
@@ -8,7 +8,7 @@ installing any third-party dependencies.
 import ast
 import os
 
-MAIN_PY = os.path.join(os.path.dirname(__file__), "..", "src", "main.py")
+MAIN_PY = os.path.join(os.path.dirname(__file__), "..", "src", "config.py")
 
 
 def _module_assignments(source: str) -> dict:
@@ -53,7 +53,7 @@ def test_eurostats_url_defined():
         source = f.read()
     assignments = _module_assignments(source)
     assert "EUROSTATS_URL" in assignments, (
-        "EUROSTATS_URL is not defined at module level in main.py; "
+        "EUROSTATS_URL is not defined at module level in config.py; "
         "admin_reset_votes would raise NameError at runtime."
     )
 
