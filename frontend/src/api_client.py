@@ -47,7 +47,7 @@ def api_get_auth(endpoint, params=None):
             "backend auth GET failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 502, {"error": "Backend authentication service is currently unavailable. Please try again later."}
+        return status_code, {"error": "Backend authentication service is currently unavailable. Please try again later."}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -71,7 +71,6 @@ def api_post(endpoint, params=None, cookies=None):
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
         return 502, {"error": "Backend service is currently unavailable. Please try again later."}, {}
-        return 502, {"error": "Upstream service error"}, {}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
@@ -94,6 +93,5 @@ def api_delete(endpoint, params=None):
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
         return 502, {"error": "Backend service is currently unavailable. Please try again later."}
-        return 502, {"error": str(e)}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
