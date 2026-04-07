@@ -92,6 +92,7 @@ def api_delete(endpoint, params=None):
         current_app.logger.error(
             "backend DELETE failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
+        )
         return 502, {"error": "Backend service is currently unavailable. Please try again later."}
         return 502, {"error": str(e)}
     finally:
