@@ -117,4 +117,8 @@ def jury_submit_vote():
         )
         return response
 
+    # Ensure we don't accidentally expose non-JSON or sensitive details.
+    if not isinstance(data, dict):
+        data = {"error": "An internal error has occurred while submitting your vote."}
+
     return jsonify(data), status

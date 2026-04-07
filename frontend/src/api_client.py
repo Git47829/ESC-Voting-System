@@ -70,7 +70,8 @@ def api_post(endpoint, params=None, cookies=None):
             "backend POST failed",
             extra={"api.endpoint": endpoint, "error": str(e)},
         )
-        return 502, {"error": str(e)}, {}
+        # Return a generic error message to avoid exposing internal details.
+        return 502, {"error": "Upstream service error"}, {}
     finally:
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
