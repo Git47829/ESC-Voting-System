@@ -1,6 +1,7 @@
 import json
 import re
 from functools import wraps
+from urllib.parse import unquote
 
 from flask import abort, redirect, session, url_for
 
@@ -56,6 +57,16 @@ def decode_vote_state_cookie(cookie_value):
             return None
         payload_bytes = raw[:sep]
         return json.loads(payload_bytes.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def decode_consent_cookie(cookie_value):
+    """Decode the esc_cookie_consent JSON cookie written by frontend JS."""
+    if not cookie_value:
+        return None
+    try:
+        return json.loads(unquote(cookie_value))
     except Exception:
         return None
 

@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, jsonify, make_response, render_templat
 from api_client import api_get, api_post
 from config import API_TIMEOUT, ESC_CONVERTER_URL, TOTAL_VOTE_POINTS
 from telemetry import record_backend_call, record_vote
-from utils import decode_vote_state_cookie, normalize_youtube_url
+from utils import decode_consent_cookie, decode_vote_state_cookie, normalize_youtube_url
 
 public_bp = Blueprint("public", __name__)
 
@@ -121,6 +121,21 @@ def api_results():
 @public_bp.route("/vote/submit", methods=["POST"])
 def submit_vote():
     """Handle public vote form submission."""
+    consent_cookie = request.cookies.get("esc_cookie_consent")
+    consent = decode_consent_cookie(consent_cookie)
+    essential_consent = bool(
+        consent and consent.get("preferences", {}).get("essential")
+    )
+    if not essential_consent:
+        return (
+            jsonify(
+                {
+                    "error": "Please accept required vote cookies before submitting votes."
+                }
+            ),
+            403,
+        )
+
     song_id = request.form.get("songID")
     phone = request.form.get("phoneNum")
     own_country = request.form.get("ownCountry", "")

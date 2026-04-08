@@ -48,6 +48,14 @@ function refreshBudgetUI() {
 // Vote submission
 // ---------------------------------------------------------------------------
 async function submitVote() {
+    if (typeof window.hasVoteCookieConsent === "function" && !window.hasVoteCookieConsent()) {
+        showVoteResponse("error", "Please accept required vote cookies before submitting votes.");
+        if (typeof window.revealCookieBanner === "function") {
+            window.revealCookieBanner();
+        }
+        return;
+    }
+
     const phone      = (document.getElementById("phone-input")?.value || "").trim();
     const ownCountry = (document.getElementById("own-country-select")?.value || "");
     const btn        = document.getElementById("vote-btn");

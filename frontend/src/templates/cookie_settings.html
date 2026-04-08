@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Cookie Settings - ESC Voting System{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-10">
+	<div class="mb-8 text-center">
+		<h1 class="font-heading text-4xl sm:text-5xl font-extrabold text-esc-yellow tracking-tight mb-3">
+			Cookie Settings
+		</h1>
+		<p class="text-esc-muted text-sm max-w-2xl mx-auto">
+			Manage your cookie preferences and review which personal data is processed while using this voting service.
+		</p>
+	</div>
+
+	<div class="space-y-6">
+		<section class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6">
+			<h2 class="font-heading text-xl font-bold text-esc-text mb-2">Your Preferences</h2>
+			<p class="text-xs text-esc-muted mb-5">
+				Voting only works with required vote cookies. These cookies cannot be disabled or deleted from this settings page.
+			</p>
+
+			<form id="cookie-settings-form" class="space-y-4">
+				<div class="flex items-start justify-between gap-4 rounded-lg border border-esc-surface bg-esc-black/30 p-4">
+					<span>
+						<span class="block text-sm font-semibold text-esc-text">Required vote cookies</span>
+						<span class="mt-1 block text-xs text-esc-muted">
+							Required for vote_state handling, duplicate-vote protection and secure voting flow.
+						</span>
+					</span>
+					<span class="inline-flex items-center rounded-full border border-esc-yellow/40 bg-esc-yellow/10 px-2.5 py-1 text-[11px] font-medium text-esc-yellow">
+						Mandatory
+					</span>
+				</div>
+
+				<label class="flex items-start justify-between gap-4 rounded-lg border border-esc-surface bg-esc-black/30 p-4 cursor-pointer">
+					<span>
+						<span class="block text-sm font-semibold text-esc-text">Statistics cookies</span>
+						<span class="mt-1 block text-xs text-esc-muted">
+							Help improve the service by understanding app usage patterns.
+						</span>
+					</span>
+					<input
+						id="cookie-analytics"
+						name="analytics"
+						type="checkbox"
+						class="mt-1 h-4 w-4 rounded border-esc-muted bg-esc-surface text-esc-yellow focus:ring-esc-yellow"
+					/>
+				</label>
+
+				<div class="flex flex-wrap items-center gap-2 pt-2">
+					<button
+						type="submit"
+						class="rounded-lg bg-esc-yellow px-5 py-2.5 text-sm font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 transition-colors"
+					>
+						Save settings
+					</button>
+					<button
+						id="cookie-essential-only"
+						type="button"
+						class="rounded-lg border border-esc-surface bg-esc-surface px-5 py-2.5 text-sm font-medium text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors"
+					>
+						Essential only
+					</button>
+				</div>
+
+				<p id="cookie-settings-status" class="text-xs text-esc-muted" aria-live="polite"></p>
+			</form>
+		</section>
+
+		<section class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6">
+			<h2 class="font-heading text-xl font-bold text-esc-text mb-2">Processed Personal Data</h2>
+			<p class="text-xs text-esc-muted mb-4">
+				Depending on your actions, the following data can be processed:
+			</p>
+			<ul class="space-y-2 text-sm text-esc-text">
+				<li class="rounded-lg border border-esc-surface bg-esc-black/30 px-3 py-2">IP address</li>
+				<li class="rounded-lg border border-esc-surface bg-esc-black/30 px-3 py-2">Phone number</li>
+				<li class="rounded-lg border border-esc-surface bg-esc-black/30 px-3 py-2">Voting choice (entry voted for)</li>
+			</ul>
+		</section>
+
+		<section class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6">
+			<h2 class="font-heading text-xl font-bold text-esc-text mb-2">Consent Cookie Details</h2>
+			<p class="text-sm text-esc-muted">
+				Preferences are stored in the <code>esc_cookie_consent</code> cookie on your device. Optional statistics can be changed here, but required vote-cookie consent remains active for voting functionality.
+			</p>
+		</section>
+	</div>
+</div>
+{% endblock %}
+
