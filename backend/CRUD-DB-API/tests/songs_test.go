@@ -47,7 +47,7 @@ func TestGetSongs_Returns200WithPayload(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HttpGetSongs(rr, req)
+	server.HTTPGetSongs(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -77,7 +77,7 @@ func TestGetSongs_ResponseShape(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HttpGetSongs(rr, req)
+	server.HTTPGetSongs(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -108,7 +108,7 @@ func TestGetSongs_DBError_Returns502(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HttpGetSongs(rr, req)
+	server.HTTPGetSongs(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
