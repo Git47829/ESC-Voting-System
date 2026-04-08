@@ -47,12 +47,31 @@ function readConsentCookie() {
 
     try {
         const parsed = JSON.parse(decodeURIComponent(raw));
-        const analyticsEnabled = Boolean(
-            parsed &&
-                parsed.preferences &&
-                parsed.preferences.analytics,
+        if (!parsed || typeof parsed !== "object") {
+            return null;
+        }
+
+        const hasValidSchema = parsed.version === CONSENT_SCHEMA_VERSION;
+        const hasEssentialConsent = Boolean(
+            parsed.preferences && parsed.preferences.essential === true,
         );
-        return buildConsentPayload(analyticsEnabled);
+
+        if (!hasValidSchema || !hasEssentialConsent) {
+            return null;
+        }
+
+        const analyticsEnabled = Boolean(parsed.preferences.analytics);
+        return {
+            version: CONSENT_SCHEMA_VERSION,
+            consentGivenAt:
+                typeof parsed.consentGivenAt === "string"
+                    ? parsed.consentGivenAt
+                    : new Date().toISOString(),
+            preferences: {
+                essential: true,
+                analytics: analyticsEnabled,
+            },
+        };
     } catch (error) {
         return null;
     }
@@ -92,7 +111,7 @@ function initCookieBanner() {
     const allButton = document.getElementById("cookie-accept-all");
     const existingConsent = readConsentCookie();
 
-    if (existingConsent) {
+    if (existingConsent && hasVoteCookieConsent()) {
         banner.classList.add("hidden");
         return;
     }
