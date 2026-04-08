@@ -14,7 +14,6 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	query := r.URL.Query()
-	token := query.Get("Token")
 	points := query.Get("points")
 	songIDStr := query.Get("songID")
 
@@ -49,17 +48,12 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		authorized bool
 		authMsg    string
 		isOpen     bool
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
 
-	g.Go(func() error {
-		authorized, authMsg = CheckAccessJury(token)
-		return nil
-	})
 
 	g.Go(func() error {
 		err := DB.QueryRowContext(gctx, `SELECT isOpen FROM Voting_Status`).Scan(&isOpen)
@@ -77,14 +71,6 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !authorized {
-		Logger.WarnContext(ctx, "invalid jury login attempt", slog.String("token", token))
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": authMsg,
-		})
-		return
-	}
 
 	if !isOpen {
 		w.WriteHeader(http.StatusTooEarly)

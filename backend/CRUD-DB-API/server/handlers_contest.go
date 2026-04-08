@@ -12,14 +12,6 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	query := r.URL.Query()
-	token := query.Get("Token")
-	authenticated, msg := CheckAccessAdmin(token)
-	if !authenticated {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": msg})
-		return
-	}
 
 	rows, err := DB.QueryContext(ctx, "SELECT ID FROM Song ORDER BY ID")
 	if err != nil {
@@ -96,14 +88,6 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	query := r.URL.Query()
-	token := query.Get("Token")
-	authenticated, msg := CheckAccessAdmin(token)
-	if !authenticated {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": msg})
-		return
-	}
 
 	var (
 		runID        int

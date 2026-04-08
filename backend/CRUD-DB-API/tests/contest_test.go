@@ -131,7 +131,7 @@ func TestStartContest_NoSongs_Returns422(t *testing.T) {
 func TestStartContest_InvalidToken_Returns403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, badTokenURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	server.RequireAdmin(http.HandlerFunc(server.StartContest)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -250,7 +250,7 @@ func TestAdvanceContest_NoActiveContest_Returns404(t *testing.T) {
 func TestAdvanceContest_InvalidToken_Returns403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, badTokenURL("/admin/advanceContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.AdvanceContest(rr, req)
+	server.RequireAdmin(http.HandlerFunc(server.AdvanceContest)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)

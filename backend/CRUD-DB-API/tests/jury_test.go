@@ -135,7 +135,7 @@ func TestJuryVote_WrongToken_Returns403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/jury/vote/?Token=wrongtoken&songID=1&points=8", nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	server.RequireJury(http.HandlerFunc(server.JuryVote)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)

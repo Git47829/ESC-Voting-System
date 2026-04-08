@@ -22,6 +22,20 @@ func extractToken(r *http.Request) string {
 
 }
 
+func RequireJury(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		token := extractToken(r)
+		if ok, msg := CheckAccessJury(token); !ok {
+			Logger.Warn("Invalid Jury Login Attempt", slog.String("message", "Invalid Login Attempt"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": msg})
+			return
+		}
+		next.ServeHTTP(w,r)
+	})
+}
+
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
 		token := extractToken(r)
@@ -128,7 +142,7 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 	Logger.InfoContext(ctx, "New Admin Login", slog.String("message", "New Admin Login"))
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "authenticated",
 	})
@@ -138,24 +152,9 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
-
-	token := r.URL.Query().Get("Token")
-
-	authenticated, message := CheckAccessJury(token)
-
-	if authenticated {
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
-		})
-		return
-	}
-	if !authenticated {
-		Logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": message,
-		})
-		return
-	}
+	Logger.InfoContext(ctx, "New Jury Login", slog.String("message", "New Jury Login"))
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "authenticated",
+	})
 }
