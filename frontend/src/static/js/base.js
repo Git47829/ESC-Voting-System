@@ -39,6 +39,15 @@ function writeConsentCookie(payload) {
     );
 }
 
+function deleteConsentCookie() {
+    let cookie = `${CONSENT_COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax`;
+    if (window.location.protocol === "https:") {
+        cookie += "; Secure";
+    }
+    document.cookie = cookie;
+    document.dispatchEvent(new CustomEvent("esc:cookie-consent-deleted"));
+}
+
 function readConsentCookie() {
     const raw = getCookie(CONSENT_COOKIE_NAME);
     if (!raw) {
@@ -110,6 +119,8 @@ function initCookieSettingsPage() {
 
     const analyticsCheckbox = document.getElementById("cookie-analytics");
     const status = document.getElementById("cookie-settings-status");
+    const essentialOnlyButton = document.getElementById("cookie-essential-only");
+    const deleteConsentButton = document.getElementById("cookie-delete-consent");
     const existing = readConsentCookie();
 
     if (analyticsCheckbox && existing) {
@@ -128,6 +139,31 @@ function initCookieSettingsPage() {
             status.textContent = "Settings saved.";
         }
     });
+
+    if (essentialOnlyButton) {
+        essentialOnlyButton.addEventListener("click", function () {
+            if (analyticsCheckbox) {
+                analyticsCheckbox.checked = false;
+            }
+            writeConsentCookie(buildConsentPayload(false));
+            if (status) {
+                status.textContent = "Set to essential cookies only.";
+            }
+        });
+    }
+
+    if (deleteConsentButton) {
+        deleteConsentButton.addEventListener("click", function () {
+            deleteConsentCookie();
+            if (analyticsCheckbox) {
+                analyticsCheckbox.checked = false;
+            }
+            if (status) {
+                status.textContent =
+                    "Consent deleted. The banner will be shown again.";
+            }
+        });
+    }
 }
 
 initMobileMenu();
