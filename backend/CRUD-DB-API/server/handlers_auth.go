@@ -15,8 +15,8 @@ import (
 
 func extractToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")
-	if strings.HasPrefix(h, "Bearer") {
-		return strings.TrimPrefix(h, "Bearer")
+	if strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
 	}
 	return ""
 
