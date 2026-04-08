@@ -88,13 +88,21 @@ function initCookieBanner() {
     const essentialButton = document.getElementById("cookie-accept-essential");
     const allButton = document.getElementById("cookie-accept-all");
     const existingConsent = readConsentCookie();
+    const url = new URL(window.location.href);
+    const shouldForceShow = url.searchParams.get("show_banner") === "1";
 
-    if (existingConsent) {
+    if (existingConsent && !shouldForceShow) {
         banner.classList.add("hidden");
         return;
     }
 
     banner.classList.remove("hidden");
+
+    // Keep the URL clean after one-time forced display.
+    if (shouldForceShow) {
+        url.searchParams.delete("show_banner");
+        window.history.replaceState({}, "", url.toString());
+    }
 
     if (essentialButton) {
         essentialButton.addEventListener("click", function () {
