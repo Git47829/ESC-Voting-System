@@ -128,7 +128,7 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 	Logger.InfoContext(ctx, "New Admin Login", slog.String("message", "New Admin Login"))
-	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "authenticated",
 	})
@@ -139,8 +139,7 @@ func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	token := query.Get("Token")
+	token := extractToken(r)
 
 	authenticated, message := CheckAccessJury(token)
 
