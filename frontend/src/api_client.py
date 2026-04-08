@@ -52,15 +52,17 @@ def api_get_auth(endpoint, params=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_post(endpoint, params=None, cookies=None):
+def api_post(endpoint, params=None, cookies=None, token=None):
     """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = requests.post(
             f"{API_BASE}{endpoint}",
             params=params or {},
             cookies=cookies or {},
+            headers=headers,
             timeout=API_TIMEOUT,
         )
         status_code = resp.status_code
@@ -75,14 +77,16 @@ def api_post(endpoint, params=None, cookies=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_delete(endpoint, params=None):
+def api_delete(endpoint, params=None, token=None):
     """DELETE the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = requests.delete(
             f"{API_BASE}{endpoint}",
             params=params or {},
+            headers=headers,
             timeout=API_TIMEOUT,
         )
         status_code = resp.status_code

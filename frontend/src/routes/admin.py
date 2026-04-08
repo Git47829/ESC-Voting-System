@@ -35,7 +35,7 @@ def admin_dashboard():
 def admin_open_vote():
     """Open voting."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/open", params={"Token": token})
+    status, data, _ = api_post("/admin/open", token=token)
     if status in (200, 202):
         current_app.logger.info("voting opened by admin")
         flash("Voting has been opened!", "success")
@@ -49,7 +49,7 @@ def admin_open_vote():
 def admin_close_vote():
     """Close voting."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/close", params={"Token": token})
+    status, data, _ = api_post("/admin/close", token=token)
     if status in (200, 202):
         current_app.logger.info("voting closed by admin")
         flash("Voting has been closed!", "success")
@@ -65,7 +65,7 @@ def admin_close_vote():
 def admin_reset_votes():
     """Reset all votes to zero."""
     token = session.get("token", "")
-    status, data = api_delete("/admin/deleteVotes/", params={"Token": token})
+    status, data = api_delete("/admin/deleteVotes/", token=token)
     if status in (200, 202):
         try:
             requests.post(f"{EUROSTATS_URL}/reset", timeout=API_TIMEOUT)
@@ -93,7 +93,8 @@ def admin_add_country():
 
     status, data, _ = api_post(
         "/admin/addCountry/",
-        params={"Token": token, "ID": country_id, "Name": name, "Pot": pot},
+        params={"ID": country_id, "Name": name, "Pot": pot},
+        token=token,
     )
     if status in (200, 202):
         current_app.logger.info(
@@ -123,13 +124,13 @@ def admin_add_artist():
     status, data, _ = api_post(
         "/admin/addArtist/",
         params={
-            "Token": token,
             "ID": artist_id,
             "Name": last_name,
             "vorName": first_name,
             "typ": artist_type,
             "Land": country,
         },
+        token=token,
     )
     if status in (200, 202):
         current_app.logger.info(
@@ -156,11 +157,11 @@ def admin_add_song():
         flash("Song Name, Country, and Artist ID are required.", "error")
         return redirect(url_for("admin.admin_dashboard"))
 
-    params = {"Token": token, "ID": artist_id, "Name": song_name, "Land": country}
+    params = {"ID": artist_id, "Name": song_name, "Land": country}
     if youtube_url:
         params["YoutubeURL"] = youtube_url
 
-    status, data, _ = api_post("/admin/addSong/", params=params)
+    status, data, _ = api_post("/admin/addSong/", params=params, token=token)
     if status in (200, 202):
         current_app.logger.info(
             "song added", extra={"song_name": song_name, "country": country}
@@ -176,7 +177,7 @@ def admin_add_song():
 def admin_start_contest():
     """Shuffle all songs into a random order and start the contest."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/startContest", params={"Token": token})
+    status, data, _ = api_post("/admin/startContest", token=token)
     if status in (200, 201):
         song_count = data.get("songCount", 0)
         current_app.logger.info("contest started", extra={"song_count": song_count})
@@ -193,7 +194,7 @@ def admin_start_contest():
 def admin_advance_contest():
     """Advance the contest to the next song."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/advanceContest", params={"Token": token})
+    status, data, _ = api_post("/admin/advanceContest", token=token)
     if status == 200:
         if data.get("finished"):
             flash("The contest has finished! All songs have performed.", "success")

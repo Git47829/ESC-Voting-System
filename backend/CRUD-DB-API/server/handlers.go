@@ -113,7 +113,6 @@ type CookieVoteState struct {
 
 var SignedCookieSecret []byte
 
-// User AdminPassword als signing Secret
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
 		sum := sha256.Sum256([]byte("cookie-secret:" + key))
@@ -253,17 +252,17 @@ func Run() {
 	router.HandleFunc("GET /songs/", HttpGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
 	router.HandleFunc("POST /admin/open", OpenVote)
-	router.HandleFunc("POST /admin/close", CloseVote)
-	router.HandleFunc("DELETE /admin/deleteVotes/", DeleteVotes)
-	router.HandleFunc("POST /admin/addCountry/", AddCountry)
-	router.HandleFunc("POST /admin/addSong/", AddSong)
-	router.HandleFunc("POST /admin/addArtist/", AddArtist)
-	router.HandleFunc("POST /admin/addInterpret/", AddInterpret)
+	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
+	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))
+	router.Handle("POST /admin/addCountry/", RequireAdmin(http.HandlerFunc(AddCountry)))
+	router.Handle("POST /admin/addSong/", RequireAdmin(http.HandlerFunc(AddSong)))
+	router.Handle("POST /admin/addArtist/", RequireAdmin(http.HandlerFunc(AddArtist)))
+	router.Handle("POST /admin/addInterpret/", RequireAdmin(http.HandlerFunc(AddInterpret)))
 	router.HandleFunc("POST /jury/vote/", JuryVote)
-	router.HandleFunc("GET /admin/authenticate", AdminLogin)
+	router.Handle("GET /admin/authenticate", RequireAdmin(http.HandlerFunc(AdminLogin)))
 	router.HandleFunc("GET /jury/authenticate", JuryLogin)
-	router.HandleFunc("POST /admin/startContest", StartContest)
-	router.HandleFunc("POST /admin/advanceContest", AdvanceContest)
+	router.Handle("POST /admin/startContest", RequireAdmin(http.HandlerFunc(StartContest)))
+	router.Handle("POST /admin/advanceContest", RequireAdmin(http.HandlerFunc(AdvanceContest)))
 	router.HandleFunc("GET /contest/current", GetCurrentSong)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
