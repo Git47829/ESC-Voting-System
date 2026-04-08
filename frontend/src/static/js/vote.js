@@ -206,6 +206,14 @@ document.addEventListener('keydown', e => {
 document.getElementById('submit-form').addEventListener('submit', async function(e) {
     e.preventDefault();
 
+    if (typeof window.hasVoteCookieConsent === 'function' && !window.hasVoteCookieConsent()) {
+        showResponse('error', 'Please accept required vote cookies before submitting votes.');
+        if (typeof window.revealCookieBanner === 'function') {
+            window.revealCookieBanner();
+        }
+        return;
+    }
+
     const phone      = document.getElementById('phone-number').value.trim();
     const ownCountry = document.getElementById('own-country').value;
 

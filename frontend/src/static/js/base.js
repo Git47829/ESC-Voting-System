@@ -39,15 +39,6 @@ function writeConsentCookie(payload) {
     );
 }
 
-function deleteConsentCookie() {
-    let cookie = `${CONSENT_COOKIE_NAME}=; Max-Age=0; Path=/; SameSite=Lax`;
-    if (window.location.protocol === "https:") {
-        cookie += "; Secure";
-    }
-    document.cookie = cookie;
-    document.dispatchEvent(new CustomEvent("esc:cookie-consent-deleted"));
-}
-
 function readConsentCookie() {
     const raw = getCookie(CONSENT_COOKIE_NAME);
     if (!raw) {
@@ -64,6 +55,18 @@ function readConsentCookie() {
         return buildConsentPayload(analyticsEnabled);
     } catch (error) {
         return null;
+    }
+}
+
+function hasVoteCookieConsent() {
+    const consent = readConsentCookie();
+    return Boolean(consent && consent.preferences && consent.preferences.essential);
+}
+
+function revealCookieBanner() {
+    const banner = document.getElementById("cookie-banner");
+    if (banner) {
+        banner.classList.remove("hidden");
     }
 }
 
@@ -128,7 +131,6 @@ function initCookieSettingsPage() {
     const analyticsCheckbox = document.getElementById("cookie-analytics");
     const status = document.getElementById("cookie-settings-status");
     const essentialOnlyButton = document.getElementById("cookie-essential-only");
-    const deleteConsentButton = document.getElementById("cookie-delete-consent");
     const existing = readConsentCookie();
 
     if (analyticsCheckbox && existing) {
@@ -159,20 +161,10 @@ function initCookieSettingsPage() {
             }
         });
     }
-
-    if (deleteConsentButton) {
-        deleteConsentButton.addEventListener("click", function () {
-            deleteConsentCookie();
-            if (analyticsCheckbox) {
-                analyticsCheckbox.checked = false;
-            }
-            if (status) {
-                status.textContent =
-                    "Consent deleted. The banner will be shown again.";
-            }
-        });
-    }
 }
+
+window.hasVoteCookieConsent = hasVoteCookieConsent;
+window.revealCookieBanner = revealCookieBanner;
 
 initMobileMenu();
 initCookieBanner();

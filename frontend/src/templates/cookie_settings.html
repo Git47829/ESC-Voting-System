@@ -17,19 +17,19 @@
 		<section class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6">
 			<h2 class="font-heading text-xl font-bold text-esc-text mb-2">Your Preferences</h2>
 			<p class="text-xs text-esc-muted mb-5">
-				Essential cookies are required for core functionality and stay active.
+				Voting only works with required vote cookies. These cookies cannot be disabled or deleted from this settings page.
 			</p>
 
 			<form id="cookie-settings-form" class="space-y-4">
 				<div class="flex items-start justify-between gap-4 rounded-lg border border-esc-surface bg-esc-black/30 p-4">
 					<span>
-						<span class="block text-sm font-semibold text-esc-text">Essential cookies</span>
+						<span class="block text-sm font-semibold text-esc-text">Required vote cookies</span>
 						<span class="mt-1 block text-xs text-esc-muted">
-							Required for session handling, security, and vote state persistence.
+							Required for vote_state handling, duplicate-vote protection and secure voting flow.
 						</span>
 					</span>
 					<span class="inline-flex items-center rounded-full border border-esc-yellow/40 bg-esc-yellow/10 px-2.5 py-1 text-[11px] font-medium text-esc-yellow">
-						Always active
+						Mandatory
 					</span>
 				</div>
 
@@ -62,13 +62,6 @@
 					>
 						Essential only
 					</button>
-					<button
-						id="cookie-delete-consent"
-						type="button"
-						class="rounded-lg border border-red-500/40 bg-red-500/10 px-5 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors"
-					>
-						Delete consent
-					</button>
 				</div>
 
 				<p id="cookie-settings-status" class="text-xs text-esc-muted" aria-live="polite"></p>
@@ -90,7 +83,7 @@
 		<section class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6">
 			<h2 class="font-heading text-xl font-bold text-esc-text mb-2">Consent Cookie Details</h2>
 			<p class="text-sm text-esc-muted">
-				Preferences are stored in the <code>esc_cookie_consent</code> cookie on your device. You can change or delete your consent on this page at any time.
+				Preferences are stored in the <code>esc_cookie_consent</code> cookie on your device. Optional statistics can be changed here, but required vote-cookie consent remains active for voting functionality.
 			</p>
 		</section>
 	</div>
