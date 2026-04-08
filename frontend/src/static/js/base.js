@@ -82,6 +82,11 @@ function hasVoteCookieConsent() {
     return Boolean(consent && consent.preferences && consent.preferences.essential);
 }
 
+function hasStatisticsCookieConsent() {
+    const consent = readConsentCookie();
+    return Boolean(consent && consent.preferences && consent.preferences.analytics);
+}
+
 function revealCookieBanner() {
     const banner = document.getElementById("cookie-banner");
     if (banner) {
@@ -111,7 +116,12 @@ function initCookieBanner() {
     const allButton = document.getElementById("cookie-accept-all");
     const existingConsent = readConsentCookie();
 
-    if (existingConsent && hasVoteCookieConsent()) {
+    // Keep showing the banner until statistics cookies are explicitly accepted.
+    if (
+        existingConsent &&
+        hasVoteCookieConsent() &&
+        hasStatisticsCookieConsent()
+    ) {
         banner.classList.add("hidden");
         return;
     }
