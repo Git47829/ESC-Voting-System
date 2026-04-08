@@ -23,6 +23,7 @@ The frontend is not exposed directly. All traffic is routed through the Caddy re
 | `https://<host>/` | Main voting UI |
 | `https://<host>/now` | Running Now — live contest stage |
 | `https://<host>/results` | Live results page |
+| `https://<host>/cookies` | Cookie settings and data processing info |
 | `https://<host>/login` | Login page |
 | `https://<host>/admin` | Admin dashboard |
 | `https://<host>/jury` | Jury voting page |
@@ -36,6 +37,7 @@ Caddy handles TLS termination using its internal CA. See the [Caddy README](../C
 | `/`                      | Vote              | Public      | Country cards grid; point stepper per song; bulk submit via modal                  |
 | `/now`                   | Running Now       | Public      | Current contest song with YouTube embed, progress bar, and inline voting panel     |
 | `/results`               | Live Results      | Public      | Horizontal bar chart, auto-refreshes every 10 s                                    |
+| `/cookies`               | Cookie Settings   | Public      | Manage cookie consent and review processed data categories                          |
 | `/login`                 | Login             | Public      | Token + role selector; redirects to `/admin` or `/jury`                            |
 | `/admin`                 | Admin Dashboard   | Admin token | Toggle voting, reset votes, start/advance contest, add country / artist / song     |
 | `/jury`                  | Jury Vote         | Jury token  | Eurovision-style point selector (1–8, 10, 12)                                      |
@@ -88,6 +90,14 @@ Supported input formats:
 - **Gunicorn** — 2 workers, 4 threads, `--preload` (production server)
 - **requests** library for backend API communication
 - **OpenTelemetry** — distributed tracing + custom metrics via `telemetry.py`
+
+## Cookie Consent (GDPR-Oriented)
+
+- A global cookie banner is rendered from `templates/base.html`.
+- Consent is stored client-side in the `esc_cookie_consent` cookie (JSON payload, 180 days, `SameSite=Lax`, `Secure` on HTTPS).
+- Essential cookies remain active by default; optional statistics cookies require explicit opt-in.
+- Users can revise their preferences at any time via `/cookies`.
+- The cookie settings page explicitly lists processed personal data categories: IP address, phone number, and voting choice.
 
 ## Project Structure
 
@@ -153,6 +163,7 @@ All backend calls go directly to `db-crud-api:8000` over the internal Docker `fr
 |--------|-----------------------------|--------------------------|-------------|-------------------------------------------------------|
 | `GET`  | `/`                         | `vote_page`              | Public      | Render the vote page with all songs                   |
 | `GET`  | `/results`                  | `results_page`           | Public      | Render the results page                               |
+| `GET`  | `/cookies`                  | `cookie_settings_page`   | Public      | Render cookie settings + processed data information   |
 | `GET`  | `/api/results`              | `api_results`            | Public      | JSON vote totals (polled by results page)             |
 | `POST` | `/vote/submit`              | `submit_vote`            | Public      | Submit a public vote; forwards cookie to/from backend |
 | `GET`  | `/now`                      | `now_playing`            | Public      | Render the Running Now page                           |

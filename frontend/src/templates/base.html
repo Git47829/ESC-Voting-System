@@ -313,8 +313,56 @@
                 <p class="text-xs text-esc-muted">
                     ESC Voting System &middot; Built with 🎶
                 </p>
+                <p class="mt-2 text-xs">
+                    <a
+                        href="/cookies"
+                        class="text-esc-muted hover:text-esc-yellow transition-colors"
+                    >
+                        Cookie settings
+                    </a>
+                </p>
             </div>
         </footer>
+
+        <div
+            id="cookie-banner"
+            class="hidden fixed bottom-4 left-4 right-4 z-[60]"
+            role="dialog"
+            aria-live="polite"
+            aria-label="Cookie notice"
+        >
+            <div
+                class="mx-auto max-w-4xl rounded-2xl border border-esc-surface bg-esc-black/95 p-4 sm:p-5 shadow-2xl"
+            >
+                <p class="text-sm text-esc-text">
+                    We use essential cookies to provide core features. Optional
+                    statistics cookies are only used with your consent.
+                </p>
+                <p class="mt-2 text-xs text-esc-muted">
+                    Processed data may include IP address, phone number and your
+                    voting choice.
+                    <a href="/cookies" class="text-esc-yellow hover:underline"
+                        >Manage details and settings</a
+                    >
+                </p>
+                <div class="mt-4 flex flex-wrap gap-2">
+                    <button
+                        id="cookie-accept-essential"
+                        type="button"
+                        class="rounded-lg border border-esc-surface bg-esc-surface px-4 py-2 text-xs font-medium text-esc-text hover:border-esc-yellow/40 hover:text-esc-yellow transition-colors"
+                    >
+                        Essential only
+                    </button>
+                    <button
+                        id="cookie-accept-all"
+                        type="button"
+                        class="rounded-lg bg-esc-yellow px-4 py-2 text-xs font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 transition-colors"
+                    >
+                        Accept all
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <script src="{{ url_for('static', filename='js/base.js') }}"></script>
 

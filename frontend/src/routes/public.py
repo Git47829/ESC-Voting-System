@@ -59,6 +59,12 @@ def stats_page():
     return render_template("stats.html")
 
 
+@public_bp.route("/cookies")
+def cookie_settings_page():
+    """Cookie settings and processing information page."""
+    return render_template("cookie_settings.html")
+
+
 @public_bp.route("/api/results")
 def api_results():
     """Combined jury + ESC-converted public ranking, computed on-the-fly."""
