@@ -30,13 +30,13 @@ func badTokenReq(method, path string) *http.Request {
 // AdminLogin
 // ---------------------------------------------------------------------------
 
-func TestAdminAuthenticate_CorrectToken_Returns200(t *testing.T) {
+func TestAdminAuthenticate_CorrectToken_Returns202(t *testing.T) {
 	req := adminReq(http.MethodGet, "/admin/authenticate")
 	rr := httptest.NewRecorder()
 	server.RequireAdmin(http.HandlerFunc(server.AdminLogin)).ServeHTTP(rr, req)
 
-	if rr.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", rr.Code)
+	if rr.Code != http.StatusAccepted {
+		t.Errorf("expected 202, got %d", rr.Code)
 	}
 }
 
@@ -392,7 +392,7 @@ func TestAddInterpret_InvalidID_Returns400(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// JuryLogin (still reads token from query param)
+// JuryLogin (auth is handled by RequireJury middleware via Bearer header)
 // ---------------------------------------------------------------------------
 
 func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
@@ -401,9 +401,10 @@ func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("juryPassword1", h)
-	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate?Token=jury1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
+	req.Header.Set("Authorization", "Bearer jury1")
 	rr := httptest.NewRecorder()
-	server.JuryLogin(rr, req)
+	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d", rr.Code)
@@ -411,9 +412,20 @@ func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
 }
 
 func TestJuryAuthenticate_WrongToken_Returns403(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate?Token=notjurytoken", nil)
+	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
+	req.Header.Set("Authorization", "Bearer notjurytoken")
 	rr := httptest.NewRecorder()
-	server.JuryLogin(rr, req)
+	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
+	}
+}
+
+func TestJuryAuthenticate_NoToken_Returns403(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
+	rr := httptest.NewRecorder()
+	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
