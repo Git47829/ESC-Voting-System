@@ -26,17 +26,22 @@ def api_get(endpoint):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_get_auth(endpoint, params=None):
-    """GET the backend API with query params, returning (status_code, json_body).
+def api_get_auth(endpoint, token=None, params=None):
+    """GET the backend API with Bearer token header, returning (status_code, json_body).
 
     Unlike api_get this never raises on non-2xx responses, making it suitable
     for authentication endpoints where the status code carries meaning.
+
+    `params` are passed as URL query parameters in addition to any already
+    embedded in `endpoint`.
     """
     t0 = time.perf_counter()
     status_code = 500
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = requests.get(
             f"{API_BASE}{endpoint}",
+            headers=headers,
             params=params or {},
             timeout=API_TIMEOUT,
         )
@@ -52,15 +57,17 @@ def api_get_auth(endpoint, params=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_post(endpoint, params=None, cookies=None):
+def api_post(endpoint, params=None, cookies=None, token=None):
     """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = requests.post(
             f"{API_BASE}{endpoint}",
             params=params or {},
             cookies=cookies or {},
+            headers=headers,
             timeout=API_TIMEOUT,
         )
         status_code = resp.status_code
@@ -75,14 +82,16 @@ def api_post(endpoint, params=None, cookies=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_delete(endpoint, params=None):
+def api_delete(endpoint, params=None, token=None):
     """DELETE the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     try:
         resp = requests.delete(
             f"{API_BASE}{endpoint}",
             params=params or {},
+            headers=headers,
             timeout=API_TIMEOUT,
         )
         status_code = resp.status_code

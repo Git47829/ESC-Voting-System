@@ -113,7 +113,7 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func HttpGetSongs(w http.ResponseWriter, r *http.Request) {
+func HTTPGetSongs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
@@ -159,23 +159,23 @@ func HttpGetSongs(w http.ResponseWriter, r *http.Request) {
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
 		var c CompleteESCEntryWithComposers
-		var komponentID sql.NullInt64
-		var komponentVorname sql.NullString
-		var komponentName sql.NullString
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID,
-			&c.LandName, &c.LandPOT, &c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID,
-			&komponentVorname, &komponentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
+		var componentID sql.NullInt64
+		var componentFirstName sql.NullString
+		var componentName sql.NullString
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublicPoints, &c.JuryPoints, &c.TotalPoints, &c.CountryID,
+			&c.CountryName, &c.CountryPOT, &c.ArtistID, &c.ArtistFirstName, &c.ArtistName, &c.ArtistType, &componentID,
+			&componentFirstName, &componentName, &c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
 
 			Logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
 		}
-		if komponentID.Valid {
-			komponent := Komponist{
-				ID:      int(komponentID.Int64),
-				vorname: komponentVorname.String,
-				name:    komponentName.String,
+		if componentID.Valid {
+			component := Composer{
+				ID:      int(componentID.Int64),
+				firstName: componentFirstName.String,
+				name:    componentName.String,
 			}
-			c.Komponisten = append(c.Komponisten, komponent)
+			c.Composer = append(c.Composer, component)
 		}
 		song = append(song, c)
 	}
@@ -247,23 +247,23 @@ func GetSongByID(w http.ResponseWriter, r *http.Request) {
 	var song []CompleteESCEntryWithComposers
 	for rows.Next() {
 		var c CompleteESCEntryWithComposers
-		var komponentID sql.NullInt64
-		var komponentVorname sql.NullString
-		var komponentName sql.NullString
-		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublikumsPunkte, &c.JuryPunkte, &c.GesamtPunkte, &c.LandID, &c.LandName, &c.LandPOT,
-			&c.KuenstlerID, &c.KuenstlerVorname, &c.KuenstlerName, &c.KuenstlerTyp, &komponentID, &komponentVorname, &komponentName,
+		var componentID sql.NullInt64
+		var componentFirstName sql.NullString
+		var componentName sql.NullString
+		if err := rows.Scan(&c.SongID, &c.SongName, &c.PublicPoints, &c.JuryPoints, &c.TotalPoints, &c.CountryID, &c.CountryName, &c.CountryPOT,
+			&c.ArtistID, &c.ArtistFirstName, &c.ArtistName, &c.ArtistType, &componentID, &componentFirstName, &componentName,
 			&c.VotingID, &c.VotingIsOpen, &c.VotingLastChange); err != nil {
 
 			Logger.ErrorContext(ctx, "failed to scan row", slog.Any("error", err))
 			continue
 		}
-		if komponentID.Valid {
-			komponent := Komponist{
-				ID:      int(komponentID.Int64),
-				vorname: komponentVorname.String,
-				name:    komponentName.String,
+		if componentID.Valid {
+			component := Composer{
+				ID:      int(componentID.Int64),
+				firstName: componentFirstName.String,
+				name:    componentName.String,
 			}
-			c.Komponisten = append(c.Komponisten, komponent)
+			c.Composer = append(c.Composer, component)
 		}
 		song = append(song, c)
 	}

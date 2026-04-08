@@ -47,50 +47,14 @@ function readConsentCookie() {
 
     try {
         const parsed = JSON.parse(decodeURIComponent(raw));
-        if (!parsed || typeof parsed !== "object") {
-            return null;
-        }
-
-        const hasValidSchema = parsed.version === CONSENT_SCHEMA_VERSION;
-        const hasEssentialConsent = Boolean(
-            parsed.preferences && parsed.preferences.essential === true,
+        const analyticsEnabled = Boolean(
+            parsed &&
+                parsed.preferences &&
+                parsed.preferences.analytics,
         );
-
-        if (!hasValidSchema || !hasEssentialConsent) {
-            return null;
-        }
-
-        const analyticsEnabled = Boolean(parsed.preferences.analytics);
-        return {
-            version: CONSENT_SCHEMA_VERSION,
-            consentGivenAt:
-                typeof parsed.consentGivenAt === "string"
-                    ? parsed.consentGivenAt
-                    : new Date().toISOString(),
-            preferences: {
-                essential: true,
-                analytics: analyticsEnabled,
-            },
-        };
+        return buildConsentPayload(analyticsEnabled);
     } catch (error) {
         return null;
-    }
-}
-
-function hasVoteCookieConsent() {
-    const consent = readConsentCookie();
-    return Boolean(consent && consent.preferences && consent.preferences.essential);
-}
-
-function hasStatisticsCookieConsent() {
-    const consent = readConsentCookie();
-    return Boolean(consent && consent.preferences && consent.preferences.analytics);
-}
-
-function revealCookieBanner() {
-    const banner = document.getElementById("cookie-banner");
-    if (banner) {
-        banner.classList.remove("hidden");
     }
 }
 
@@ -116,18 +80,12 @@ function initCookieBanner() {
     const allButton = document.getElementById("cookie-accept-all");
     const existingConsent = readConsentCookie();
 
-    // Keep showing the banner until statistics cookies are explicitly accepted.
-    if (
-        existingConsent &&
-        hasVoteCookieConsent() &&
-        hasStatisticsCookieConsent()
-    ) {
+    if (existingConsent) {
         banner.classList.add("hidden");
         return;
     }
 
     banner.classList.remove("hidden");
-
 
     if (essentialButton) {
         essentialButton.addEventListener("click", function () {
@@ -152,7 +110,6 @@ function initCookieSettingsPage() {
 
     const analyticsCheckbox = document.getElementById("cookie-analytics");
     const status = document.getElementById("cookie-settings-status");
-    const essentialOnlyButton = document.getElementById("cookie-essential-only");
     const existing = readConsentCookie();
 
     if (analyticsCheckbox && existing) {
@@ -171,22 +128,7 @@ function initCookieSettingsPage() {
             status.textContent = "Settings saved.";
         }
     });
-
-    if (essentialOnlyButton) {
-        essentialOnlyButton.addEventListener("click", function () {
-            if (analyticsCheckbox) {
-                analyticsCheckbox.checked = false;
-            }
-            writeConsentCookie(buildConsentPayload(false));
-            if (status) {
-                status.textContent = "Set to essential cookies only.";
-            }
-        });
-    }
 }
-
-window.hasVoteCookieConsent = hasVoteCookieConsent;
-window.revealCookieBanner = revealCookieBanner;
 
 initMobileMenu();
 initCookieBanner();

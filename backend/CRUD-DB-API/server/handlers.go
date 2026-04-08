@@ -27,6 +27,7 @@ import (
 
 type Client struct {
 	limiter *rate.Limiter
+	lastSeen time.Time
 }
 
 type RateLimitConfig struct {
@@ -42,29 +43,29 @@ type Countrys struct {
 	Pot  *int   `json:"pot"`
 }
 
-type Komponist struct {
+type Composer struct {
 	ID      int `json:"id"`
-	vorname string
+	firstName string
 	name    string
 }
 
 type CompleteESCEntryWithComposers struct {
 	SongID          int    `json:"songId"`
 	SongName        string `json:"songName"`
-	PublikumsPunkte int    `json:"publicVotes"`
-	JuryPunkte      int    `json:"juryVotes"`
-	GesamtPunkte    int    `json:"totalVotes"`
+	PublicPoints int    `json:"publicVotes"`
+	JuryPoints      int    `json:"juryVotes"`
+	TotalPoints    int    `json:"totalVotes"`
 
-	LandID   string `json:"countryId"`
-	LandName string `json:"countryName"`
-	LandPOT  *int   `json:"countryPot,omitempty"`
+	CountryID   string `json:"countryId"`
+	CountryName string `json:"countryName"`
+	CountryPOT  *int   `json:"countryPot,omitempty"`
 
-	KuenstlerID      int    `json:"artistId"`
-	KuenstlerVorname string `json:"artistFirstName"`
-	KuenstlerName    string `json:"artistLastName"`
-	KuenstlerTyp     string `json:"artistType"`
+	ArtistID      int    `json:"artistId"`
+	ArtistFirstName string `json:"artistFirstName"`
+	ArtistName    string `json:"artistLastName"`
+	ArtistType     string `json:"artistType"`
 
-	Komponisten []Komponist `json:"composers"`
+	Composer []Composer `json:"composers"`
 
 	VotingID         int    `json:"votingId"`
 	VotingIsOpen     bool   `json:"votingIsOpen"`
@@ -113,7 +114,19 @@ type CookieVoteState struct {
 
 var SignedCookieSecret []byte
 
-// User AdminPassword als signing Secret
+func cleanupClients() {
+	ticker := time.NewTicker(5 * time.Minute)
+	for range ticker.C {
+		mu.Lock()
+		for key, c := range clients {
+			if time.Since(c.lastSeen) > 10*time.Minute {
+				delete(clients, key)
+			}
+		}
+		mu.Unlock()
+	}
+}
+
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
 		sum := sha256.Sum256([]byte("cookie-secret:" + key))
@@ -239,6 +252,8 @@ func Run() {
 		}()
 	}
 
+	go cleanupClients()
+
 	Logger = slog.New(newOtelSlogHandler(baseHandler))
 	slog.SetDefault(Logger)
 
@@ -250,20 +265,20 @@ func Run() {
 	router.HandleFunc("POST /vote/", Vote)
 	router.HandleFunc("GET /countries/", GetCountries)
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
-	router.HandleFunc("GET /songs/", HttpGetSongs)
+	router.HandleFunc("GET /songs/", HTTPGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
 	router.HandleFunc("POST /admin/open", OpenVote)
-	router.HandleFunc("POST /admin/close", CloseVote)
-	router.HandleFunc("DELETE /admin/deleteVotes/", DeleteVotes)
-	router.HandleFunc("POST /admin/addCountry/", AddCountry)
-	router.HandleFunc("POST /admin/addSong/", AddSong)
-	router.HandleFunc("POST /admin/addArtist/", AddArtist)
-	router.HandleFunc("POST /admin/addInterpret/", AddInterpret)
+	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
+	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))
+	router.Handle("POST /admin/addCountry/", RequireAdmin(http.HandlerFunc(AddCountry)))
+	router.Handle("POST /admin/addSong/", RequireAdmin(http.HandlerFunc(AddSong)))
+	router.Handle("POST /admin/addArtist/", RequireAdmin(http.HandlerFunc(AddArtist)))
+	router.Handle("POST /admin/addInterpret/", RequireAdmin(http.HandlerFunc(AddInterpret)))
 	router.HandleFunc("POST /jury/vote/", JuryVote)
-	router.HandleFunc("GET /admin/authenticate", AdminLogin)
+	router.Handle("GET /admin/authenticate", RequireAdmin(http.HandlerFunc(AdminLogin)))
 	router.HandleFunc("GET /jury/authenticate", JuryLogin)
-	router.HandleFunc("POST /admin/startContest", StartContest)
-	router.HandleFunc("POST /admin/advanceContest", AdvanceContest)
+	router.Handle("POST /admin/startContest", RequireAdmin(http.HandlerFunc(StartContest)))
+	router.Handle("POST /admin/advanceContest", RequireAdmin(http.HandlerFunc(AdvanceContest)))
 	router.HandleFunc("GET /contest/current", GetCurrentSong)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
