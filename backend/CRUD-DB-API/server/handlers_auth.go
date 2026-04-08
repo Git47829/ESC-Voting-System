@@ -22,6 +22,20 @@ func extractToken(r *http.Request) string {
 
 }
 
+func RequireJury(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		token := extractToken(r)
+		if ok, msg := CheckAccessJury(token); !ok {
+			Logger.Warn("Invalid Jury Login Attempt", slog.String("message", "Invalid Login Attempt"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": msg})
+			return
+		}
+		next.ServeHTTP(w,r)
+	})
+}
+
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
 		token := extractToken(r)
