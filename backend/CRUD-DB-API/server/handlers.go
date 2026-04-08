@@ -27,6 +27,7 @@ import (
 
 type Client struct {
 	limiter *rate.Limiter
+	lastSeen time.Time
 }
 
 type RateLimitConfig struct {
@@ -42,29 +43,29 @@ type Countrys struct {
 	Pot  *int   `json:"pot"`
 }
 
-type Komponist struct {
+type Composer struct {
 	ID      int `json:"id"`
-	vorname string
+	firstName string
 	name    string
 }
 
 type CompleteESCEntryWithComposers struct {
 	SongID          int    `json:"songId"`
 	SongName        string `json:"songName"`
-	PublikumsPunkte int    `json:"publicVotes"`
-	JuryPunkte      int    `json:"juryVotes"`
-	GesamtPunkte    int    `json:"totalVotes"`
+	PublicPoints int    `json:"publicVotes"`
+	JuryPoints      int    `json:"juryVotes"`
+	TotalPoints    int    `json:"totalVotes"`
 
-	LandID   string `json:"countryId"`
-	LandName string `json:"countryName"`
-	LandPOT  *int   `json:"countryPot,omitempty"`
+	CountryID   string `json:"countryId"`
+	CountryName string `json:"countryName"`
+	CountryPOT  *int   `json:"countryPot,omitempty"`
 
-	KuenstlerID      int    `json:"artistId"`
-	KuenstlerVorname string `json:"artistFirstName"`
-	KuenstlerName    string `json:"artistLastName"`
-	KuenstlerTyp     string `json:"artistType"`
+	ArtistID      int    `json:"artistId"`
+	ArtistFirstName string `json:"artistFirstName"`
+	ArtistName    string `json:"artistLastName"`
+	ArtistType     string `json:"artistType"`
 
-	Komponisten []Komponist `json:"composers"`
+	Composer []Composer `json:"composers"`
 
 	VotingID         int    `json:"votingId"`
 	VotingIsOpen     bool   `json:"votingIsOpen"`
@@ -112,6 +113,19 @@ type CookieVoteState struct {
 }
 
 var SignedCookieSecret []byte
+
+func cleanupClients() {
+	ticker := time.NewTicker(5 * time.Minute)
+	for range ticker.C {
+		mu.Lock()
+		for key, c := range clients {
+			if time.Since(c.lastSeen) > 10*time.Minute {
+				delete(clients, key)
+			}
+		}
+		mu.Unlock()
+	}
+}
 
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
@@ -238,6 +252,8 @@ func Run() {
 		}()
 	}
 
+	go cleanupClients()
+
 	Logger = slog.New(newOtelSlogHandler(baseHandler))
 	slog.SetDefault(Logger)
 
@@ -249,7 +265,7 @@ func Run() {
 	router.HandleFunc("POST /vote/", Vote)
 	router.HandleFunc("GET /countries/", GetCountries)
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
-	router.HandleFunc("GET /songs/", HttpGetSongs)
+	router.HandleFunc("GET /songs/", HTTPGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
 	router.HandleFunc("POST /admin/open", OpenVote)
 	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
