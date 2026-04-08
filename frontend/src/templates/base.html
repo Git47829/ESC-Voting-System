@@ -315,7 +315,7 @@
                 </p>
                 <p class="mt-2 text-xs">
                     <a
-                        href="/cookies"
+                        href="{{ url_for('public.cookie_settings_page') }}"
                         class="text-esc-muted hover:text-esc-yellow transition-colors"
                     >
                         Cookie settings
@@ -341,9 +341,10 @@
                 <p class="mt-2 text-xs text-esc-muted">
                     Processed data may include IP address, phone number and your
                     voting choice.
-                    <a href="/cookies" class="text-esc-yellow hover:underline"
-                        >Manage details and settings</a
-                    >
+                    <a
+                        href="{{ url_for('public.cookie_settings_page') }}"
+                        class="text-esc-yellow hover:underline"
+                    >Manage details and settings</a>
                 </p>
                 <div class="mt-4 flex flex-wrap gap-2">
                     <button
