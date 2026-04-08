@@ -13,7 +13,6 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	token := query.Get("Token")
 	ID := query.Get("ID")
 	Name := query.Get("Name")
 	POTstr := query.Get("Pot")
@@ -37,51 +36,34 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dbQuery := `INSERT INTO Land (ID, Name, POT)
-				VALUES (?, ?, ?)`
+			VALUES (?, ?, ?)`
 
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
-
-		result, err := DB.ExecContext(ctx, dbQuery, ID, Name, POT)
-		if err != nil {
-			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "error inserting into DB",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Error verifying Query",
-			})
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
-			"payload": result,
-		})
-	}
-
-	if autorized != true {
-
-		Logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
-
-		w.WriteHeader(http.StatusForbidden)
+	result, err := DB.ExecContext(ctx, dbQuery, ID, Name, POT)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
+			"error": "error inserting into DB",
 		})
+		return
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error verifying Query",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"payload": result,
+	})
 }
 
 func AddSong(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +71,6 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	token := query.Get("Token")
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
 	if err != nil {
@@ -110,60 +91,45 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "CountryID can only be two characters in length",
 		})
+		return
 	}
 
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
-		var result sql.Result
-		if youtubeURL != "" {
-			result, err = DB.ExecContext(ctx,
-				`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte, YoutubeURL) VALUES (?, ?, ?, 0, 0, ?)`,
-				Name, country, ID, youtubeURL)
-		} else {
-			result, err = DB.ExecContext(ctx,
-				`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte) VALUES (?, ?, ?, 0, 0)`,
-				Name, country, ID)
-		}
-
-		if err != nil {
-			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "error inserting into DB",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Error verifying Query",
-			})
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
-			"payload": result,
-		})
+	var result sql.Result
+	if youtubeURL != "" {
+		result, err = DB.ExecContext(ctx,
+			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte, YoutubeURL) VALUES (?, ?, ?, 0, 0, ?)`,
+			Name, country, ID, youtubeURL)
+	} else {
+		result, err = DB.ExecContext(ctx,
+			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte) VALUES (?, ?, ?, 0, 0)`,
+			Name, country, ID)
 	}
 
-	if autorized != true {
-
-		Logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
-
-		w.WriteHeader(http.StatusForbidden)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
+			"error": "error inserting into DB",
 		})
+		return
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error verifying Query",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"payload": result,
+	})
 }
 
 func AddArtist(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +137,6 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	token := query.Get("Token")
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
 	if err != nil {
@@ -194,52 +159,35 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "CountryID can only be two characters in length",
 		})
+		return
 	}
 
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
-
-		result, err := DB.ExecContext(ctx, dbQuery, ID, Name, vorName, typ, country)
-
-		if err != nil {
-			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "error inserting into DB",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Error verifying Query",
-			})
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
-			"payload": result,
-		})
-	}
-
-	if autorized != true {
-
-		Logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
-
-		w.WriteHeader(http.StatusForbidden)
+	result, err := DB.ExecContext(ctx, dbQuery, ID, Name, vorName, typ, country)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
+			"error": "error inserting into DB",
 		})
+		return
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error verifying Query",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"payload": result,
+	})
 }
 
 func AddInterpret(w http.ResponseWriter, r *http.Request) {
@@ -247,7 +195,6 @@ func AddInterpret(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	token := query.Get("Token")
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
 	if err != nil {
@@ -262,48 +209,30 @@ func AddInterpret(w http.ResponseWriter, r *http.Request) {
 	vorName := query.Get("Vorname")
 	dbQuery := `INSERT INTO Komponist (ID, Vorname, Name) VALUES (?,?,?)`
 
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
-
-		result, err := DB.ExecContext(ctx, dbQuery, ID, Name, vorName)
-
-		if err != nil {
-			Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "error inserting into DB",
-			})
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
-		}
-		if rowsAffected == 0 {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Error verifying Query",
-			})
-			return
-		}
-
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
-			"payload": result,
-		})
-	}
-
-	if autorized != true {
-
-		Logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
-
-		w.WriteHeader(http.StatusForbidden)
+	result, err := DB.ExecContext(ctx, dbQuery, ID, Name, vorName)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
+			"error": "error inserting into DB",
 		})
+		return
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
+	}
+	if rowsAffected == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Error verifying Query",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"payload": result,
+	})
 }

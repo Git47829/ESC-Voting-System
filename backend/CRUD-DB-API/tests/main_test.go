@@ -32,3 +32,13 @@ func TestMain(m *testing.M) {
 
 	os.Exit(m.Run())
 }
+
+// adminURL appends the test admin token as a query parameter.
+func adminURL(path string) string {
+	return path + "?Token=" + os.Getenv("TESTADMINPW")
+}
+
+// badTokenURL appends an invalid token as a query parameter.
+func badTokenURL(path string) string {
+	return path + "?Token=invalid-token"
+}

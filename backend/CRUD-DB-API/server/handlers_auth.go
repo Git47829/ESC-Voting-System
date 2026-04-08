@@ -8,10 +8,33 @@ import (
 	"net/http"
 	"os"
 	"sync"
-
+	"strings"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func extractToken(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if strings.HasPrefix(h, "Bearer ") {
+		return strings.TrimPrefix(h, "Bearer ")
+	}
+	return ""
+
+}
+
+func RequireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+		token := extractToken(r)
+		if ok, msg := CheckAccessAdmin(token); !ok {
+			Logger.Warn("Invalid Login Attempt", slog.String("message", "Invalid Login Attempt"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": msg})
+			return
+		}
+		next.ServeHTTP(w,r)
+	}) 
+}
 
 func CheckPhoneNum(num string) (string, error) {
 	parsed, err := phonenumbers.Parse(num, "")
@@ -104,46 +127,30 @@ func generateToken() (string, error) {
 func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
+	Logger.InfoContext(ctx, "New Admin Login", slog.String("message", "New Admin Login"))
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "authenticated",
+	})
 
-	query := r.URL.Query()
-	token := query.Get("Token")
-
-	authenticated, message := CheckAccessAdmin(token)
-
-	if authenticated == true {
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
-		})
-		return
-	}
-	if authenticated == false {
-		Logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": message,
-		})
-		return
-	}
 }
 
 func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	token := query.Get("Token")
+	token := r.URL.Query().Get("Token")
 
 	authenticated, message := CheckAccessJury(token)
 
-	if authenticated == true {
+	if authenticated {
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": message,
 		})
 		return
 	}
-	if authenticated == false {
+	if !authenticated {
 		Logger.WarnContext(ctx, "Invalid Login Atempt", slog.Any("token:", token))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{

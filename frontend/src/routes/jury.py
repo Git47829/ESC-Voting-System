@@ -96,7 +96,8 @@ def jury_submit_vote():
 
     status, data, _ = api_post(
         "/jury/vote/",
-        params={"Token": token, "songID": song_id, "points": points},
+        params={"songID": song_id, "points": points},
+        token=token,
     )
 
     if status in (200, 202):

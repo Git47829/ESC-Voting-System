@@ -20,7 +20,7 @@ def login():
         return render_template("login.html"), 401
 
     if role == "admin":
-        status, data = api_get_auth("/admin/authenticate", params={"Token": token})
+        status, data = api_get_auth("/admin/authenticate", token=token)
         if status != 202:
             current_app.logger.warning("failed admin login attempt")
             flash(data.get("error", "Invalid token."), "error")
@@ -32,7 +32,7 @@ def login():
         return redirect(url_for("admin.admin_dashboard"))
 
     elif role == "jury":
-        status, data = api_get_auth("/jury/authenticate", params={"Token": token})
+        status, data = api_get_auth("/jury/authenticate", token=token)
         if status != 202:
             current_app.logger.warning("failed jury login attempt")
             flash(data.get("error", "Invalid token."), "error")

@@ -11,13 +11,8 @@ func OpenVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	ctx := r.Context()
-	query := r.URL.Query()
-	token := query.Get("Token")
 	dbQuery := `UPDATE Voting_Status SET isOpen = true, lastChange = ?`
 
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
 
 		changeTime := time.Now()
 
@@ -45,31 +40,15 @@ func OpenVote(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
 			"payload": "The Vote has been opened",
 		})
-	}
-
-	if autorized != true {
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
-		})
-		return
-	}
 }
 
 func CloseVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	ctx := r.Context()
-	query := r.URL.Query()
-	token := query.Get("Token")
 	dbQuery := `UPDATE Voting_Status SET isOpen = false, lastChange = ?`
-
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized == true {
 
 		changeTime := time.Now()
 
@@ -97,39 +76,14 @@ func CloseVote(w http.ResponseWriter, r *http.Request) {
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]any{
-			"message": message,
 			"payload": "The Vote has been closed",
 		})
-		return
-	}
-
-	if autorized != true {
-
-		Logger.Warn("Invalid Login Attempt")
-		slog.String("token", token)
-
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": message,
-		})
-	}
 }
 
 func DeleteVotes(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	ctx := r.Context()
-	query := r.URL.Query()
-	token := query.Get("Token")
-
-	autorized, message := CheckAccessAdmin(token)
-
-	if autorized != true {
-		Logger.Warn("Invalid Login Attempt", slog.String("token", token))
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"message": message})
-		return
-	}
 
 	result, err := DB.ExecContext(ctx, `UPDATE Song SET PublikumsPunkte = 0, JuryPunkte = 0`)
 	if err != nil {
@@ -162,7 +116,6 @@ func DeleteVotes(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]any{
-		"message": message,
 		"payload": "All votes have been deleted and vote budgets reset",
 	})
 }
