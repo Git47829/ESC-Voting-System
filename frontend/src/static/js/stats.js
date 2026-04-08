@@ -39,7 +39,7 @@ function renderStats(msg) {
     const containerEl = document.getElementById('charts-container');
 
     loadingEl.classList.add('hidden');
-    document.getElementById('vote-count').textContent = msg.vote_count;
+    document.getElementById('vote-count').textContent = Number.isFinite(msg.vote_count) ? msg.vote_count : 0;
     hasReceivedData = true;
 
     if (!msg.charts || msg.vote_count === 0) {
@@ -51,10 +51,16 @@ function renderStats(msg) {
     emptyEl.classList.add('hidden');
     containerEl.classList.remove('hidden');
 
+    const safeImageSrc = (value) => {
+        if (typeof value !== 'string') return '';
+        if (/^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(value)) return value;
+        return '';
+    };
+
     document.getElementById('chart-voters-by-country').src =
-        msg.charts.voters_by_country;
+        safeImageSrc(msg.charts.voters_by_country);
     document.getElementById('chart-votes-received').src =
-        msg.charts.votes_received_by_country;
+        safeImageSrc(msg.charts.votes_received_by_country);
 }
 
 // -----------------------------------------------------------------------
