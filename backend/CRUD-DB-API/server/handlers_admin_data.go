@@ -22,7 +22,7 @@ func AddCountry(w http.ResponseWriter, r *http.Request) {
 		Logger.ErrorContext(ctx, "Invalid Input, CountryID must be 2 Characters as length", slog.String("Input", ID))
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "CountryID must be 2 Charakters of length",
+			"error": "CountryID must be 2 Characters of length",
 		})
 		return
 	}
