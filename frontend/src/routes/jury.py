@@ -31,7 +31,6 @@ def jury_page():
                 songs.append(s)
 
     # Read the already-cast votes for this jury member from their cookie.
-    # Cookie format: { "songId": points, ... }  (both keys and values are ints)
     token = session.get("token", "")
     cookie_name = f"jury_votes_{token}"
     try:
@@ -71,7 +70,6 @@ def jury_submit_vote():
         return jsonify({"error": "Invalid points value"}), 422
 
     # --- Cookie-based duplicate guard ---
-    # Cookie format: { "songId": points, ... }
     cookie_name = f"jury_votes_{token}"
     try:
         raw = json.loads(request.cookies.get(cookie_name, "{}"))
@@ -81,12 +79,10 @@ def jury_submit_vote():
     except (ValueError, TypeError):
         votes_map = {}
 
-    # Reject if this song has already been voted on.
     song_id_int = int(song_id)
     if song_id_int in votes_map:
         return jsonify({"error": "You have already voted for this entry."}), 409
 
-    # Reject if this point value has already been used for another song.
     if points_int in votes_map.values():
         return jsonify(
             {
@@ -106,7 +102,6 @@ def jury_submit_vote():
             "jury vote cast",
             extra={"song_id": song_id, "points": points},
         )
-        # Persist the updated votes map in the cookie.
         votes_map[song_id_int] = points_int
         response = make_response(jsonify(data), status)
         response.set_cookie(
@@ -118,7 +113,6 @@ def jury_submit_vote():
         )
         return response
 
-    # Ensure we don't accidentally expose non-JSON or sensitive details.
     if not isinstance(data, dict):
         data = {"error": "An internal error has occurred while submitting your vote."}
 

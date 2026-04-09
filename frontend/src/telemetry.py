@@ -35,9 +35,6 @@ import time
 
 from flask import Flask, Response, g, request
 
-# ---------------------------------------------------------------------------
-# OpenTelemetry — core
-# ---------------------------------------------------------------------------
 from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
@@ -52,9 +49,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-# ---------------------------------------------------------------------------
-# Prometheus — multiprocess-aware scrape endpoint
-# ---------------------------------------------------------------------------
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     REGISTRY,
@@ -66,20 +60,10 @@ from prometheus_client import (
     multiprocess,
 )
 
-# ---------------------------------------------------------------------------
-# Structured JSON logging
-# ---------------------------------------------------------------------------
 from pythonjsonlogger import jsonlogger
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Prometheus native metrics
-# All are declared at module level so they are created once in the master
-# gunicorn process before fork(). prometheus_client's multiprocess mode
-# then keeps each worker's counters in the shared PROMETHEUS_MULTIPROC_DIR
-# directory, and the /metrics endpoint aggregates them.
-# ---------------------------------------------------------------------------
 
 PROM_REQUEST_COUNT = Counter(
     "esc_frontend_http_requests_total",
@@ -127,27 +111,12 @@ PROM_ACTIVE_SESSIONS = Gauge(
     multiprocess_mode="livesum",
 )
 
-# ---------------------------------------------------------------------------
-# OTel metric instruments — populated alongside the Prometheus counters so
-# that metric data also flows through the OTel collector → Prometheus path.
-# These are set in _setup_metrics() and used by the helper functions below.
-# ---------------------------------------------------------------------------
-
 _otel_request_counter = None
 _otel_request_duration = None
 _otel_backend_duration = None
 _otel_votes_counter = None
 
-# Guard against double-instrumentation when gunicorn uses --preload.
-# With --preload the app module is imported once in the master process and
-# the worker processes inherit the already-instrumented state via fork().
-# FlaskInstrumentor and RequestsInstrumentor will raise if instrumented twice.
 _telemetry_initialised = False
-
-
-# ---------------------------------------------------------------------------
-# Internal setup helpers
-# ---------------------------------------------------------------------------
 
 
 def _build_resource() -> Resource:
@@ -247,12 +216,6 @@ def _setup_logging(resource: Resource, otlp_grpc_endpoint: str) -> None:
 
     logger.info("OTel logging initialised → %s", otlp_grpc_endpoint)
 
-
-# ---------------------------------------------------------------------------
-# Public entry point
-# ---------------------------------------------------------------------------
-
-
 def setup_telemetry(app: Flask) -> None:
     """
     Initialise all three observability pillars and wire them into the Flask app.
@@ -307,10 +270,6 @@ def setup_telemetry(app: Flask) -> None:
         app.logger.error("Failed to initialise telemetry: %s", exc, exc_info=True)
 
 
-# ---------------------------------------------------------------------------
-# Per-request hooks — Prometheus + OTel recording
-# ---------------------------------------------------------------------------
-
 
 def _register_request_hooks(app: Flask) -> None:
     """Register before/after request hooks to record metrics and logs."""
@@ -355,7 +314,6 @@ def _register_request_hooks(app: Flask) -> None:
         if _otel_request_duration:
             _otel_request_duration.record(duration, attrs)
 
-        # Structured request log (flows to Loki via the OTel log handler).
         current_span = trace.get_current_span()
         ctx = current_span.get_span_context()
         app.logger.info(
@@ -431,10 +389,6 @@ def set_active_sessions(count: int) -> None:
     PROM_ACTIVE_SESSIONS.set(count)
 
 
-# ---------------------------------------------------------------------------
-# /metrics endpoint — multiprocess-aware Prometheus pull
-# ---------------------------------------------------------------------------
-
 
 def _register_metrics_endpoint(app: Flask) -> None:
     @app.route("/metrics")
@@ -450,10 +404,6 @@ def _register_metrics_endpoint(app: Flask) -> None:
             data = generate_latest(REGISTRY)
         return Response(data, status=200, mimetype=CONTENT_TYPE_LATEST)
 
-
-# ---------------------------------------------------------------------------
-# /health endpoint — lightweight liveness probe
-# ---------------------------------------------------------------------------
 
 
 def _register_health_endpoint(app: Flask) -> None:
