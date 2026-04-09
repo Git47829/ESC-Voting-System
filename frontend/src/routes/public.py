@@ -85,13 +85,11 @@ def api_results():
 
     jury_data = api_get("/votes/")
 
-    # Build a map of song_id → jury points from the CRUD API response.
     jury_map = {}
     if jury_data and "payload" in jury_data:
         for entry in jury_data["payload"]:
             jury_map[entry["id"]] = entry.get("juryVotes", 0)
 
-    # Merge ESC-converted public points with jury points.
     results = []
     if esc_data and "payload" in esc_data:
         for song in esc_data["payload"]:
@@ -110,7 +108,6 @@ def api_results():
                 }
             )
 
-    # Sort by combined total descending, assign rank.
     results.sort(key=lambda x: (-x["totalPts"], x["id"]))
     for i, entry in enumerate(results):
         entry["rank"] = i + 1
@@ -153,7 +150,6 @@ def submit_vote():
     except ValueError:
         return jsonify({"error": "Points must be an integer"}), 422
 
-    # Forward the browser's vote_state cookie to the Go API
     browser_cookies = {}
     vote_state_cookie = request.cookies.get("vote_state")
     if vote_state_cookie:
@@ -179,7 +175,6 @@ def submit_vote():
 
     flask_response = make_response(jsonify(data), status)
 
-    # Forward the vote_state cookie from the Go API back to the browser
     if "vote_state" in api_cookies:
         flask_response.set_cookie(
             "vote_state",
@@ -211,7 +206,6 @@ def now_playing():
     if song and song.get("youtubeUrl"):
         song["youtubeUrl"] = normalize_youtube_url(song["youtubeUrl"])
 
-    # Fetch all songs so we can build the country selector server-side
     songs_data = api_get("/songs/")
     countries = []
     if songs_data and "payload" in songs_data:
