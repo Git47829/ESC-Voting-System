@@ -47,10 +47,8 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		authMsg    string
-		isOpen     bool
-	)
+	var	isOpen     bool
+	
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -113,7 +111,6 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]any{
-		"message": authMsg,
 		"payload": "Vote Successfully Cast",
 	})
 }
