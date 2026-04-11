@@ -1,5 +1,5 @@
-INSERT INTO Voting_Status (VotingID, isOpen, lastChange) VALUES
-    (1, TRUE, '12:00:00');
+INSERT INTO Voting_Status (VotingID, isOpen) VALUES
+    (1, TRUE);
 
 INSERT INTO Land (ID, Name, POT) VALUES
     ('DE', 'Germany', 10),

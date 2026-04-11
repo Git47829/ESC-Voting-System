@@ -37,7 +37,7 @@ type Song struct {
 	ID        int    `json:"songId"`
 	Name      string `json:"songName"`
 	Country   string `json:"country"`
-	LandID    string `json:"countryId"`
+	CountryID    string `json:"countryId"`
 	RawVotes  int    `json:"rawPublicVotes"`
 	ESCPoints int    `json:"escPoints"`
 	Rank      int    `json:"rank"`
@@ -55,7 +55,7 @@ func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error
 			ID:       int(s.SongId),
 			Name:     s.SongName,
 			Country:  s.CountryName,
-			LandID:   s.CountryId,
+			CountryID:   s.CountryId,
 			RawVotes: int(s.PublicVotes),
 		})
 	}
@@ -224,8 +224,6 @@ func Run() {
 	port := getEnv("PORT", "8090")
 
 	// juryScale equalises the 50/50 jury vs televote weighting.
-	// The public vote produces one ESC set (max 12 pts); multiplying by the
-	// number of jury members brings it to the same maximum as the combined jury.
 	juryScale := GetEnvInt("NUM_JURY_MEMBERS", 3)
 
 	mux := http.NewServeMux()

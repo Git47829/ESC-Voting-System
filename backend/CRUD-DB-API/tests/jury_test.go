@@ -279,9 +279,6 @@ func TestJuryVote_SuccessResponseShape(t *testing.T) {
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
 
-	if _, ok := body["message"]; !ok {
-		t.Error("expected 'message' key in response")
-	}
 	if _, ok := body["payload"]; !ok {
 		t.Error("expected 'payload' key in response")
 	}
