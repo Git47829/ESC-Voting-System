@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 vote_consumer: VoteStreamConsumer = None
 
+# ---------------------------------------------------------------------------
+# In-memory vote store
+# ---------------------------------------------------------------------------
 _vote_df: pd.DataFrame = pd.DataFrame(
     columns=[
         "song_id",
@@ -36,6 +39,9 @@ _vote_df: pd.DataFrame = pd.DataFrame(
 )
 
 
+# ---------------------------------------------------------------------------
+# WebSocket connection manager for /ws/stats
+# ---------------------------------------------------------------------------
 class StatsConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -61,6 +67,9 @@ class StatsConnectionManager:
 
 stats_manager = StatsConnectionManager()
 
+# ---------------------------------------------------------------------------
+# Chart colour palette (ESC dark theme)
+# ---------------------------------------------------------------------------
 _BG_COLOR = "#0a0a0a"
 _TEXT_COLOR = "#e8e8e8"
 _YELLOW = "#ffde00"
@@ -134,6 +143,9 @@ def _make_pie_chart(labels: list, values: list, title: str) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+# ---------------------------------------------------------------------------
+# Stats computation and broadcast
+# ---------------------------------------------------------------------------
 async def _compute_and_broadcast() -> None:
     """Recompute both pie charts and broadcast to all /ws/stats clients."""
     if not stats_manager.active_connections:
@@ -179,6 +191,9 @@ async def _compute_and_broadcast() -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# Vote handler — appends to DataFrame and triggers broadcast
+# ---------------------------------------------------------------------------
 async def handle_vote(vote) -> None:
     global _vote_df
     logger.info(
@@ -204,6 +219,9 @@ async def handle_vote(vote) -> None:
     await _compute_and_broadcast()
 
 
+# ---------------------------------------------------------------------------
+# Background task: single gRPC stream consumer for state accumulation
+# ---------------------------------------------------------------------------
 async def _run_vote_ingestor():
     global _vote_df
     async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
@@ -232,6 +250,9 @@ async def _run_vote_ingestor():
         await _compute_and_broadcast()
 
 
+# ---------------------------------------------------------------------------
+# Application lifecycle
+# ---------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global vote_consumer
@@ -258,6 +279,9 @@ app = FastAPI(lifespan=lifespan)
 setup_telemetry(app)
 
 
+# ---------------------------------------------------------------------------
+# HTTP endpoints
+# ---------------------------------------------------------------------------
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
@@ -297,6 +321,9 @@ async def subscribe_to_votes(include_historical: bool = True):
     return {"votes": votes, "count": len(votes)}
 
 
+# ---------------------------------------------------------------------------
+# WebSocket: raw vote stream
+# ---------------------------------------------------------------------------
 @app.websocket("/ws/votes")
 async def websocket_votes_endpoint(websocket: WebSocket):
     """Stream raw vote events to connected clients."""
@@ -319,6 +346,9 @@ async def websocket_votes_endpoint(websocket: WebSocket):
         logger.error(f"Votes WebSocket error: {e}")
 
 
+# ---------------------------------------------------------------------------
+# WebSocket: live statistics charts
+# ---------------------------------------------------------------------------
 @app.websocket("/ws/stats")
 async def websocket_stats_endpoint(websocket: WebSocket):
     """Push matplotlib pie charts to connected clients whenever votes change."""

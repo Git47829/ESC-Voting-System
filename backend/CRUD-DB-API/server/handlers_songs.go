@@ -66,7 +66,6 @@ func GetCountryByName(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Country must be two Characters in length",
 		})
-		return
 	}
 
 	query := `SELECT ID, Name, POT FROM Land WHERE ID = ?`
@@ -203,7 +202,6 @@ func GetSongByID(w http.ResponseWriter, r *http.Request) {
 	ID, err := strconv.Atoi(idStr)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", idStr))
-		return
 	}
 
 	query := `SELECT
