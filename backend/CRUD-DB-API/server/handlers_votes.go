@@ -99,6 +99,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Country code can only be two Charakters in length",
 		})
+		return
 	}
 
 	phoneCountry, phoneErr := CheckPhoneNum(phone)
@@ -115,7 +116,12 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	phoneHash, _ := HashPassword(phone)
+	phoneHash, err := HashPassword(phone)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "could not process Phone Number"})
+		return
+	}
 
 	rawID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(rawID)
