@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -87,14 +86,14 @@ var (
 		"GET /jury/authenticate":  {RequestsPerSecond: 1, BurstSize: 1},
 		"GET /admin/authenticate": {RequestsPerSecond: 1, BurstSize: 1},
 
-		"POST /admin/open":          {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/open/":          {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/close":          {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/addCountry":     {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addSong":        {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addArtist":      {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addInterpret":   {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/startContest":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/advanceContest": {RequestsPerSecond: 5, BurstSize: 5},
+		"POST (admin/advanceContest": {RequestsPerSecond: 5, BurstSize: 5},
 		"DELETE /admin/deleteVotes":  {RequestsPerSecond: 1, BurstSize: 1},
 
 		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
@@ -172,21 +171,10 @@ func getCLientLimiter(ip string, endpoint string) *rate.Limiter {
 	return limiter
 }
 
-func getClientIP(r *http.Request) string {
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = r.Header.Get("X-Real_IP")
-	}
-	if ip == "" {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
-	}
-	return ip
-}
-
 func RateLimitingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		endpoint := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-		clientIP := getClientIP(r)
+		clientIP := r.RemoteAddr
 
 		limiter := getCLientLimiter(clientIP, endpoint)
 
@@ -279,7 +267,7 @@ func Run() {
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
 	router.HandleFunc("GET /songs/", HTTPGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
-	router.Handle("POST /admin/open", RequireAdmin(http.HandlerFunc(OpenVote)))
+	router.HandleFunc("POST /admin/open", OpenVote)
 	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
 	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))
 	router.Handle("POST /admin/addCountry/", RequireAdmin(http.HandlerFunc(AddCountry)))

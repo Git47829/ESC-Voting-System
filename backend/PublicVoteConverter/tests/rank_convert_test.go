@@ -134,7 +134,7 @@ func TestRankAndConvert_Rank1Based(t *testing.T) {
 
 func TestRankAndConvert_PreservesAllFields(t *testing.T) {
 	songs := []converter.Song{
-		{ID: 42, Name: "Test Song", Country: "Germany", CountryID: "DE", RawVotes: 100},
+		{ID: 42, Name: "Test Song", Country: "Germany", LandID: "DE", RawVotes: 100},
 	}
 	result := converter.RankAndConvert(songs)
 	s := result[0]
@@ -147,8 +147,8 @@ func TestRankAndConvert_PreservesAllFields(t *testing.T) {
 	if s.Country != "Germany" {
 		t.Errorf("Country should be preserved: got %q", s.Country)
 	}
-	if s.CountryID != "DE" {
-		t.Errorf("LandID should be preserved: got %q", s.CountryID)
+	if s.LandID != "DE" {
+		t.Errorf("LandID should be preserved: got %q", s.LandID)
 	}
 }
 
