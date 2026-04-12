@@ -94,8 +94,9 @@ export const VotePage = () => {
 
   return (
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">
-      <div className="bg-esc-white">
-        <section className="relative isolate overflow-hidden border-b border-esc-border bg-esc-white px-6 pb-12 pt-6 sm:px-10 sm:pb-16 lg:px-14 lg:pb-20 lg:pt-8">
+      <div className="relative isolate overflow-hidden bg-white">
+        <div className="pointer-events-none absolute inset-0 vote-page-surface" />
+        <div className="relative isolate overflow-hidden px-6 pb-12 pt-6 sm:px-10 sm:pb-16 lg:px-14 lg:pb-20 lg:pt-8">
           <div className="pointer-events-none absolute inset-0 hero-pink-wash" />
           <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-r from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-l from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
@@ -362,19 +363,27 @@ export const VotePage = () => {
               </a>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
 
-      <div
-        id="voting-grid"
-        className="border-t border-esc-border bg-esc-surface2/60 px-4 pb-28 pt-16 sm:px-6 lg:px-8"
-      >
-        <div className="mx-auto max-w-7xl space-y-6">
-          <div className="rounded-[2rem] border border-esc-border bg-white/90 p-6 shadow-[0_16px_40px_rgba(0,0,0,0.04)] sm:p-8">
+        <div
+          id="voting-grid"
+          className="relative px-4 pb-28 pt-4 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6"
+        >
+          <div className="pointer-events-none absolute inset-x-0 top-[-5rem] h-40 bg-gradient-to-b from-esc-pink/16 via-esc-pink/8 to-white/0" />
+          <div className="pointer-events-none absolute inset-0 vote-section-wash" />
+          <div className="pointer-events-none absolute inset-0 vote-grid-lines" />
+          <div className="pointer-events-none absolute inset-0 vote-noise opacity-60 mix-blend-soft-light" />
+          <div className="pointer-events-none absolute left-0 right-0 top-0 h-32 bg-gradient-to-b from-black/30 via-black/12 to-transparent" />
+          <div className="pointer-events-none absolute left-[-22%] top-[4%] h-[64rem] w-[110rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.4)_0%,_rgba(255,4,144,0.24)_26%,_rgba(255,4,144,0.11)_48%,_rgba(255,4,144,0)_78%)] blur-[210px] opacity-95" />
+          <div className="pointer-events-none absolute right-[-26%] top-[10%] h-[58rem] w-[96rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.31)_0%,_rgba(255,4,144,0.17)_28%,_rgba(255,4,144,0.075)_52%,_rgba(255,4,144,0)_80%)] blur-[200px] opacity-86" />
+          <div className="pointer-events-none absolute left-[-18%] top-[26%] h-[72rem] w-[132rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.29)_0%,_rgba(255,4,144,0.145)_32%,_rgba(255,4,144,0.06)_56%,_rgba(255,4,144,0)_82%)] blur-[230px] opacity-84" />
+
+          <div className="relative z-10 mx-auto max-w-7xl space-y-6">
+          <div className="vote-panel rounded-[2rem] p-6 sm:p-8">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl space-y-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">Live voting</p>
-                <h3 className="inline-block rounded-none bg-[#ff0490] px-0 py-0 text-4xl font-bold leading-none text-white shadow-none">
+                <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">Live voting</p>
+                <h3 className="inline-flex rounded-full border border-esc-pink/16 bg-white/95 px-4 py-2 text-4xl font-bold leading-none text-esc-pink shadow-[0_12px_30px_rgba(255,4,144,0.08)]">
                   Cast Your Votes
                 </h3>
                 <p className="text-sm leading-7 text-esc-black-soft/75 sm:text-base">
@@ -384,20 +393,20 @@ export const VotePage = () => {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Countries</p>
+                <div className="vote-panel-soft rounded-2xl px-4 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Countries</p>
                   <p className="mt-2 text-2xl font-bold text-esc-black">{selectedSongs.length}</p>
                   <p className="mt-1 text-sm text-esc-muted">selected</p>
                 </div>
 
-                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Points used</p>
+                <div className="vote-panel-soft rounded-2xl px-4 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Points used</p>
                   <p className="mt-2 text-2xl font-bold text-esc-black">{used}</p>
                   <p className="mt-1 text-sm text-esc-muted">of {TOTAL}</p>
                 </div>
 
-                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Top pick</p>
+                <div className="vote-panel-accent rounded-2xl px-4 py-4">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/78">Top pick</p>
                   <p className="mt-2 truncate text-2xl font-bold text-esc-black">
                     {topSelection ? topSelection.countryName : "—"}
                   </p>
@@ -413,8 +422,8 @@ export const VotePage = () => {
             <aside className="space-y-4">
               <BudgetBar remaining={remaining} total={TOTAL} />
 
-              <div className="rounded-[1.75rem] border border-esc-border bg-white p-5 shadow-[0_10px_24px_rgba(0,0,0,0.04)]">
-                <p className="text-xs uppercase tracking-[0.14em] text-esc-muted">Current leader</p>
+              <div className="vote-panel-soft rounded-[1.75rem] p-5">
+                <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Current leader</p>
                 {topSelection ? (
                   <div className="mt-3 space-y-1">
                     <p className="text-2xl font-bold text-esc-black">{topSelection.countryName}</p>
@@ -431,18 +440,18 @@ export const VotePage = () => {
                 )}
               </div>
 
-              <div className="rounded-[1.75rem] border border-esc-border bg-white p-5 shadow-[0_10px_24px_rgba(0,0,0,0.04)]">
-                <p className="text-xs uppercase tracking-[0.14em] text-esc-muted">Quick note</p>
+              <div className="vote-panel-soft rounded-[1.75rem] p-5">
+                <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Quick note</p>
                 <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
                   You can change, remove and rebalance points anytime before submitting.
                 </p>
               </div>
             </aside>
 
-            <div className="rounded-[2rem] border border-esc-border bg-white/90 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.04)] sm:p-5 lg:p-6">
-              <div className="mb-5 flex flex-col gap-4 border-b border-esc-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="vote-panel rounded-[2rem] p-4 sm:p-5 lg:p-6">
+              <div className="mb-5 flex flex-col gap-4 border-b border-esc-pink/12 pb-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">All entries</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">All entries</p>
                   <h4 className="mt-2 text-2xl font-bold text-esc-black sm:text-3xl">
                     Choose your countries
                   </h4>
@@ -465,13 +474,14 @@ export const VotePage = () => {
             </div>
           </div>
 
-          <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
-          <SubmitModal
-            open={openSubmit}
-            totalPoints={used}
-            onClose={() => setOpenSubmit(false)}
-            onSubmit={submit}
-          />
+            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
+            <SubmitModal
+              open={openSubmit}
+              totalPoints={used}
+              onClose={() => setOpenSubmit(false)}
+              onSubmit={submit}
+            />
+          </div>
         </div>
       </div>
     </section>
