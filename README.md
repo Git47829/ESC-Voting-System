@@ -202,7 +202,7 @@ docker compose down -v
 
 | Table | Description |
 |---|---|
-| `Land` | Countries — ISO 3-letter ID, name, pot assignment |
+| `Land` | Countries — ISO 2-letter ID (alpha-2), name, pot assignment |
 | `Kuenstler` | Artists — solo, duo, or group; linked to a country |
 | `Komponist` | Composers — first and last name |
 | `Song` | Songs — linked to country and artist; stores public, jury, and computed total points; optional YouTube embed URL |
