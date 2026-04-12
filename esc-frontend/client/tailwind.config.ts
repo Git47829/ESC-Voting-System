@@ -72,11 +72,11 @@ const config: Config = {
           "100%": { transform: "translate3d(0, 0, 0) scale(1.02)", opacity: "0.42" }
         },
         "hero-sweep": {
-          "0%": { transform: "translate3d(-24vw, 0, 0) rotate(12deg)", opacity: "0" },
+          "0%": { transform: "translate3d(-26vw, 0, 0) rotate(12deg)", opacity: "0" },
           "18%": { opacity: "0.18" },
           "50%": { transform: "translate3d(0, 0, 0) rotate(12deg)", opacity: "0.72" },
           "82%": { opacity: "0.16" },
-          "100%": { transform: "translate3d(24vw, 0, 0) rotate(12deg)", opacity: "0" }
+          "100%": { transform: "translate3d(26vw, 0, 0) rotate(12deg)", opacity: "0" }
         },
         "hero-card-float": {
           "0%, 100%": { transform: "translate3d(0, 0, 0)" },
@@ -85,6 +85,11 @@ const config: Config = {
         "hero-card-float-delayed": {
           "0%, 100%": { transform: "translate3d(0, 0, 0)" },
           "50%": { transform: "translate3d(0, 14px, 0)" }
+        },
+        "hero-orbit": {
+          "0%": { transform: "rotate(0deg) scale(1)" },
+          "50%": { transform: "rotate(180deg) scale(1.03)" },
+          "100%": { transform: "rotate(360deg) scale(1)" }
         },
         "scroll-nudge": {
           "0%, 100%": { transform: "translate3d(0, 0, 0)" },
@@ -101,9 +106,10 @@ const config: Config = {
         "hero-fade-up": "hero-fade-up 0.95s cubic-bezier(0.22, 1, 0.36, 1) both",
         "hero-aurora": "hero-aurora 10s ease-in-out infinite",
         "hero-aurora-delayed": "hero-aurora-delayed 12s ease-in-out infinite",
-        "hero-sweep": "hero-sweep 9s ease-in-out infinite",
+        "hero-sweep": "hero-sweep 10s ease-in-out infinite",
         "hero-card-float": "hero-card-float 6s ease-in-out infinite",
         "hero-card-float-delayed": "hero-card-float-delayed 7s ease-in-out infinite",
+        "hero-orbit": "hero-orbit 22s linear infinite",
         "scroll-nudge": "scroll-nudge 1.8s ease-in-out infinite"
       }
     }

@@ -8,15 +8,18 @@ import { VoteBasket } from "../components/vote/VoteBasket";
 import { useCookieConsent } from "../context/CookieConsentContext";
 import { useFlash } from "../context/FlashContext";
 import type { Song } from "../types";
+import { flagUrl } from "../utils/flagUrl";
 
 const TOTAL = 20;
 const HERO_WORDS = ["Cast", "Your", "Votes"];
-const HERO_CHIPS = ["Live televote", "20 points to spend", "Fast, secure, editorial"];
+const HERO_BAR_WIDTHS = ["62%", "54%", "72%"];
+const HERO_CHIPS = ["Live voting", "20 points to spend", "Choose your favorites", "Submit when ready"];
 
 export const VotePage = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selection, setSelection] = useState<Record<number, number>>({});
   const [openSubmit, setOpenSubmit] = useState(false);
+  const [heroAccentActive, setHeroAccentActive] = useState(false);
   const { addFlash } = useFlash();
   const { consent } = useCookieConsent();
 
@@ -24,11 +27,39 @@ export const VotePage = () => {
     void api.getSongs().then(setSongs);
   }, []);
 
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.scrollY > 24) {
+        setHeroAccentActive(true);
+        window.removeEventListener("scroll", onScroll);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, []);
+
   const used = useMemo(
     () => Object.values(selection).reduce((sum, value) => sum + value, 0),
     [selection]
   );
   const remaining = TOTAL - used;
+
+  const selectedSongs = useMemo(
+    () => songs.filter((song) => (selection[song.songId] ?? 0) > 0),
+    [selection, songs]
+  );
+
+  const topSelection = useMemo(() => {
+    return (
+      selectedSongs
+        .map((song) => ({ ...song, points: selection[song.songId] ?? 0 }))
+        .sort((a, b) => b.points - a.points)[0] ?? null
+    );
+  }, [selectedSongs, selection]);
 
   const changePoints = (songId: number, delta: number) => {
     setSelection((current) => {
@@ -73,13 +104,13 @@ export const VotePage = () => {
                 className="opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
                 style={{ animationDelay: "60ms" }}
               >
-                Eurovision-style voting experience
+                Live voting experience
               </div>
               <div
                 className="opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
                 style={{ animationDelay: "120ms" }}
               >
-                Live • Premium motion • Interactive reveal
+                Choose your favorites • Spend 20 points • Submit when ready
               </div>
             </div>
 
@@ -90,36 +121,94 @@ export const VotePage = () => {
                   style={{ animationDelay: "140ms" }}
                 >
                   <span className="h-2 w-2 rounded-full bg-esc-pink animate-stage-glow motion-reduce:animate-none" />
-                  Designed to feel like a launch sequence
+                  Tonight&apos;s viewer vote
                 </div>
 
                 <div className="space-y-1 sm:space-y-2">
-                  {HERO_WORDS.map((word, index) => (
-                    <div key={word} className="overflow-hidden">
-                      <h1 className="hero-display text-balance">
+                  {HERO_WORDS.map((word, index) => {
+                    const barDelay = `${220 + index * 140}ms`;
+                    const textDelay = `${300 + index * 140}ms`;
+
+                    return (
+                      <div key={word} className="hero-word-line">
                         <span
-                          className="inline-block translate-y-[115%] opacity-0 animate-hero-word motion-reduce:animate-none motion-reduce:translate-y-0 motion-reduce:opacity-100"
-                          style={{ animationDelay: `${220 + index * 140}ms` }}
-                        >
-                          {word}
-                        </span>
-                      </h1>
-                    </div>
-                  ))}
+                          className="hero-word-bar motion-reduce:animate-none"
+                          style={
+                            heroAccentActive
+                              ? {
+                                  width: HERO_BAR_WIDTHS[index],
+                                  animationDelay: barDelay
+                                }
+                              : {
+                                  width: HERO_BAR_WIDTHS[index],
+                                  animation: "none",
+                                  opacity: 0
+                                }
+                          }
+                        />
+
+                        <h1 className="hero-display text-balance">
+                          <span
+                            className="hero-word-copy"
+                            style={{
+                              opacity: 1,
+                              transform: "none",
+                              filter: "none",
+                              animation: "none"
+                            }}
+                          >
+                            {word}
+                          </span>
+
+                          <span
+                            aria-hidden="true"
+                            className="hero-word-copy-overlay motion-reduce:animate-none"
+                            style={
+                              heroAccentActive
+                                ? {
+                                    width: HERO_BAR_WIDTHS[index],
+                                    animationDelay: barDelay
+                                  }
+                                : {
+                                    width: HERO_BAR_WIDTHS[index],
+                                    animation: "none",
+                                    opacity: 0
+                                  }
+                            }
+                          >
+                            <span
+                              className="hero-word-copy-overlay-text motion-reduce:animate-none"
+                              style={
+                                heroAccentActive
+                                  ? {
+                                      animationDelay: textDelay
+                                    }
+                                  : {
+                                      animation: "none",
+                                      opacity: 0
+                                    }
+                              }
+                            >
+                              {word}
+                            </span>
+                          </span>
+                        </h1>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <p
                   className="mt-8 max-w-2xl text-base leading-7 text-esc-black-soft/80 opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100 sm:text-lg"
-                  style={{ animationDelay: "620ms" }}
+                  style={{ animationDelay: "680ms" }}
                 >
-                  Allocate your 20 points with a smoother, more cinematic opening: strong typography,
-                  soft light movement, floating status cards and a cleaner transition into the actual
-                  voting flow.
+                  Pick the performances you love most, spread your 20 points however you want and
+                  keep an eye on your current favorite before you submit.
                 </p>
 
                 <div
                   className="mt-8 flex flex-wrap gap-3 opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
-                  style={{ animationDelay: "760ms" }}
+                  style={{ animationDelay: "820ms" }}
                 >
                   {HERO_CHIPS.map((chip) => (
                     <span key={chip} className="hero-chip">
@@ -130,7 +219,7 @@ export const VotePage = () => {
 
                 <div
                   className="mt-10 flex flex-wrap items-center gap-5 opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
-                  style={{ animationDelay: "840ms" }}
+                  style={{ animationDelay: "900ms" }}
                 >
                   <a
                     href="#voting-grid"
@@ -145,65 +234,103 @@ export const VotePage = () => {
                 </div>
               </div>
 
-              <div
-                className="relative mx-auto flex w-full max-w-[34rem] items-center justify-center opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
-                style={{ animationDelay: "520ms" }}
-              >
+              <div className="relative mx-auto flex w-full max-w-[34rem] items-center justify-center">
                 <div className="pointer-events-none absolute inset-10 rounded-full border border-esc-border/70" />
                 <div className="pointer-events-none absolute inset-[18%] rounded-full border border-esc-border/60" />
                 <div className="pointer-events-none absolute inset-[30%] rounded-full border border-esc-border/50" />
 
-                <div className="relative aspect-[0.94] w-full max-w-[31rem]">
-                  <div className="hero-card absolute left-[4%] top-[10%] w-[62%] animate-hero-card-float motion-reduce:animate-none">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Vote budget</p>
-                        <p className="mt-2 text-3xl font-bold text-esc-black">20 pts</p>
+                <div
+                  className="relative aspect-[0.94] w-full max-w-[31rem] opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
+                  style={{ animationDelay: "420ms" }}
+                >
+                  <div
+                    className="absolute left-[4%] top-[10%] w-[62%] opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
+                    style={{ animationDelay: "520ms" }}
+                  >
+                    <div className="hero-card animate-hero-card-float motion-reduce:animate-none">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Your budget</p>
+                          <p className="mt-2 text-3xl font-bold text-esc-black">{TOTAL} pts</p>
+                        </div>
+                        <div className="rounded-full bg-esc-pink-soft px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-esc-pink">
+                          Live
+                        </div>
                       </div>
-                      <div className="rounded-full bg-esc-pink-soft px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-esc-pink">
-                        Live
+                      <div className="mt-5 h-2 overflow-hidden rounded-full bg-esc-pink-soft">
+                        <div
+                          className="progress-shine h-full rounded-full bg-gradient-to-r from-esc-pink-dim via-esc-pink to-esc-pink-dim"
+                          style={{ width: `${Math.max(16, (used / TOTAL) * 100)}%` }}
+                        />
                       </div>
-                    </div>
-                    <div className="mt-5 h-2 overflow-hidden rounded-full bg-esc-pink-soft">
-                      <div className="progress-shine h-full w-[72%] rounded-full bg-gradient-to-r from-esc-pink-dim via-esc-pink to-esc-pink-dim" />
-                    </div>
-                    <div className="mt-4 flex items-center justify-between text-sm text-esc-muted">
-                      <span>Ready to allocate</span>
-                      <span>12 / 20 used</span>
-                    </div>
-                  </div>
-
-                  <div className="hero-card absolute right-[2%] top-[29%] w-[54%] animate-hero-card-float-delayed motion-reduce:animate-none">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Now playing</p>
-                    <div className="mt-4 flex items-center gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-esc-black text-sm font-semibold text-white shadow-[0_12px_26px_rgba(17,17,17,0.18)]">
-                        ESC
-                      </div>
-                      <div>
-                        <p className="text-base font-semibold text-esc-black">Stage is live</p>
-                        <p className="text-sm text-esc-muted">Animated hero overlay</p>
-                      </div>
-                    </div>
-                    <div className="mt-5 flex gap-2">
-                      <span className="hero-mini-pill">Editorial type</span>
-                      <span className="hero-mini-pill">Motion depth</span>
-                    </div>
-                  </div>
-
-                  <div className="hero-card absolute bottom-[11%] left-[10%] w-[58%] animate-hero-card-float motion-reduce:animate-none">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Secure submit</p>
-                    <div className="mt-4 flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-esc-border bg-white text-lg">
-                        ✓
-                      </div>
-                      <div>
-                        <p className="text-base font-semibold text-esc-black">Clean transition</p>
-                        <p className="text-sm text-esc-muted">From hero directly into voting grid</p>
+                      <div className="mt-4 flex items-center justify-between text-sm text-esc-muted">
+                        <span>{remaining} points left</span>
+                        <span>{used} used</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="absolute right-[13%] top-[14%] h-28 w-28 rounded-full border border-esc-border/70 bg-white/40 backdrop-blur-md animate-hero-aurora motion-reduce:animate-none" />
+                  <div
+                    className="absolute right-[2%] top-[29%] w-[54%] opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
+                    style={{ animationDelay: "680ms" }}
+                  >
+                    <div className="hero-card animate-hero-card-float-delayed motion-reduce:animate-none">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Live tonight</p>
+                      <div className="mt-4">
+                        <p className="text-base font-semibold text-esc-black">Voting is open</p>
+                        <p className="mt-2 text-sm leading-6 text-esc-muted">
+                          Choose your favorites below and adjust your points anytime.
+                        </p>
+                      </div>
+                      <div className="mt-5 flex gap-2">
+                        <span className="hero-mini-pill">All songs</span>
+                        <span className="hero-mini-pill">Easy to edit</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className="absolute bottom-[11%] left-[10%] w-[58%] opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
+                    style={{ animationDelay: "840ms" }}
+                  >
+                    <div className="hero-card animate-hero-card-float motion-reduce:animate-none">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-esc-muted">Your current favorite</p>
+                      {topSelection ? (
+                        <div className="mt-4">
+                          <p className="text-base font-semibold text-esc-black">{topSelection.countryName}</p>
+                          <p className="mt-1 text-sm text-esc-muted">{topSelection.songName}</p>
+                          <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
+                            This entry currently leads your personal ranking with {topSelection.points}{" "}
+                            {topSelection.points === 1 ? "point" : "points"}.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-esc-border bg-white text-lg">
+                            ✓
+                          </div>
+                          <div>
+                            <p className="text-base font-semibold text-esc-black">Nothing selected yet</p>
+                            <p className="text-sm text-esc-muted">
+                              Start assigning points and your leader appears here.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="absolute right-[13%] top-[14%] h-28 w-28 overflow-hidden rounded-full border border-esc-border/70 bg-white/40 backdrop-blur-md animate-hero-aurora motion-reduce:animate-none">
+                    {topSelection ? (
+                      <img
+                        src={flagUrl(topSelection.countryId)}
+                        alt={topSelection.countryName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-white/30" />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -211,12 +338,11 @@ export const VotePage = () => {
             <div className="flex flex-wrap items-end justify-between gap-6 border-t border-esc-border/80 pt-6">
               <div
                 className="max-w-md opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
-                style={{ animationDelay: "920ms" }}
+                style={{ animationDelay: "980ms" }}
               >
-                <p className="text-[11px] uppercase tracking-[0.22em] text-esc-muted">Motion direction</p>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-esc-muted">Before you vote</p>
                 <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
-                  Spotlight sweep, layered gradients, floating cards and stronger editorial typography
-                  instead of three isolated full-screen fades.
+                  Review the songs, spread your points and keep track of the entry that currently leads your personal scoreboard.
                 </p>
               </div>
 
@@ -238,23 +364,98 @@ export const VotePage = () => {
         id="voting-grid"
         className="border-t border-esc-border bg-esc-surface2/60 px-4 pb-28 pt-16 sm:px-6 lg:px-8"
       >
-        <div className="mx-auto max-w-7xl space-y-8">
-          <div className="space-y-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">Live Experience</p>
-            <h3 className="text-4xl font-bold text-esc-black">Cast Your Votes</h3>
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="rounded-[2rem] border border-esc-border bg-white/90 p-6 shadow-[0_16px_40px_rgba(0,0,0,0.04)] sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl space-y-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">Live voting</p>
+                <h3 className="text-4xl font-bold text-esc-black">Cast Your Votes</h3>
+                <p className="text-sm leading-7 text-esc-black-soft/75 sm:text-base">
+                  Assign your points, keep an eye on your current leader and adjust everything until
+                  your personal scoreboard feels right.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Countries</p>
+                  <p className="mt-2 text-2xl font-bold text-esc-black">{selectedSongs.length}</p>
+                  <p className="mt-1 text-sm text-esc-muted">selected</p>
+                </div>
+
+                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Points used</p>
+                  <p className="mt-2 text-2xl font-bold text-esc-black">{used}</p>
+                  <p className="mt-1 text-sm text-esc-muted">of {TOTAL}</p>
+                </div>
+
+                <div className="rounded-2xl border border-esc-border bg-esc-surface px-4 py-4 shadow-[0_8px_20px_rgba(0,0,0,0.03)]">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-muted">Top pick</p>
+                  <p className="mt-2 truncate text-2xl font-bold text-esc-black">
+                    {topSelection ? topSelection.countryName : "—"}
+                  </p>
+                  <p className="mt-1 text-sm text-esc-muted">
+                    {topSelection ? `${topSelection.points} pts` : "No leader yet"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <BudgetBar remaining={remaining} total={TOTAL} />
+          <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="space-y-4">
+              <BudgetBar remaining={remaining} total={TOTAL} />
 
-          <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
-            {songs.map((song) => (
-              <CountryCard
-                key={song.songId}
-                song={song}
-                points={selection[song.songId] ?? 0}
-                onChange={changePoints}
-              />
-            ))}
+              <div className="rounded-[1.75rem] border border-esc-border bg-white p-5 shadow-[0_10px_24px_rgba(0,0,0,0.04)]">
+                <p className="text-xs uppercase tracking-[0.14em] text-esc-muted">Current leader</p>
+                {topSelection ? (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-2xl font-bold text-esc-black">{topSelection.countryName}</p>
+                    <p className="text-sm text-esc-muted">{topSelection.songName}</p>
+                    <p className="pt-2 text-sm leading-6 text-esc-black-soft/75">
+                      This entry currently leads your personal ranking with {topSelection.points}{" "}
+                      {topSelection.points === 1 ? "point" : "points"}.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
+                    As soon as you assign points, your current favorite will appear here.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-[1.75rem] border border-esc-border bg-white p-5 shadow-[0_10px_24px_rgba(0,0,0,0.04)]">
+                <p className="text-xs uppercase tracking-[0.14em] text-esc-muted">Quick note</p>
+                <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
+                  You can change, remove and rebalance points anytime before submitting.
+                </p>
+              </div>
+            </aside>
+
+            <div className="rounded-[2rem] border border-esc-border bg-white/90 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.04)] sm:p-5 lg:p-6">
+              <div className="mb-5 flex flex-col gap-4 border-b border-esc-border pb-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">All entries</p>
+                  <h4 className="mt-2 text-2xl font-bold text-esc-black sm:text-3xl">
+                    Choose your countries
+                  </h4>
+                </div>
+                <p className="max-w-md text-sm leading-6 text-esc-black-soft/75">
+                  Use the buttons on each card to add or remove points.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
+                {songs.map((song) => (
+                  <CountryCard
+                    key={song.songId}
+                    song={song}
+                    points={selection[song.songId] ?? 0}
+                    onChange={changePoints}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
           <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
@@ -269,4 +470,3 @@ export const VotePage = () => {
     </section>
   );
 };
-

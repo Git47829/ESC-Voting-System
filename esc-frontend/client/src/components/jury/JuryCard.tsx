@@ -10,13 +10,13 @@ export const JuryCard = ({
   onSelect: (value: number) => void;
 }) => {
   return (
-    <article className="border border-esc-muted p-3">
-      <h3 className="font-bold">{song.countryName} - {song.songName}</h3>
-      <div className="mt-2 flex flex-wrap gap-2">
+    <article>
+      <h3 className="text-base font-bold text-esc-black">{song.countryName} - {song.songName}</h3>
+      <div className="mt-3 flex flex-wrap gap-2">
         {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((points) => (
           <button
             key={points}
-            className={`border px-2 py-1 ${selected === points ? "border-esc-yellow text-esc-yellow" : "border-esc-muted"}`}
+            className={`rounded-lg border px-2.5 py-1.5 text-sm transition-colors ${selected === points ? "border-esc-pink bg-esc-pink text-white" : "border-esc-border bg-white text-esc-black hover:border-esc-pink hover:text-esc-pink"}`}
             onClick={() => onSelect(points)}
           >
             {points}
@@ -26,4 +26,3 @@ export const JuryCard = ({
     </article>
   );
 };
-

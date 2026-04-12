@@ -17,15 +17,22 @@ export const AdminPage = () => {
   }, []);
 
   return (
-    <section className="space-y-4">
-      <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-      <div className="flex flex-wrap gap-2">
-        <button className="border border-esc-yellow px-3 py-1 text-esc-yellow" onClick={() => void api.adminOpen().then(load)}>Open voting</button>
-        <button className="border border-esc-yellow px-3 py-1 text-esc-yellow" onClick={() => void api.adminClose().then(load)}>Close voting</button>
-        <button className="border border-red-500 px-3 py-1 text-red-400" onClick={() => setConfirmReset(true)}>Reset votes</button>
-        <button className="border border-esc-muted px-3 py-1" onClick={() => void api.adminStartContest().then(load)}>Start contest</button>
-        <button className="border border-esc-muted px-3 py-1" onClick={() => void api.adminAdvanceContest().then(load)}>Next song</button>
+    <section className="space-y-6">
+      <div className="rounded-[2rem] border border-esc-border bg-white/92 p-6 shadow-[0_18px_44px_rgba(0,0,0,0.05)] sm:p-8">
+        <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">Admin control</p>
+        <h1 className="mt-2 text-4xl font-bold text-esc-black">Admin Dashboard</h1>
       </div>
+
+      <div className="rounded-[1.75rem] border border-esc-border bg-white/92 p-5 shadow-[0_16px_36px_rgba(0,0,0,0.05)] sm:p-6">
+        <div className="flex flex-wrap gap-2.5">
+          <button className="rounded-xl border border-esc-pink bg-esc-pink px-3 py-2 text-sm font-semibold text-white hover:bg-esc-pink-dim" onClick={() => void api.adminOpen().then(load)}>Open voting</button>
+          <button className="rounded-xl border border-esc-border px-3 py-2 text-sm text-esc-black hover:border-esc-pink hover:text-esc-pink" onClick={() => void api.adminClose().then(load)}>Close voting</button>
+          <button className="rounded-xl border border-red-500 px-3 py-2 text-sm text-red-500 hover:bg-red-50" onClick={() => setConfirmReset(true)}>Reset votes</button>
+          <button className="rounded-xl border border-esc-border px-3 py-2 text-sm text-esc-black hover:border-esc-pink hover:text-esc-pink" onClick={() => void api.adminStartContest().then(load)}>Start contest</button>
+          <button className="rounded-xl border border-esc-border px-3 py-2 text-sm text-esc-black hover:border-esc-pink hover:text-esc-pink" onClick={() => void api.adminAdvanceContest().then(load)}>Next song</button>
+        </div>
+      </div>
+
       <AddEntryForms onDone={load} />
       <EntryTable songs={songs} />
       <ConfirmModal
@@ -43,4 +50,3 @@ export const AdminPage = () => {
     </section>
   );
 };
-
