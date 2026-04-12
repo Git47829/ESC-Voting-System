@@ -35,6 +35,11 @@ export const VotePage = () => {
       }
     };
 
+    if (window.scrollY > 24) {
+      setHeroAccentActive(true);
+      return;
+    }
+
     window.addEventListener("scroll", onScroll, { passive: true });
 
     return () => {
@@ -149,13 +154,8 @@ export const VotePage = () => {
 
                         <h1 className="hero-display text-balance">
                           <span
-                            className="hero-word-copy"
-                            style={{
-                              opacity: 1,
-                              transform: "none",
-                              filter: "none",
-                              animation: "none"
-                            }}
+                            className="hero-word-copy motion-reduce:animate-none"
+                            style={{ animationDelay: textDelay }}
                           >
                             {word}
                           </span>
