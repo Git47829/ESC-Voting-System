@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 
 import { CookieBanner } from "./components/layout/CookieBanner";
 import { FlashMessages } from "./components/layout/FlashMessages";
@@ -15,11 +15,14 @@ import { StatsPage } from "./pages/StatsPage";
 import { VotePage } from "./pages/VotePage";
 
 export const App = () => {
+  const { pathname } = useLocation();
+  const isVoteRoute = pathname === "/";
+
   return (
     <div className="min-h-screen bg-esc-white text-esc-black">
       <Navbar />
       <FlashMessages />
-      <main className="mx-auto max-w-7xl px-4 py-0">
+      <main className={isVoteRoute ? "w-full py-0" : "mx-auto max-w-7xl px-4 py-0"}>
         <Routes>
           <Route path="/" element={<VotePage />} />
           <Route path="/now" element={<NowPlayingPage />} />

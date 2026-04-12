@@ -96,6 +96,11 @@ export const VotePage = () => {
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">
       <div className="bg-esc-white">
         <section className="relative isolate overflow-hidden border-b border-esc-border bg-esc-white px-6 pb-12 pt-6 sm:px-10 sm:pb-16 lg:px-14 lg:pb-20 lg:pt-8">
+          <div className="pointer-events-none absolute inset-0 hero-pink-wash" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-r from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-l from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
+          <div className="pointer-events-none absolute inset-y-[14%] left-0 hidden w-[clamp(6rem,11vw,14rem)] bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.14)_0%,_rgba(255,4,144,0.08)_38%,_rgba(255,4,144,0)_74%)] opacity-55 sm:block lg:inset-y-[10%] lg:w-[clamp(8rem,13vw,18rem)] lg:opacity-75" />
+          <div className="pointer-events-none absolute inset-y-[14%] right-0 hidden w-[clamp(6rem,11vw,14rem)] bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.14)_0%,_rgba(255,4,144,0.08)_38%,_rgba(255,4,144,0)_74%)] opacity-55 sm:block lg:inset-y-[10%] lg:w-[clamp(8rem,13vw,18rem)] lg:opacity-75" />
           <div className="pointer-events-none absolute inset-0 hero-grid-lines opacity-70" />
           <div className="pointer-events-none absolute inset-0 hero-noise opacity-[0.16] mix-blend-soft-light" />
           <div className="pointer-events-none absolute -left-20 top-20 h-72 w-72 rounded-full bg-esc-pink/12 blur-3xl animate-hero-aurora" />
@@ -103,7 +108,7 @@ export const VotePage = () => {
           <div className="pointer-events-none absolute bottom-[-8rem] left-[20%] h-[22rem] w-[22rem] rounded-full bg-black/5 blur-3xl animate-hero-aurora" />
           <div className="hero-spotlight pointer-events-none absolute inset-y-[-20%] left-1/2 hidden w-[36rem] -translate-x-1/2 opacity-80 md:block" />
 
-          <div className="relative mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col justify-between gap-14 lg:min-h-[960px]">
+          <div className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-7xl flex-col justify-between gap-14 lg:min-h-[960px]">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-esc-border/80 pb-4 text-[11px] uppercase tracking-[0.24em] text-esc-muted">
               <div
                 className="opacity-0 animate-hero-fade-up motion-reduce:animate-none motion-reduce:opacity-100"
