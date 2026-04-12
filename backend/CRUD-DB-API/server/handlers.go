@@ -27,7 +27,7 @@ import (
 )
 
 type Client struct {
-	limiter *rate.Limiter
+	limiter  *rate.Limiter
 	lastSeen time.Time
 }
 
@@ -45,26 +45,26 @@ type Countrys struct {
 }
 
 type Composer struct {
-	ID      int `json:"id"`
+	ID        int `json:"id"`
 	firstName string
-	name    string
+	name      string
 }
 
 type CompleteESCEntryWithComposers struct {
-	SongID          int    `json:"songId"`
-	SongName        string `json:"songName"`
+	SongID       int    `json:"songId"`
+	SongName     string `json:"songName"`
 	PublicPoints int    `json:"publicVotes"`
-	JuryPoints      int    `json:"juryVotes"`
-	TotalPoints    int    `json:"totalVotes"`
+	JuryPoints   int    `json:"juryVotes"`
+	TotalPoints  int    `json:"totalVotes"`
 
 	CountryID   string `json:"countryId"`
 	CountryName string `json:"countryName"`
 	CountryPOT  *int   `json:"countryPot,omitempty"`
 
-	ArtistID      int    `json:"artistId"`
+	ArtistID        int    `json:"artistId"`
 	ArtistFirstName string `json:"artistFirstName"`
-	ArtistName    string `json:"artistLastName"`
-	ArtistType     string `json:"artistType"`
+	ArtistName      string `json:"artistLastName"`
+	ArtistType      string `json:"artistType"`
 
 	Composer []Composer `json:"composers"`
 
@@ -87,7 +87,7 @@ var (
 		"GET /jury/authenticate":  {RequestsPerSecond: 1, BurstSize: 1},
 		"GET /admin/authenticate": {RequestsPerSecond: 1, BurstSize: 1},
 
-		"POST /admin/open":          {RequestsPerSecond: 2, BurstSize: 2},
+		"POST /admin/open":           {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/close":          {RequestsPerSecond: 2, BurstSize: 2},
 		"POST /admin/addCountry":     {RequestsPerSecond: 5, BurstSize: 5},
 		"POST /admin/addSong":        {RequestsPerSecond: 5, BurstSize: 5},

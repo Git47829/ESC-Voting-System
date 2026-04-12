@@ -37,7 +37,7 @@ type Song struct {
 	ID        int    `json:"songId"`
 	Name      string `json:"songName"`
 	Country   string `json:"country"`
-	CountryID    string `json:"countryId"`
+	CountryID string `json:"countryId"`
 	RawVotes  int    `json:"rawPublicVotes"`
 	ESCPoints int    `json:"escPoints"`
 	Rank      int    `json:"rank"`
@@ -52,11 +52,11 @@ func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error
 	songs := make([]Song, 0, len(resp.Songs))
 	for _, s := range resp.Songs {
 		songs = append(songs, Song{
-			ID:       int(s.SongId),
-			Name:     s.SongName,
-			Country:  s.CountryName,
-			CountryID:   s.CountryId,
-			RawVotes: int(s.PublicVotes),
+			ID:        int(s.SongId),
+			Name:      s.SongName,
+			Country:   s.CountryName,
+			CountryID: s.CountryId,
+			RawVotes:  int(s.PublicVotes),
 		})
 	}
 	return songs, nil

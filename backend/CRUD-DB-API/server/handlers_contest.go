@@ -12,7 +12,6 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-
 	rows, err := DB.QueryContext(ctx, "SELECT ID FROM Song ORDER BY ID")
 	if err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to query songs", slog.Any("error", err))
@@ -87,7 +86,6 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
-
 
 	var (
 		runID        int

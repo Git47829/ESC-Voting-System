@@ -47,11 +47,9 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var	isOpen     bool
-	
+	var isOpen bool
 
 	g, gctx := errgroup.WithContext(ctx)
-
 
 	g.Go(func() error {
 		err := DB.QueryRowContext(gctx, `SELECT isOpen FROM Voting_Status`).Scan(&isOpen)
@@ -68,7 +66,6 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
 
 	if !isOpen {
 		w.WriteHeader(http.StatusTooEarly)

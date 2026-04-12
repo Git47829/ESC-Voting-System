@@ -172,9 +172,9 @@ func HTTPGetSongs(w http.ResponseWriter, r *http.Request) {
 		}
 		if componentID.Valid {
 			component := Composer{
-				ID:      int(componentID.Int64),
+				ID:        int(componentID.Int64),
 				firstName: componentFirstName.String,
-				name:    componentName.String,
+				name:      componentName.String,
 			}
 			c.Composer = append(c.Composer, component)
 		}
@@ -261,9 +261,9 @@ func GetSongByID(w http.ResponseWriter, r *http.Request) {
 		}
 		if componentID.Valid {
 			component := Composer{
-				ID:      int(componentID.Int64),
+				ID:        int(componentID.Int64),
 				firstName: componentFirstName.String,
-				name:    componentName.String,
+				name:      componentName.String,
 			}
 			c.Composer = append(c.Composer, component)
 		}
