@@ -21,7 +21,7 @@ export const CookieConsentProvider = ({ children }: { children: ReactNode }) => 
   const value = useMemo<CookieConsentContextValue>(
     () => ({
       consent,
-      shouldShowBanner: !consent || !consent.preferences.statistics,
+      shouldShowBanner: !consent,
       saveConsent: (statistics) => {
         const next: ConsentState = {
           acceptedAt: new Date().toISOString(),
@@ -56,4 +56,3 @@ export const useCookieConsent = (): CookieConsentContextValue => {
   }
   return context;
 };
-

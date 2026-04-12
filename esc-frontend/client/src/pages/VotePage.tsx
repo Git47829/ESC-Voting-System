@@ -369,7 +369,9 @@ export const VotePage = () => {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl space-y-3">
                 <p className="text-xs uppercase tracking-[0.16em] text-esc-muted">Live voting</p>
-                <h3 className="text-4xl font-bold text-esc-black">Cast Your Votes</h3>
+                <h3 className="inline-block rounded-none bg-[#ff0490] px-0 py-0 text-4xl font-bold leading-none text-white shadow-none">
+                  Cast Your Votes
+                </h3>
                 <p className="text-sm leading-7 text-esc-black-soft/75 sm:text-base">
                   Assign your points, keep an eye on your current leader and adjust everything until
                   your personal scoreboard feels right.
@@ -470,3 +472,4 @@ export const VotePage = () => {
     </section>
   );
 };
+
