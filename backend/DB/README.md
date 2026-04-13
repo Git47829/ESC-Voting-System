@@ -23,7 +23,7 @@ The container exposes MySQL on port **3306** and is reachable inside the Docker 
 
 | Column | Type                  | Notes                     |
 |--------|-----------------------|---------------------------|
-| `ID`   | `CHAR(3)` PK          | ISO 3166-1 alpha-3 code   |
+| `ID`   | `CHAR(2)` PK          | ISO 3166-1 alpha-2 code   |
 | `Name` | `VARCHAR(100)` UNIQUE | Country display name      |
 | `POT`  | `TINYINT UNSIGNED`    | Pot/group assignment      |
 
@@ -43,7 +43,7 @@ The container exposes MySQL on port **3306** and is reachable inside the Docker 
 | `Vorname` | `VARCHAR(100)`                    | First name (optional)         |
 | `Name`    | `VARCHAR(200)`                    | Last / group name             |
 | `Typ`     | `ENUM('solo','duo','gruppe')`     | Performer type, default solo  |
-| `Land_ID` | `CHAR(3)` FK → `Land.ID`         | Country the artist represents |
+| `Land_ID` | `CHAR(2)` FK → `Land.ID`         | Country the artist represents |
 
 ### `Song` — Songs
 
@@ -51,7 +51,7 @@ The container exposes MySQL on port **3306** and is reachable inside the Docker 
 |-------------------|-------------------------|---------------------------------------------------------------|
 | `ID`              | `INT` PK AI             | Auto-increment                                                |
 | `Name`            | `VARCHAR(200)`          | Song title                                                    |
-| `Land_ID`         | `CHAR(3)` FK → `Land`  | Competing country                                             |
+| `Land_ID`         | `CHAR(2)` FK → `Land`  | Competing country                                             |
 | `Kuenstler_ID`    | `INT` FK → `Kuenstler` | Performing artist                                             |
 | `PublikumsPunkte` | `SMALLINT UNSIGNED`     | Public vote points, default 0                                 |
 | `JuryPunkte`      | `SMALLINT UNSIGNED`     | Jury vote points, default 0                                   |
@@ -74,7 +74,7 @@ The container exposes MySQL on port **3306** and is reachable inside the Docker 
 |--------------|-----------|---------------------------------|
 | `VotingID`   | `INT` PK  | Always a single row (`ID = 1`) |
 | `isOpen`     | `BOOL`    | `TRUE` = voting open           |
-| `lastChange` | `TIME`    | Time of last status change     |
+| `lastChange` | `DATETIME` | Time of last status change    |
 
 ### `Contest_Run` — Live Contest State
 
@@ -104,16 +104,16 @@ Only one row should have `IsActive = TRUE` at a time. When the admin starts a ne
 `seed_data.sql` is loaded automatically alongside the schema on first container start. It inserts:
 
 - **Voting status**: open (`isOpen = TRUE`)
-- **4 countries**: Germany (`DEU`), Sweden (`SWE`), France (`FRA`), Spain (`ESP`)
-- **3 composers**: Lena Meyer-Landrut, Thomas G:son, Aria Vidal
-- **3 artists**: Lena Meyer-Landrut (solo/DEU), Alice Lindgren (duo/SWE), Jean Dupont (solo/FRA)
+- **4 countries**: Germany (`DE`), Sweden (`SE`), France (`FR`), Spain (`ES`)
+- **3 composers**: "Nena" Gabrielle Susanne Kerner, Thomas G:son, Aria Vidal
+- **3 artists**: "Nena" Gabrielle Susanne Kerner (solo/DE), Alice Lindgren (duo/SE), Jean Dupont (solo/FR)
 - **3 songs** with pre-populated public and jury points:
 
-| ID | Title               | Country | YoutubeURL            |
-|----|---------------------|---------|-----------------------|
-| 1  | Satellite Reprise   | DEU     | YouTube embed URL     |
-| 2  | Northern Lights     | SWE     | YouTube embed URL     |
-| 3  | Parisian Nights     | FRA     | `NULL` (no video)     |
+| ID | Title                                  | Country | YoutubeURL            |
+|----|----------------------------------------|---------|-----------------------|
+| 1  | Irgendwie, Irgendwo, Irgendwann        | DE      | YouTube embed URL     |
+| 2  | Northern Lights                        | SE      | YouTube embed URL     |
+| 3  | Parisian Nights                        | FR      | `NULL` (no video)     |
 
 > The seed YouTube URLs are placeholders for development. Replace them with real embed URLs (`https://www.youtube.com/embed/VIDEO_ID`) for production use.
 

@@ -4,13 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/nyaruka/phonenumbers"
+	"golang.org/x/crypto/bcrypt"
 	"log/slog"
 	"net/http"
 	"os"
-	"sync"
 	"strings"
-	"github.com/nyaruka/phonenumbers"
-	"golang.org/x/crypto/bcrypt"
+	"sync"
 )
 
 func extractToken(r *http.Request) string {
@@ -23,7 +23,7 @@ func extractToken(r *http.Request) string {
 }
 
 func RequireJury(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
 		if ok, msg := CheckAccessJury(token); !ok {
 			Logger.Warn("Invalid Jury Login Attempt", slog.String("message", "Invalid Login Attempt"))
@@ -32,12 +32,12 @@ func RequireJury(next http.Handler) http.Handler {
 			json.NewEncoder(w).Encode(map[string]string{"error": msg})
 			return
 		}
-		next.ServeHTTP(w,r)
+		next.ServeHTTP(w, r)
 	})
 }
 
 func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
 		if ok, msg := CheckAccessAdmin(token); !ok {
 			Logger.Warn("Invalid Login Attempt", slog.String("message", "Invalid Login Attempt"))
@@ -46,8 +46,8 @@ func RequireAdmin(next http.Handler) http.Handler {
 			json.NewEncoder(w).Encode(map[string]string{"error": msg})
 			return
 		}
-		next.ServeHTTP(w,r)
-	}) 
+		next.ServeHTTP(w, r)
+	})
 }
 
 func CheckPhoneNum(num string) (string, error) {

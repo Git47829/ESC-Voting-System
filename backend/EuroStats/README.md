@@ -51,10 +51,10 @@ EuroStats is a **FastAPI** service that connects to the CRUD API's gRPC server a
   "votes": [
     {
       "song_id": 1,
-      "song_name": "Satellite Reprise",
-      "country_voted_for": "DEU",
+      "song_name": "Irgendwie, Irgendwo, Irgendwann",
+      "country_voted_for": "DE",
       "country_voted_for_name": "Germany",
-      "voter_country": "SWE",
+      "voter_country": "SE",
       "voter_country_name": "Sweden",
       "vote_count": 225,
       "timestamp": 1714000000
@@ -73,10 +73,10 @@ Streams individual vote events as JSON objects:
   "type": "vote",
   "data": {
     "song_id": 1,
-    "song_name": "Satellite Reprise",
-    "country_voted_for": "DEU",
+    "song_name": "Irgendwie, Irgendwo, Irgendwann",
+    "country_voted_for": "DE",
     "country_voted_for_name": "Germany",
-    "voter_country": "FRA",
+    "voter_country": "FR",
     "voter_country_name": "France",
     "vote_count": 226,
     "timestamp": 1714000042
@@ -99,15 +99,29 @@ EuroStats has **no port exposed directly to the host**. All external access goes
 EuroStats/
 ├── Dockerfile
 ├── README.md
-├── requirements.txt
+├── requirements.txt          # Production dependencies
+├── requirements-test.txt     # Test dependencies
 ├── .python-version
-├── proto/                   # Protobuf definition files
+├── conftest.py
+├── pytest.ini
+├── proto/                    # Protobuf source definition
+│   └── votes.proto
 ├── scripts/
-│   └── generate_proto.sh    # Generates Python gRPC stubs from .proto files
+│   └── generate_proto.sh     # Generates Python gRPC stubs from .proto files
+├── tests/                    # Integration tests
+│   ├── conftest.py
+│   ├── test_handle_vote.py
+│   ├── test_health.py
+│   ├── test_votes_subscribe.py
+│   └── test_websocket.py
 └── src/
-    ├── main.py              # FastAPI application, lifespan, endpoints
-    ├── grpc_consumer.py     # VoteStreamConsumer — gRPC client wrapper
-    └── telemetry.py         # OpenTelemetry tracing + metrics setup
+    ├── main.py               # FastAPI application, lifespan, endpoints
+    ├── grpc_consumer.py      # VoteStreamConsumer — gRPC client wrapper
+    ├── telemetry.py          # OpenTelemetry tracing + metrics setup
+    └── proto/                # Generated Python gRPC stubs
+        ├── votes_pb2.py
+        ├── votes_pb2_grpc.py
+        └── __init__.py
 ```
 
 ## Docker

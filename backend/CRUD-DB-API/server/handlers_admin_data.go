@@ -73,6 +73,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
+
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", IDstr))
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -81,6 +82,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	Name := query.Get("Name")
 	country := query.Get("Land")
 	youtubeURL := query.Get("YoutubeURL")
@@ -115,6 +117,7 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rowsAffected, err := result.RowsAffected()
+
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
 	}
@@ -139,6 +142,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
+
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -147,6 +151,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	Name := query.Get("Name")
 	vorName := query.Get("vorName")
 	typ := query.Get("typ")
@@ -176,6 +181,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to verify insertions", slog.Any("error", err))
 	}
+
 	if rowsAffected == 0 {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{
@@ -197,6 +203,7 @@ func AddInterpret(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	IDstr := query.Get("ID")
 	ID, err := strconv.Atoi(IDstr)
+
 	if err != nil {
 		Logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
 		w.WriteHeader(http.StatusBadRequest)
@@ -205,6 +212,7 @@ func AddInterpret(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	Name := query.Get("Name")
 	vorName := query.Get("Vorname")
 	dbQuery := `INSERT INTO Komponist (ID, Vorname, Name) VALUES (?,?,?)`

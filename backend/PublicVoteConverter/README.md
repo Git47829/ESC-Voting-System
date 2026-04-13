@@ -37,9 +37,9 @@ Returns a preview of public vote totals converted to ESC ranking points. Points 
 {
   "message": "ESC points preview (not yet applied)",
   "payload": [
-    { "songId": 2, "songName": "Northern Lights", "country": "Sweden",  "countryId": "SWE", "rawPublicVotes": 110, "escPoints": 36, "rank": 1 },
-    { "songId": 1, "songName": "Satellite Reprise","country": "Germany", "countryId": "DEU", "rawPublicVotes":  85, "escPoints": 30, "rank": 2 },
-    { "songId": 3, "songName": "Parisian Nights",  "country": "France",  "countryId": "FRA", "rawPublicVotes":   0, "escPoints":  0, "rank": 3 }
+    { "songId": 2, "songName": "Northern Lights",                   "country": "Sweden",  "countryId": "SE", "rawPublicVotes": 110, "escPoints": 36, "rank": 1 },
+    { "songId": 1, "songName": "Irgendwie, Irgendwo, Irgendwann", "country": "Germany", "countryId": "DE", "rawPublicVotes":  85, "escPoints": 30, "rank": 2 },
+    { "songId": 3, "songName": "Parisian Nights",                  "country": "France",  "countryId": "FR", "rawPublicVotes":   0, "escPoints":  0, "rank": 3 }
   ]
 }
 ```
@@ -100,22 +100,27 @@ On startup, `connectToGRPC()` retries up to 20 times (3-second intervals), probi
 PublicVoteConverter/
 ├── Dockerfile
 ├── README.md
-└── src/
-    ├── go.mod
-    ├── go.sum
-    ├── main.go          # HTTP handlers, gRPC client, ranking logic, OTel setup
-    └── proto/           # Generated protobuf stubs (client-side)
-        ├── votes.proto
-        ├── votes.pb.go
-        └── votes_grpc.pb.go
+├── go.mod
+├── go.sum
+├── main.go              # HTTP server setup, gRPC client init, OTel setup
+├── proto/               # Generated protobuf stubs (client-side)
+│   ├── votes.proto
+│   ├── votes.pb.go
+│   └── votes_grpc.pb.go
+├── converter/           # Ranking and telemetry logic
+│   ├── logic.go         # ESC points ranking algorithm
+│   └── telemetry.go     # OpenTelemetry setup
+└── tests/               # Unit tests
+    ├── handler_test.go
+    └── rank_convert_test.go
 ```
 
 ### Regenerating proto stubs
 
-The proto definition mirrors `backend/CRUD-DB-API/src/proto/votes.proto` but uses a different `go_package` (`esc-points-converter/proto`). After any proto changes:
+The proto definition mirrors `backend/CRUD-DB-API/proto/votes.proto` but uses a different `go_package` (`esc-points-converter/proto`). After any proto changes:
 
 ```bash
-cd backend/PublicVoteConverter/src
+cd backend/PublicVoteConverter
 protoc --go_out=. --go-grpc_out=. \
   --go_opt=paths=source_relative --go-grpc_opt=paths=source_relative \
   proto/votes.proto
@@ -146,7 +151,7 @@ A dedicated `/healthcheck` binary (compiled in the builder stage) performs `GET 
 
 Every inbound HTTP request (except `/health` and `/metrics`) is wrapped by `observabilityMiddleware`, which:
 
-- Opens a trace span via OpenTelemetry (exported to Loki via the OTel Collector)
+- Opens a trace span via OpenTelemetry (exported to Tempo via the OTel Collector)
 - Records request duration and count in Prometheus
 - Emits structured JSON log lines to stdout and forwards them to Loki via OTLP/HTTP
 

@@ -57,7 +57,7 @@ CREATE TABLE Song_Komponist (
 CREATE TABLE Voting_Status (
 	VotingID INT NOT NULL PRIMARY KEY,
 	isOpen BOOL NOT NULL,
-	lastChange TIME
+	lastChange DATETIME 
 );
 
 -- Contest run state: tracks shuffled song order and current position

@@ -44,12 +44,37 @@ A dedicated `/healthcheck` binary is compiled in the builder stage and copied in
 CRUD-DB-API/
 ├── Dockerfile
 ├── README.md
-└── src/
-    ├── go.mod
-    ├── go.sum
-    ├── main.go          # All HTTP handlers, middleware, DB logic
-    ├── grpc_server.go   # gRPC VoteService — streaming & broadcasting
-    └── proto/           # Generated protobuf stubs
+├── go.mod
+├── go.sum
+├── main.go              # Entry point — calls server.Run()
+├── proto/               # Generated protobuf stubs
+│   ├── votes.proto
+│   ├── votes.pb.go
+│   └── votes_grpc.pb.go
+├── server/              # HTTP handlers, gRPC server, DB, and telemetry
+│   ├── database.go
+│   ├── grpc_server.go
+│   ├── handlers.go
+│   ├── handlers_admin.go
+│   ├── handlers_admin_data.go
+│   ├── handlers_auth.go
+│   ├── handlers_contest.go
+│   ├── handlers_jury.go
+│   ├── handlers_songs.go
+│   ├── handlers_votes.go
+│   └── telemetry.go
+└── tests/               # Integration tests
+    ├── main_test.go
+    ├── auth_test.go
+    ├── admin_test.go
+    ├── contest_test.go
+    ├── cookie_test.go
+    ├── countries_test.go
+    ├── health_test.go
+    ├── jury_test.go
+    ├── songs_test.go
+    ├── vote_handler_test.go
+    └── votes_test.go
 ```
 
 ## REST API Endpoints
@@ -120,7 +145,7 @@ The contest run feature allows an admin to run through all registered songs one 
     "songId": 2,
     "songName": "Northern Lights",
     "youtubeUrl": "https://www.youtube.com/embed/VIDEO_ID",
-    "countryId": "SWE",
+    "countryId": "SE",
     "countryName": "Sweden",
     "artistId": 2,
     "artistFirstName": "Alice",
@@ -154,7 +179,7 @@ Returns `404` when no contest is active, `410 Gone` when the contest has finishe
 |---|---|---|
 | `Token` | Yes | Admin token |
 | `Name` | Yes | Song title |
-| `Land` | Yes | Country ID (alpha-3) |
+| `Land` | Yes | Country ID (alpha-2, e.g. `DE`) |
 | `ID` | Yes | Artist (`Kuenstler`) ID |
 | `YoutubeURL` | No | YouTube embed URL — any YouTube URL format is accepted; the frontend normalizes it to `youtube.com/embed/VIDEO_ID` before submission |
 
@@ -218,7 +243,7 @@ backend/CRUD-DB-API/src/proto/votes.proto
 Generated Go stubs (`votes.pb.go`, `votes_grpc.pb.go`) are committed alongside the proto source. To regenerate after editing the proto:
 
 ```bash
-cd backend/CRUD-DB-API/src
+cd backend/CRUD-DB-API
 protoc --go_out=. --go-grpc_out=. \
   --go_opt=paths=source_relative --go-grpc_opt=paths=source_relative \
   proto/votes.proto
@@ -268,7 +293,7 @@ The dedicated authenticate endpoints are used by the frontend login flow to vali
 
 | Table | Description |
 |---|---|
-| `Land` | Countries — ISO alpha-3 ID, name, pot assignment |
+| `Land` | Countries — ISO alpha-2 ID, name, pot assignment |
 | `Kuenstler` | Artists — solo, duo, or group; linked to a country |
 | `Komponist` | Composers — first and last name |
 | `Song` | Songs — linked to country and artist; stores public, jury, and computed total points; optional `YoutubeURL` |
