@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import EurovisionHeart from "../../img/EurovisionHeart.png";
 import { api } from "../api/client";
 import { CountryCard } from "../components/ui/CountryCard";
 import { BudgetBar } from "../components/vote/BudgetBar";
@@ -20,11 +21,35 @@ export const VotePage = () => {
   const [selection, setSelection] = useState<Record<number, number>>({});
   const [openSubmit, setOpenSubmit] = useState(false);
   const [heroAccentActive, setHeroAccentActive] = useState(false);
+  const [heroSweepX, setHeroSweepX] = useState(-20);
   const { addFlash } = useFlash();
   const { consent } = useCookieConsent();
 
   useEffect(() => {
     void api.getSongs().then(setSongs);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const onScroll = () => {
+      if (media.matches) {
+        setHeroSweepX(-20);
+        return;
+      }
+
+      const maxScroll = 700;
+      const progress = Math.max(0, Math.min(window.scrollY / maxScroll, 1));
+      const nextX = -20 + progress * 48;
+      setHeroSweepX(nextX);
+    };
+
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
   }, []);
 
   useEffect(() => {
@@ -94,10 +119,36 @@ export const VotePage = () => {
 
   return (
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">
-      <div className="relative isolate overflow-hidden bg-white">
+      <div className="relative isolate bg-white">
         <div className="pointer-events-none absolute inset-0 vote-page-surface" />
         <div className="relative isolate overflow-hidden px-6 pb-12 pt-6 sm:px-10 sm:pb-16 lg:px-14 lg:pb-20 lg:pt-8">
           <div className="pointer-events-none absolute inset-0 hero-pink-wash" />
+
+          <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
+            <img
+              src={EurovisionHeart}
+              alt=""
+              aria-hidden="true"
+              className="absolute left-1/2 top-[7%] w-[min(88vw,30rem)] -translate-x-1/2 object-contain opacity-[0.34] sm:top-[6%] sm:w-[min(78vw,36rem)] md:top-[5%] md:w-[min(70vw,44rem)] lg:top-[4%] lg:w-[min(64vw,52rem)] xl:top-[3%] xl:w-[58rem]"
+            />
+          </div>
+
+          <div
+            className="pointer-events-none absolute top-[6%] z-[1] hidden h-[28rem] w-[62rem] -rotate-[9deg] rounded-full opacity-75 blur-[95px] md:block"
+            style={{
+              left: `${heroSweepX}%`,
+              background:
+                "linear-gradient(90deg, rgba(255,4,144,0) 0%, rgba(255,4,144,0.12) 16%, rgba(255,4,144,0.3) 50%, rgba(255,4,144,0.12) 84%, rgba(255,4,144,0) 100%)"
+            }}
+          />
+          <div
+            className="pointer-events-none absolute top-[10%] z-[1] hidden h-[24rem] w-[50rem] -rotate-[9deg] rounded-full opacity-60 blur-[125px] md:block"
+            style={{
+              left: `${heroSweepX + 8}%`,
+              background:
+                "linear-gradient(90deg, rgba(255,4,144,0) 0%, rgba(255,4,144,0.08) 18%, rgba(255,4,144,0.2) 50%, rgba(255,4,144,0.08) 82%, rgba(255,4,144,0) 100%)"
+            }}
+          />
           <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-r from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
           <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[clamp(7rem,14vw,16rem)] bg-gradient-to-l from-esc-pink/16 via-esc-pink/8 to-transparent blur-2xl opacity-55 sm:block md:w-[clamp(9rem,16vw,20rem)] lg:w-[clamp(11rem,18vw,24rem)] lg:opacity-70" />
           <div className="pointer-events-none absolute inset-y-[14%] left-0 hidden w-[clamp(6rem,11vw,14rem)] bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.14)_0%,_rgba(255,4,144,0.08)_38%,_rgba(255,4,144,0)_74%)] opacity-55 sm:block lg:inset-y-[10%] lg:w-[clamp(8rem,13vw,18rem)] lg:opacity-75" />
@@ -331,8 +382,7 @@ export const VotePage = () => {
                       <img
                         src={flagUrl(topSelection.countryId)}
                         alt={topSelection.countryName}
-                        className="h-full w-full object-cover"
-                      />
+                        className="h-full w-full object-cover scale-[10] -rotate-[8deg]"                      />
                     ) : (
                       <div className="h-full w-full bg-white/30" />
                     )}
@@ -367,7 +417,7 @@ export const VotePage = () => {
 
         <div
           id="voting-grid"
-          className="relative px-4 pb-28 pt-4 sm:px-6 sm:pt-5 lg:px-8 lg:pt-6"
+          className="relative px-4 pb-8 pt-4 sm:px-6 sm:pb-10 sm:pt-5 lg:px-8 lg:pb-12 lg:pt-6"
         >
           <div className="pointer-events-none absolute inset-x-0 top-[-5rem] h-40 bg-gradient-to-b from-esc-pink/16 via-esc-pink/8 to-white/0" />
           <div className="pointer-events-none absolute inset-0 vote-section-wash" />
@@ -379,102 +429,103 @@ export const VotePage = () => {
           <div className="pointer-events-none absolute left-[-18%] top-[26%] h-[72rem] w-[132rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.29)_0%,_rgba(255,4,144,0.145)_32%,_rgba(255,4,144,0.06)_56%,_rgba(255,4,144,0)_82%)] blur-[230px] opacity-84" />
 
           <div className="relative z-10 mx-auto max-w-7xl space-y-6">
-          <div className="vote-panel rounded-[2rem] p-6 sm:p-8">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-2xl space-y-3">
-                <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">Live voting</p>
-                <h3 className="inline-flex rounded-full border border-esc-pink/16 bg-white/95 px-4 py-2 text-4xl font-bold leading-none text-esc-pink shadow-[0_12px_30px_rgba(255,4,144,0.08)]">
-                  Cast Your Votes
-                </h3>
-                <p className="text-sm leading-7 text-esc-black-soft/75 sm:text-base">
-                  Assign your points, keep an eye on your current leader and adjust everything until
-                  your personal scoreboard feels right.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="vote-panel-soft rounded-2xl px-4 py-4">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Countries</p>
-                  <p className="mt-2 text-2xl font-bold text-esc-black">{selectedSongs.length}</p>
-                  <p className="mt-1 text-sm text-esc-muted">selected</p>
-                </div>
-
-                <div className="vote-panel-soft rounded-2xl px-4 py-4">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Points used</p>
-                  <p className="mt-2 text-2xl font-bold text-esc-black">{used}</p>
-                  <p className="mt-1 text-sm text-esc-muted">of {TOTAL}</p>
-                </div>
-
-                <div className="vote-panel-accent rounded-2xl px-4 py-4">
-                  <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/78">Top pick</p>
-                  <p className="mt-2 truncate text-2xl font-bold text-esc-black">
-                    {topSelection ? topSelection.countryName : "—"}
-                  </p>
-                  <p className="mt-1 text-sm text-esc-muted">
-                    {topSelection ? `${topSelection.points} pts` : "No leader yet"}
+            <div className="vote-panel rounded-[2rem] p-6 sm:p-8">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div className="max-w-2xl space-y-3">
+                  <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">Live voting</p>
+                  <h3 className="inline-flex rounded-full border border-esc-pink/16 bg-white/95 px-4 py-2 text-4xl font-bold leading-none text-esc-pink shadow-[0_12px_30px_rgba(255,4,144,0.08)]">
+                    Cast Your Votes
+                  </h3>
+                  <p className="text-sm leading-7 text-esc-black-soft/75 sm:text-base">
+                    Assign your points, keep an eye on your current leader and adjust everything until
+                    your personal scoreboard feels right.
                   </p>
                 </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-            <aside className="space-y-4">
-              <BudgetBar remaining={remaining} total={TOTAL} />
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="vote-panel-soft rounded-2xl px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Countries</p>
+                    <p className="mt-2 text-2xl font-bold text-esc-black">{selectedSongs.length}</p>
+                    <p className="mt-1 text-sm text-esc-muted">selected</p>
+                  </div>
 
-              <div className="vote-panel-soft rounded-[1.75rem] p-5">
-                <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Current leader</p>
-                {topSelection ? (
-                  <div className="mt-3 space-y-1">
-                    <p className="text-2xl font-bold text-esc-black">{topSelection.countryName}</p>
-                    <p className="text-sm text-esc-muted">{topSelection.songName}</p>
-                    <p className="pt-2 text-sm leading-6 text-esc-black-soft/75">
-                      This entry currently leads your personal ranking with {topSelection.points}{" "}
-                      {topSelection.points === 1 ? "point" : "points"}.
+                  <div className="vote-panel-soft rounded-2xl px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/72">Points used</p>
+                    <p className="mt-2 text-2xl font-bold text-esc-black">{used}</p>
+                    <p className="mt-1 text-sm text-esc-muted">of {TOTAL}</p>
+                  </div>
+
+                  <div className="vote-panel-accent rounded-2xl px-4 py-4">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-esc-pink/78">Top pick</p>
+                    <p className="mt-2 truncate text-2xl font-bold text-esc-black">
+                      {topSelection ? topSelection.countryName : "—"}
+                    </p>
+                    <p className="mt-1 text-sm text-esc-muted">
+                      {topSelection ? `${topSelection.points} pts` : "No leader yet"}
                     </p>
                   </div>
-                ) : (
-                  <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
-                    As soon as you assign points, your current favorite will appear here.
-                  </p>
-                )}
-              </div>
-
-              <div className="vote-panel-soft rounded-[1.75rem] p-5">
-                <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Quick note</p>
-                <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
-                  You can change, remove and rebalance points anytime before submitting.
-                </p>
-              </div>
-            </aside>
-
-            <div className="vote-panel rounded-[2rem] p-4 sm:p-5 lg:p-6">
-              <div className="mb-5 flex flex-col gap-4 border-b border-esc-pink/12 pb-5 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">All entries</p>
-                  <h4 className="mt-2 text-2xl font-bold text-esc-black sm:text-3xl">
-                    Choose your countries
-                  </h4>
                 </div>
-                <p className="max-w-md text-sm leading-6 text-esc-black-soft/75">
-                  Use the buttons on each card to add or remove points.
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
-                {songs.map((song) => (
-                  <CountryCard
-                    key={song.songId}
-                    song={song}
-                    points={selection[song.songId] ?? 0}
-                    onChange={changePoints}
-                  />
-                ))}
               </div>
             </div>
-          </div>
+
+            <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <aside className="space-y-4">
+                <BudgetBar remaining={remaining} total={TOTAL} />
+
+                <div className="vote-panel-soft rounded-[1.75rem] p-5">
+                  <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Current leader</p>
+                  {topSelection ? (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-2xl font-bold text-esc-black">{topSelection.countryName}</p>
+                      <p className="text-sm text-esc-muted">{topSelection.songName}</p>
+                      <p className="pt-2 text-sm leading-6 text-esc-black-soft/75">
+                        This entry currently leads your personal ranking with {topSelection.points}{" "}
+                        {topSelection.points === 1 ? "point" : "points"}.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
+                      As soon as you assign points, your current favorite will appear here.
+                    </p>
+                  )}
+                </div>
+
+                <div className="vote-panel-soft rounded-[1.75rem] p-5">
+                  <p className="text-xs uppercase tracking-[0.14em] text-esc-pink/72">Quick note</p>
+                  <p className="mt-3 text-sm leading-6 text-esc-black-soft/75">
+                    You can change, remove and rebalance points anytime before submitting.
+                  </p>
+                </div>
+              </aside>
+
+              <div className="vote-panel rounded-[2rem] p-4 sm:p-5 lg:p-6">
+                <div className="mb-5 flex flex-col gap-4 border-b border-esc-pink/12 pb-5 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-esc-pink/72">All entries</p>
+                    <h4 className="mt-2 text-2xl font-bold text-esc-black sm:text-3xl">
+                      Choose your countries
+                    </h4>
+                  </div>
+                  <p className="max-w-md text-sm leading-6 text-esc-black-soft/75">
+                    Use the buttons on each card to add or remove points.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 xl:gap-5">
+                  {songs.map((song) => (
+                    <CountryCard
+                      key={song.songId}
+                      song={song}
+                      points={selection[song.songId] ?? 0}
+                      onChange={changePoints}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
 
             <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
+
             <SubmitModal
               open={openSubmit}
               totalPoints={used}
@@ -487,4 +538,3 @@ export const VotePage = () => {
     </section>
   );
 };
-

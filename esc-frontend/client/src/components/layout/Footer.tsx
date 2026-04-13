@@ -16,7 +16,7 @@ const adminLinks = [
 
 export const Footer = () => {
   return (
-    <footer className="mt-14 border-t border-esc-border bg-white/95 px-4 py-8 text-sm text-esc-muted">
+    <footer className="border-t border-esc-border bg-white/95 px-4 py-8 text-sm text-esc-muted">
       <div className="mx-auto max-w-7xl">
         <div className="grid gap-8 border-b border-esc-border pb-7 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)]">
           <div className="space-y-2">

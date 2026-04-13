@@ -16,13 +16,13 @@ import { VotePage } from "./pages/VotePage";
 
 export const App = () => {
   const { pathname } = useLocation();
-  const isVoteRoute = pathname === "/";
+  const isImmersiveRoute = pathname === "/" || pathname === "/now" || pathname === "/stats";
 
   return (
     <div className="min-h-screen bg-esc-white text-esc-black">
       <Navbar />
       <FlashMessages />
-      <main className={isVoteRoute ? "w-full py-0" : "mx-auto max-w-7xl px-4 py-0"}>
+      <main className={isImmersiveRoute ? "w-full py-0" : "mx-auto max-w-7xl px-4 py-0"}>
         <Routes>
           <Route path="/" element={<VotePage />} />
           <Route path="/now" element={<NowPlayingPage />} />

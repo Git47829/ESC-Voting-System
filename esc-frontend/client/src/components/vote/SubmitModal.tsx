@@ -29,7 +29,7 @@ export const SubmitModal = ({
           />
         </label>
         <label className="block text-sm text-esc-black-soft">
-          Your country ID
+          Your country (f.e. DE, FR, IT)
           <input
             value={ownCountry}
             onChange={(e) => setOwnCountry(e.target.value.toUpperCase())}
