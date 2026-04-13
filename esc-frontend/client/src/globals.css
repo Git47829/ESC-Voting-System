@@ -432,17 +432,17 @@ select:focus-visible {
 
 .animate-heart-copy-1 {
   animation-name: heart-copy-in;
-  animation-delay: 2s;
+  animation-delay: 2.2s;
 }
 
 .animate-heart-copy-2 {
   animation-name: heart-copy-in;
-  animation-delay: 2.2s;
+  animation-delay: 2.4s;
 }
 
 .animate-heart-copy-3 {
   animation-name: heart-copy-in;
-  animation-delay: 2.4s;
+  animation-delay: 2.6s;
 }
 
 @keyframes heart-copy-in {
