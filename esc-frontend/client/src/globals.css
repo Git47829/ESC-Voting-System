@@ -420,3 +420,40 @@ select:focus-visible {
     display: none !important;
   }
 }
+
+.heart-copy {
+  opacity: 0;
+  transform: translateY(10px);
+  filter: blur(4px);
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+.animate-heart-copy-1 {
+  animation-name: heart-copy-in;
+  animation-delay: 2s;
+}
+
+.animate-heart-copy-2 {
+  animation-name: heart-copy-in;
+  animation-delay: 2.2s;
+}
+
+.animate-heart-copy-3 {
+  animation-name: heart-copy-in;
+  animation-delay: 2.4s;
+}
+
+@keyframes heart-copy-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}

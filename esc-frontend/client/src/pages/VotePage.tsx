@@ -125,12 +125,26 @@ export const VotePage = () => {
           <div className="pointer-events-none absolute inset-0 hero-pink-wash" />
 
           <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
-            <img
-              src={EurovisionHeart}
-              alt=""
-              aria-hidden="true"
-              className="absolute left-1/2 top-[7%] w-[min(88vw,30rem)] -translate-x-1/2 object-contain opacity-[0.34] sm:top-[6%] sm:w-[min(78vw,36rem)] md:top-[5%] md:w-[min(70vw,44rem)] lg:top-[4%] lg:w-[min(64vw,52rem)] xl:top-[3%] xl:w-[58rem]"
-            />
+            <div className="absolute left-1/2 top-[7%] w-[min(88vw,30rem)] -translate-x-1/2 sm:top-[6%] sm:w-[min(78vw,36rem)] md:top-[5%] md:w-[min(70vw,44rem)] lg:top-[4%] lg:w-[min(64vw,52rem)] xl:top-[3%] xl:w-[58rem]">
+              <img
+                src={EurovisionHeart}
+                alt=""
+                aria-hidden="true"
+                className="block w-full object-contain opacity-[0.34]"
+              />
+
+              <div className="absolute inset-0 flex flex-col items-center justify-center -translate-y-3 text-center">
+                <span className="heart-copy animate-heart-copy-1 font-heading text-[clamp(1rem,2vw,1.6rem)] font-semibold uppercase tracking-[0.18em] text-white/70">
+                  United.
+                </span>
+                <span className="heart-copy animate-heart-copy-2 mt-1 font-heading text-[clamp(1rem,2vw,1.6rem)] font-semibold uppercase tracking-[0.18em] text-white/70">
+                  By.
+                </span>
+                <span className="heart-copy animate-heart-copy-3 mt-1 font-heading text-[clamp(1rem,2vw,1.6rem)] font-semibold uppercase tracking-[0.18em] text-white/70">
+                  Music.
+                </span>
+              </div>
+            </div>
           </div>
 
           <div
