@@ -4,17 +4,36 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"os"
+	"sync"
 	"time"
 )
 
-type TokenStore struct {
-	storedTokens map[string]time.Time
+var (
+	storedTokens = make(map[string]time.Time)
+	tokenMu      sync.Mutex
+)
+
+func requestVerificationMail() {
+	reqURL := os.Getenv("EuroMailURL")
+	resp, err := http.Post(reqURL, "", nil)
+	if err != nil {
+		Logger.Error("Unable to Conntect to EuroMail", slog.Any("error:", err))
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusAccepted {
+		Logger.Info("Successfully requested Verification Mail")
+		return
+	} else {
+		Logger.Error("Error requesting Verification Mail")
+		return
+	}
 }
 
-func (t *TokenStore) requestVerificationToken(w http.ResponseWriter, r *http.Request) {
+func RequestToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	Logger.InfoContext(ctx, "New Verification Token requested")
-
 
 	w.Header().Set("Content-Type", "application/json")
 	token, err := generateToken()
@@ -26,33 +45,38 @@ func (t *TokenStore) requestVerificationToken(w http.ResponseWriter, r *http.Req
 		})
 	}
 
-	t.storedTokens[token] = time.Now()
+	tokenMu.Lock()
+	storedTokens[token] = time.Now()
+	tokenMu.Unlock()
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "authorized",
-		"token": token,
+		"token":   token,
 	})
-
 }
 
-func (t *TokenStore) verifiyWithToken(w http.ResponseWriter, r *http.Request) {
+func VerifiyWithToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	providedToken := r.PathValue("token") 
+	providedToken := r.PathValue("token")
 
 	w.Header().Set("Content-Type", "application/json")
 
-	_, exists := t.storedTokens[providedToken]
+	tokenMu.Lock()
+	_, exists := storedTokens[providedToken]
+	if exists {
+		evictToken(providedToken)
+	}
+	tokenMu.Unlock()
 
 	if exists {
 		Logger.InfoContext(ctx, "New Token verified, evicting from TokenStore", slog.String("message:", "New Verification via Token"))
-		t.evictToken(providedToken)
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "authenticated",
-		})	
-	return
+		})
+		return
 	}
 
 	w.WriteHeader(http.StatusUnauthorized)
@@ -61,10 +85,12 @@ func (t *TokenStore) verifiyWithToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (t *TokenStore) evictToken(input string) {
-	for _, v := range t.storedTokens {
-		if time.Since(v) < 5*time.Minute {
-			delete(t.storedTokens, input)
+// called with tokenMu held
+func evictToken(input string) {
+	delete(storedTokens, input)
+	for k, v := range storedTokens {
+		if time.Since(v) > 5*time.Minute {
+			delete(storedTokens, k)
 		}
 	}
 }
