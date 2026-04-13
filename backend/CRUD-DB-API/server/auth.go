@@ -1,7 +1,11 @@
 package server
 
 import (
+	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,21 +18,23 @@ var (
 	tokenMu      sync.Mutex
 )
 
-func requestVerificationMail() {
+func requestVerificationMail(email, token string) error {
 	reqURL := os.Getenv("EuroMailURL")
-	resp, err := http.Post(reqURL, "", nil)
+	body, _ := json.Marshal(map[string]string{"email": email, "token": token})
+	resp, err := http.Post(reqURL, "application/json", bytes.NewReader(body))
 	if err != nil {
-		Logger.Error("Unable to Conntect to EuroMail", slog.Any("error:", err))
+		Logger.Error("Unable to connect to EuroMail", slog.Any("error", err))
+		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusAccepted {
-		Logger.Info("Successfully requested Verification Mail")
-		return
-	} else {
-		Logger.Error("Error requesting Verification Mail")
-		return
+	if resp.StatusCode != http.StatusAccepted {
+		Logger.Error("EuroMail returned non-202", slog.Int("status", resp.StatusCode))
+		return fmt.Errorf("euromail status %d", resp.StatusCode)
 	}
+
+	Logger.Info("Verification mail sent", slog.String("email", email))
+	return nil
 }
 
 func RequestToken(w http.ResponseWriter, r *http.Request) {
@@ -36,18 +42,15 @@ func RequestToken(w http.ResponseWriter, r *http.Request) {
 	Logger.InfoContext(ctx, "New Verification Token requested")
 
 	w.Header().Set("Content-Type", "application/json")
-	token, err := generateToken()
+	token, err := generateAndStoreToken()
 	if err != nil {
-		Logger.ErrorContext(ctx, "Invaild Token generation", slog.Any("error", err))
+		Logger.ErrorContext(ctx, "Invalid Token generation", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Unable to generate Token",
 		})
+		return
 	}
-
-	tokenMu.Lock()
-	storedTokens[token] = time.Now()
-	tokenMu.Unlock()
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{
@@ -85,7 +88,23 @@ func VerifiyWithToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// called with tokenMu held
+func generateToken() (string, error) {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	return hex.EncodeToString(b), err
+}
+
+func generateAndStoreToken() (string, error) {
+	token, err := generateToken()
+	if err != nil {
+		return "", err
+	}
+	tokenMu.Lock()
+	storedTokens[token] = time.Now()
+	tokenMu.Unlock()
+	return token, nil
+}
+
 func evictToken(input string) {
 	delete(storedTokens, input)
 	for k, v := range storedTokens {

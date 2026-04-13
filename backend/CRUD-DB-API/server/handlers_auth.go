@@ -1,8 +1,6 @@
 package server
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
@@ -10,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 )
 
 func extractToken(r *http.Request) string {
@@ -19,13 +16,17 @@ func extractToken(r *http.Request) string {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
 	return ""
+}
 
+func extractEmail(r *http.Request) string {
+	return strings.TrimSpace(r.Header.Get("X-Email"))
 }
 
 func RequireJury(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
-		if ok, msg := CheckAccessJury(token); !ok {
+		email := extractEmail(r)
+		if ok, msg := CheckAccessJury(token, email); !ok {
 			Logger.Warn("Invalid Jury Login Attempt", slog.String("message", "Invalid Login Attempt"))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
@@ -39,7 +40,8 @@ func RequireJury(next http.Handler) http.Handler {
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
-		if ok, msg := CheckAccessAdmin(token); !ok {
+		email := extractEmail(r)
+		if ok, msg := CheckAccessAdmin(token, email); !ok {
 			Logger.Warn("Invalid Login Attempt", slog.String("message", "Invalid Login Attempt"))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
@@ -80,81 +82,102 @@ func CheckPassword(password, storedToken string) bool {
 	return err == nil
 }
 
-func CheckAccessAdmin(input string) (bool, string) {
-	adminPassword := os.Getenv("adminPassword")
-
+func CheckAccessAdmin(input, email string) (bool, string) {
 	if input == "" {
 		return false, "Token has to be provided"
 	}
+	if email == "" {
+		return false, "Email has to be provided"
+	}
+	adminMail := os.Getenv("adminMail")
+	if !strings.EqualFold(email, strings.TrimSpace(adminMail)) {
+		return false, "Invalid email"
+	}
+	adminPassword := os.Getenv("adminPassword")
 	if CheckPassword(input, adminPassword) {
 		return true, "Authorized"
 	}
-
 	return false, "Wrong Token provided"
 }
 
-func CheckAccessJury(input string) (bool, string) {
-	juryPassword1 := os.Getenv("juryPassword1")
-	juryPassword2 := os.Getenv("juryPassword2")
-	juryPassword3 := os.Getenv("juryPassword3")
-
-	TestToken := []string{juryPassword1, juryPassword2, juryPassword3}
-
-	results := make(chan bool, len(TestToken))
-
-	var wg sync.WaitGroup
-
-	for _, token := range TestToken {
-		wg.Add(1)
-		t := token
-		go func() {
-			defer wg.Done()
-			results <- CheckPassword(input, t)
-		}()
+func CheckAccessJury(input, email string) (bool, string) {
+	if input == "" {
+		return false, "Token has to be provided"
+	}
+	if email == "" {
+		return false, "Email has to be provided"
 	}
 
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	type juryMember struct {
+		mail     string
+		password string
+	}
 
-	authorized := false
+	members := []juryMember{
+		{strings.TrimSpace(os.Getenv("juryMail1")), os.Getenv("juryPassword1")},
+		{strings.TrimSpace(os.Getenv("juryMail2")), os.Getenv("juryPassword2")},
+		{strings.TrimSpace(os.Getenv("juryMail3")), os.Getenv("juryPassword3")},
+	}
 
-	for matched := range results {
-		if matched {
-			authorized = true
+	for _, m := range members {
+		if strings.EqualFold(email, m.mail) {
+			if CheckPassword(input, m.password) {
+				return true, "Authorized"
+			}
+			return false, "Wrong Token Provided"
 		}
 	}
 
-	if authorized {
-		return true, "Authorized"
-	}
-	return false, "Wrong Token Provided"
+	return false, "Invalid email"
 }
 
-func generateToken() (string, error) {
-	b := make([]byte, 16)
-	_, err := rand.Read(b)
-	return hex.EncodeToString(b), err
-}
 
 func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
-	Logger.InfoContext(ctx, "New Admin Login", slog.String("message", "New Admin Login"))
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "authenticated",
-	})
 
+	email := extractEmail(r)
+	token, err := generateAndStoreToken()
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+		return
+	}
+
+	if err := requestVerificationMail(email, token); err != nil {
+		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
+		return
+	}
+
+	Logger.InfoContext(ctx, "Admin login: verification email sent", slog.String("email", email))
+	w.WriteHeader(http.StatusAccepted)
+	json.NewEncoder(w).Encode(map[string]string{"message": "verification email sent"})
 }
 
 func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
-	Logger.InfoContext(ctx, "New Jury Login", slog.String("message", "New Jury Login"))
+
+	email := extractEmail(r)
+	token, err := generateAndStoreToken()
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+		return
+	}
+
+	if err := requestVerificationMail(email, token); err != nil {
+		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
+		return
+	}
+
+	Logger.InfoContext(ctx, "Jury login: verification email sent", slog.String("email", email))
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "authenticated",
-	})
+	json.NewEncoder(w).Encode(map[string]string{"message": "verification email sent"})
 }
