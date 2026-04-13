@@ -72,10 +72,6 @@ export const NowPlayingPage = () => {
 
           {/* ── NEON DIVIDER + PROGRESS ── */}
           <div
-            style={{
-              borderTop: "1px solid rgba(255,4,144,0.5)",
-              boxShadow: "0 -1px 12px rgba(255,4,144,0.35)",
-            }}
             className="px-2 pt-4 pb-8 sm:px-4"
           >
             <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em] text-white/50 mb-2">
@@ -98,7 +94,7 @@ export const NowPlayingPage = () => {
           </div>
 
           {/* ── MAIN STAGE LAYOUT ── */}
-          <div className="grid gap-0 pt-12 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <div className="grid gap-0 pt-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
 
             {/* LEFT: Video + Song info stacked flat */}
             <div
