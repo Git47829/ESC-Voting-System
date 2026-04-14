@@ -35,7 +35,8 @@ def admin_dashboard():
 def admin_open_vote():
     """Open voting."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/open", token=token)
+    email = session.get("email", "")
+    status, data, _ = api_post("/admin/open", token=token, email=email)
     if status in (200, 202):
         current_app.logger.info("voting opened by admin")
         flash("Voting has been opened!", "success")
@@ -49,7 +50,8 @@ def admin_open_vote():
 def admin_close_vote():
     """Close voting."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/close", token=token)
+    email = session.get("email", "")
+    status, data, _ = api_post("/admin/close", token=token, email=email)
     if status in (200, 202):
         current_app.logger.info("voting closed by admin")
         flash("Voting has been closed!", "success")
@@ -65,7 +67,8 @@ def admin_close_vote():
 def admin_reset_votes():
     """Reset all votes to zero."""
     token = session.get("token", "")
-    status, data = api_delete("/admin/deleteVotes/", token=token)
+    email = session.get("email", "")
+    status, data = api_delete("/admin/deleteVotes/", token=token, email=email)
     if status in (200, 202):
         try:
             requests.post(f"{EUROSTATS_URL}/reset", timeout=API_TIMEOUT)
@@ -83,6 +86,7 @@ def admin_reset_votes():
 def admin_add_country():
     """Add a new country."""
     token = session.get("token", "")
+    email = session.get("email", "")
     country_id = request.form.get("id", "").strip()
     name = request.form.get("name", "").strip()
     pot = request.form.get("pot", "1").strip()
@@ -95,6 +99,7 @@ def admin_add_country():
         "/admin/addCountry/",
         params={"ID": country_id, "Name": name, "Pot": pot},
         token=token,
+        email=email,
     )
     if status in (200, 202):
         current_app.logger.info(
@@ -111,6 +116,7 @@ def admin_add_country():
 def admin_add_artist():
     """Add a new artist."""
     token = session.get("token", "")
+    email = session.get("email", "")
     artist_id = request.form.get("id", "").strip()
     first_name = request.form.get("firstName", "").strip()
     last_name = request.form.get("lastName", "").strip()
@@ -131,6 +137,7 @@ def admin_add_artist():
             "Land": country,
         },
         token=token,
+        email=email,
     )
     if status in (200, 202):
         current_app.logger.info(
@@ -148,6 +155,7 @@ def admin_add_artist():
 def admin_add_song():
     """Add a new song."""
     token = session.get("token", "")
+    email = session.get("email", "")
     song_name = request.form.get("name", "").strip()
     country = request.form.get("country", "").strip()
     artist_id = request.form.get("artistId", "").strip()
@@ -161,7 +169,7 @@ def admin_add_song():
     if youtube_url:
         params["YoutubeURL"] = youtube_url
 
-    status, data, _ = api_post("/admin/addSong/", params=params, token=token)
+    status, data, _ = api_post("/admin/addSong/", params=params, token=token, email=email)
     if status in (200, 202):
         current_app.logger.info(
             "song added", extra={"song_name": song_name, "country": country}
@@ -177,7 +185,8 @@ def admin_add_song():
 def admin_start_contest():
     """Shuffle all songs into a random order and start the contest."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/startContest", token=token)
+    email = session.get("email", "")
+    status, data, _ = api_post("/admin/startContest", token=token, email=email)
     if status in (200, 201):
         song_count = data.get("songCount", 0)
         current_app.logger.info("contest started", extra={"song_count": song_count})
@@ -194,7 +203,8 @@ def admin_start_contest():
 def admin_advance_contest():
     """Advance the contest to the next song."""
     token = session.get("token", "")
-    status, data, _ = api_post("/admin/advanceContest", token=token)
+    email = session.get("email", "")
+    status, data, _ = api_post("/admin/advanceContest", token=token, email=email)
     if status == 200:
         if data.get("finished"):
             flash("The contest has finished! All songs have performed.", "success")

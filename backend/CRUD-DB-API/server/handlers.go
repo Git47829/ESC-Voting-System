@@ -81,8 +81,10 @@ var (
 		"GET /songs/":          {RequestsPerSecond: 10, BurstSize: 20},
 		"GET /songByID/{ID}":   {RequestsPerSecond: 10, BurstSize: 20},
 		"GET /contest/current": {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /auth/requestToken": {RequestsPerSecond: 1, BurstSize: 1},	
+		"GET /auth/requestToken":        {RequestsPerSecond: 1, BurstSize: 1},
 		"GET /auth/verifyToken/{token}": {RequestsPerSecond: 1, BurstSize: 1},
+		"POST /auth/login":              {RequestsPerSecond: 1, BurstSize: 3},
+		"POST /auth/verify":             {RequestsPerSecond: 1, BurstSize: 5},
 
 		"POST /vote/":             {RequestsPerSecond: 1, BurstSize: 1},
 		"POST /jury/vote":         {RequestsPerSecond: 5, BurstSize: 5},
@@ -283,6 +285,8 @@ func Run() {
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
 	router.HandleFunc("GET /auth/requestToken", RequestToken)
 	router.HandleFunc("GET /auth/verifyToken/{token}", VerifiyWithToken)
+	router.HandleFunc("POST /auth/login", AuthLogin)
+	router.HandleFunc("POST /auth/verify", AuthVerify)
 	router.Handle("POST /admin/open", RequireAdmin(http.HandlerFunc(OpenVote)))
 	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
 	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))

@@ -26,7 +26,7 @@ def api_get(endpoint):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_get_auth(endpoint, token=None, params=None):
+def api_get_auth(endpoint, token=None, email=None, params=None):
     """GET the backend API with Bearer token header, returning (status_code, json_body).
 
     Unlike api_get this never raises on non-2xx responses, making it suitable
@@ -37,7 +37,11 @@ def api_get_auth(endpoint, token=None, params=None):
     """
     t0 = time.perf_counter()
     status_code = 500
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if email:
+        headers["X-Email"] = email
     try:
         resp = requests.get(
             f"{API_BASE}{endpoint}",
@@ -57,11 +61,15 @@ def api_get_auth(endpoint, token=None, params=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_post(endpoint, params=None, cookies=None, token=None):
+def api_post(endpoint, params=None, cookies=None, token=None, email=None):
     """POST the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if email:
+        headers["X-Email"] = email
     try:
         resp = requests.post(
             f"{API_BASE}{endpoint}",
@@ -82,11 +90,37 @@ def api_post(endpoint, params=None, cookies=None, token=None):
         record_backend_call(endpoint, status_code, time.perf_counter() - t0)
 
 
-def api_delete(endpoint, params=None, token=None):
+def api_post_json(endpoint, data):
+    """POST JSON body to the backend API. Used for auth login/verify."""
+    t0 = time.perf_counter()
+    status_code = 500
+    try:
+        resp = requests.post(
+            f"{API_BASE}{endpoint}",
+            json=data,
+            timeout=API_TIMEOUT,
+        )
+        status_code = resp.status_code
+        return resp.status_code, resp.json()
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(
+            "backend POST JSON failed",
+            extra={"api.endpoint": endpoint, "error": str(e)},
+        )
+        return 502, {"error": "Backend service is currently unavailable. Please try again later."}
+    finally:
+        record_backend_call(endpoint, status_code, time.perf_counter() - t0)
+
+
+def api_delete(endpoint, params=None, token=None, email=None):
     """DELETE the backend API, recording call duration."""
     t0 = time.perf_counter()
     status_code = 500
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    headers = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    if email:
+        headers["X-Email"] = email
     try:
         resp = requests.delete(
             f"{API_BASE}{endpoint}",

@@ -58,6 +58,7 @@ def jury_page():
 def jury_submit_vote():
     """Handle jury vote submission."""
     token = session.get("token", "")
+    email = session.get("email", "")
     song_id = request.form.get("songID")
     points = request.form.get("points")
 
@@ -94,6 +95,7 @@ def jury_submit_vote():
         "/jury/vote/",
         params={"songID": song_id, "points": points},
         token=token,
+        email=email,
     )
 
     if status in (200, 202):
