@@ -1,21 +1,37 @@
-use dotenvy::dotenv;
-use resend_rs::types::CreateEmailBaseOptions;
-use resend_rs::{Resend, Result};
-use std::env;
+mod mail;
+mod models;
+
+use axum::{extract::Json, http::StatusCode, routing::{get, post}, Router};
+use models::EmailRequest;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let _env = dotenv().unwrap();
-    let resend_api_key = env::var("resendApiKey").expect("Error: Resend Api Key not set");
-    let resend = Resend::new(&resend_api_key);
-    let from = "Skill-Issue@escvoting.dev";
-    let subject = "Wir sind von einem IT Unternehmen und würden sie gerne nicht einstellen";
-    let to = ["mm1000@gmx.net"];
+async fn main() {
+    dotenvy::dotenv().ok();
 
-    let email = CreateEmailBaseOptions::new(from, to, subject)
-        .with_html("<strong>Sehr geerhter Herr Grambow, <br> Wir würden ihnen gerne im Vorhinein absagen<strong>");
-    
-    let _email = resend.emails.send(email).await?;
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let app = Router::new()
+        .route("/send", post(send_handler))
+        .route("/health", get(|| async { StatusCode::OK }));
 
-    Ok(())
+    let addr = format!("0.0.0.0:{}", port);
+    println!("EuroMail listening on {}", addr);
+
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Failed to bind address");
+
+    axum::serve(listener, app).await.expect("Server error");
+}
+
+async fn send_handler(Json(req): Json<EmailRequest>) -> StatusCode {
+    match mail::send_mail(&req.email, &req.token).await {
+        Ok(_) => {
+            println!("Mail sent to {}", req.email);
+            StatusCode::ACCEPTED
+        }
+        Err(e) => {
+            eprintln!("Failed to send mail to {}: {}", req.email, e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
