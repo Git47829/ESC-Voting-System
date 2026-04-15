@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"crypto/rand"
+  "crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -32,7 +33,10 @@ var (
 
 func requestVerificationMail(email, token string) error {
 	reqURL := os.Getenv("EuroMailURL")
-	body, _ := json.Marshal(map[string]string{"email": email, "token": token})
+	body, jErr := json.Marshal(map[string]string{"email": email, "token": token})
+	if jErr != nil {
+		return jErr
+	}
 	resp, err := http.Post(reqURL, "application/json", bytes.NewReader(body))
 	if err != nil {
 		Logger.Error("Unable to connect to EuroMail", slog.Any("error", err))
@@ -222,7 +226,7 @@ func AuthVerify(w http.ResponseWriter, r *http.Request) {
 
 	verifyMu.Lock()
 	pending, exists := pendingVerifications[req.Email]
-	if exists && pending.Code == req.Code && time.Since(pending.CreatedAt) <= 5*time.Minute {
+	if exists && subtle.ConstantTimeCompare([]byte(pending.Code), []byte(req.Code)) == 1 && time.Since(pending.CreatedAt) <= 5*time.Minute {
 		delete(pendingVerifications, req.Email)
 		// Clean up expired entries
 		for k, v := range pendingVerifications {

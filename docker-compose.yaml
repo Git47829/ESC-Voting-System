@@ -32,7 +32,7 @@ services:
       PORT: 3000
       RESEND_API_KEY: ${RESEND_API_KEY}
     networks:
-      - backend
+      - mail
       - observability
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
@@ -71,6 +71,7 @@ services:
     networks:
       - backend
       - frontend
+      - mail
       - observability
 
   frontend:
@@ -285,4 +286,5 @@ volumes:
 networks:
   backend:
   frontend:
+  mail:
   observability:
