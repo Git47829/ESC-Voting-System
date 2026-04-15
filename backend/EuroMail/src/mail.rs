@@ -1,10 +1,13 @@
+use metrics::{counter, histogram};
 use resend_rs::types::CreateEmailBaseOptions;
 use resend_rs::Resend;
 use std::env;
+use std::time::Instant;
 
 pub async fn send_mail(recipient: &str, code: &str) -> Result<(), Box<dyn std::error::Error>> {
     let api_key = env::var("RESEND_API_KEY").expect("RESEND_API_KEY not set");
     let resend = Resend::new(&api_key);
+    let start = Instant::now();
 
     let html = format!(
         r#"<!DOCTYPE html>
@@ -30,6 +33,16 @@ pub async fn send_mail(recipient: &str, code: &str) -> Result<(), Box<dyn std::e
     )
     .with_html(&html);
 
-    resend.emails.send(email).await?;
+    let result = resend.emails.send(email).await;
+    let duration = start.elapsed();
+
+    histogram!("euromail_email_send_duration_seconds").record(duration);
+
+    match &result {
+        Ok(_) => counter!("euromail_emails_sent_total", "status" => "success").increment(1),
+        Err(_) => counter!("euromail_emails_sent_total", "status" => "error").increment(1),
+    }
+
+    result?;
     Ok(())
 }
