@@ -3,6 +3,8 @@ package server_test
 import (
 	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -22,15 +24,25 @@ func TestMain(m *testing.M) {
 	jury3Hash, _ := server.HashPassword("jury3")
 
 	os.Setenv("adminPassword", adminHash)
+	os.Setenv("adminMail", "test-admin@test.com")
 	os.Setenv("juryPassword1", jury1Hash)
 	os.Setenv("juryPassword2", jury2Hash)
 	os.Setenv("juryPassword3", jury3Hash)
+	os.Setenv("juryMail1", "jury1@test.com")
 	os.Setenv("TESTADMINPW", "test-admin-pw")
 	server.InitCookieSecret()
 
+	// Mock EuroMail server so AdminLogin/JuryLogin can send verification emails in tests.
+	mockEuroMail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	os.Setenv("EuroMailURL", mockEuroMail.URL)
+
 	// globalVoteServer stays nil — NotifyVote() is a safe no-op when nil.
 
-	os.Exit(m.Run())
+	code := m.Run()
+	mockEuroMail.Close()
+	os.Exit(code)
 }
 
 // adminURL appends the test admin token as a query parameter.

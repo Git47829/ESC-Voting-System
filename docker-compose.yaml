@@ -22,6 +22,25 @@ services:
       timeout: 10s
       retries: 20
 
+  euromail:
+    build: ./backend/EuroMail/
+    container_name: euromail
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: 3000
+      RESEND_API_KEY: ${RESEND_API_KEY}
+    networks:
+      - mail
+      - observability
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
   api:
     build: ./backend/CRUD-DB-API/
     container_name: db-crud-api
@@ -34,6 +53,7 @@ services:
       DB_NAME: esc_voting
       DB_USER: esc_user
       DB_PASS: esc_password
+      EuroMailURL: http://euromail:3000/send
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
     healthcheck:
       test: ["CMD", "/healthcheck"]
@@ -44,11 +64,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      euromail:
+        condition: service_healthy
       otel-collector:
         condition: service_started
     networks:
       - backend
       - frontend
+      - mail
       - observability
 
   frontend:
@@ -263,4 +286,5 @@ volumes:
 networks:
   backend:
   frontend:
+  mail:
   observability:

@@ -21,7 +21,8 @@ func mustHash(t *testing.T, pw string) string {
 
 func TestCheckAccessAdmin_CorrectPassword(t *testing.T) {
 	t.Setenv("adminPassword", mustHash(t, "secret123"))
-	ok, msg := server.CheckAccessAdmin("secret123")
+	t.Setenv("adminMail", "admin@example.com")
+	ok, msg := server.CheckAccessAdmin("secret123", "admin@example.com")
 	if !ok {
 		t.Errorf("expected true, got false (msg: %s)", msg)
 	}
@@ -29,7 +30,8 @@ func TestCheckAccessAdmin_CorrectPassword(t *testing.T) {
 
 func TestCheckAccessAdmin_WrongPassword(t *testing.T) {
 	t.Setenv("adminPassword", mustHash(t, "secret123"))
-	ok, _ := server.CheckAccessAdmin("wrong")
+	t.Setenv("adminMail", "admin@example.com")
+	ok, _ := server.CheckAccessAdmin("wrong", "admin@example.com")
 	if ok {
 		t.Error("expected false for wrong password")
 	}
@@ -37,7 +39,8 @@ func TestCheckAccessAdmin_WrongPassword(t *testing.T) {
 
 func TestCheckAccessAdmin_EmptyToken(t *testing.T) {
 	t.Setenv("adminPassword", mustHash(t, "secret123"))
-	ok, msg := server.CheckAccessAdmin("")
+	t.Setenv("adminMail", "admin@example.com")
+	ok, msg := server.CheckAccessAdmin("", "admin@example.com")
 	if ok {
 		t.Error("expected false for empty token")
 	}
@@ -46,9 +49,31 @@ func TestCheckAccessAdmin_EmptyToken(t *testing.T) {
 	}
 }
 
+func TestCheckAccessAdmin_EmptyEmail(t *testing.T) {
+	t.Setenv("adminPassword", mustHash(t, "secret123"))
+	t.Setenv("adminMail", "admin@example.com")
+	ok, msg := server.CheckAccessAdmin("secret123", "")
+	if ok {
+		t.Error("expected false for empty email")
+	}
+	if msg == "" {
+		t.Error("expected non-empty message for empty email")
+	}
+}
+
+func TestCheckAccessAdmin_WrongEmail(t *testing.T) {
+	t.Setenv("adminPassword", mustHash(t, "secret123"))
+	t.Setenv("adminMail", "admin@example.com")
+	ok, _ := server.CheckAccessAdmin("secret123", "other@example.com")
+	if ok {
+		t.Error("expected false for wrong email")
+	}
+}
+
 func TestCheckAccessAdmin_EmptyEnvVar_AlwaysFails(t *testing.T) {
 	t.Setenv("adminPassword", "")
-	ok, _ := server.CheckAccessAdmin("anything")
+	t.Setenv("adminMail", "admin@example.com")
+	ok, _ := server.CheckAccessAdmin("anything", "admin@example.com")
 	if ok {
 		t.Error("expected false when adminPassword env var is empty")
 	}
@@ -59,49 +84,95 @@ func TestCheckAccessAdmin_EmptyEnvVar_AlwaysFails(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestCheckAccessJury_Password1Accepted(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
 	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
 	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
 	t.Setenv("juryPassword3", mustHash(t, "jp3"))
-	ok, _ := server.CheckAccessJury("jp1")
+	ok, _ := server.CheckAccessJury("jp1", "jury1@example.com")
 	if !ok {
 		t.Error("juryPassword1 should be accepted")
 	}
 }
 
 func TestCheckAccessJury_Password2Accepted(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
 	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
 	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
 	t.Setenv("juryPassword3", mustHash(t, "jp3"))
-	ok, _ := server.CheckAccessJury("jp2")
+	ok, _ := server.CheckAccessJury("jp2", "jury2@example.com")
 	if !ok {
 		t.Error("juryPassword2 should be accepted")
 	}
 }
 
 func TestCheckAccessJury_Password3Accepted(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
 	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
 	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
 	t.Setenv("juryPassword3", mustHash(t, "jp3"))
-	ok, _ := server.CheckAccessJury("jp3")
+	ok, _ := server.CheckAccessJury("jp3", "jury3@example.com")
 	if !ok {
 		t.Error("juryPassword3 should be accepted")
 	}
 }
 
 func TestCheckAccessJury_WrongPassword(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
 	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
 	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
 	t.Setenv("juryPassword3", mustHash(t, "jp3"))
-	ok, _ := server.CheckAccessJury("notajurytoken")
+	ok, _ := server.CheckAccessJury("notajurytoken", "jury1@example.com")
 	if ok {
 		t.Error("wrong token should be rejected")
 	}
 }
 
+func TestCheckAccessJury_WrongEmail(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
+	ok, _ := server.CheckAccessJury("jp1", "unknown@example.com")
+	if ok {
+		t.Error("unknown email should be rejected")
+	}
+}
+
+func TestCheckAccessJury_MismatchedEmailAndPassword(t *testing.T) {
+	t.Setenv("juryMail1", "jury1@example.com")
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	t.Setenv("juryMail2", "jury2@example.com")
+	t.Setenv("juryPassword2", mustHash(t, "jp2"))
+	t.Setenv("juryMail3", "jury3@example.com")
+	t.Setenv("juryPassword3", mustHash(t, "jp3"))
+	ok, _ := server.CheckAccessJury("jp2", "jury1@example.com")
+	if ok {
+		t.Error("mismatched email/password pair should be rejected")
+	}
+}
+
 func TestCheckAccessJury_EmptyToken(t *testing.T) {
-	ok, _ := server.CheckAccessJury("")
+	ok, _ := server.CheckAccessJury("", "jury1@example.com")
 	if ok {
 		t.Error("empty token should be rejected")
+	}
+}
+
+func TestCheckAccessJury_EmptyEmail(t *testing.T) {
+	t.Setenv("juryPassword1", mustHash(t, "jp1"))
+	ok, _ := server.CheckAccessJury("jp1", "")
+	if ok {
+		t.Error("empty email should be rejected")
 	}
 }
 

@@ -46,3 +46,9 @@ scrape_configs:
       - targets: ["public-vote-converter:8090"]
     metrics_path: /metrics
     scrape_interval: 15s
+
+  - job_name: "esc-euromail"
+    static_configs:
+      - targets: ["euromail:3000"]
+    metrics_path: /metrics
+    scrape_interval: 15s

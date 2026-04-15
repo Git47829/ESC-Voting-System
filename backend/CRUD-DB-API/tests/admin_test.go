@@ -12,10 +12,11 @@ import (
 	"crud-db-api/server"
 )
 
-// adminReq builds a request with the admin token in the Authorization header.
+// adminReq builds a request with the admin token and email in the headers.
 func adminReq(method, path string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
 	req.Header.Set("Authorization", "Bearer test-admin-pw")
+	req.Header.Set("X-Email", "test-admin@test.com")
 	return req
 }
 
@@ -403,6 +404,7 @@ func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
 	t.Setenv("juryPassword1", h)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
 	req.Header.Set("Authorization", "Bearer jury1")
+	req.Header.Set("X-Email", "jury1@test.com")
 	rr := httptest.NewRecorder()
 	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
 

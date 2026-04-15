@@ -1,6 +1,6 @@
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
-from api_client import api_get_auth
+from api_client import api_post_json
 from telemetry import set_active_sessions
 
 auth_bp = Blueprint("auth", __name__)
@@ -8,44 +8,76 @@ auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Login page — token + role selector."""
+    """Two-step login: credentials then email verification code."""
     if request.method == "GET":
         return render_template("login.html")
 
-    token = request.form.get("token", "").strip()
-    role = request.form.get("role", "admin").strip()
+    step = request.form.get("step", "1")
 
-    if not token:
-        flash("Token is required.", "error")
+    if step == "1":
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "").strip()
+        role = request.form.get("role", "admin").strip()
+
+        if not email or not password:
+            flash("Email and password are required.", "error")
+            return render_template("login.html"), 401
+
+        status, data = api_post_json("/auth/login", {
+            "email": email,
+            "password": password,
+            "role": role,
+        })
+
+        if status == 202:
+            # Credentials valid, code sent — store temporarily for step 2
+            session["pending_email"] = email
+            session["pending_password"] = password
+            session["pending_role"] = role
+            current_app.logger.info("2FA code sent", extra={"email": email, "role": role})
+            return render_template("login.html", step=2, email=email, role=role)
+
+        current_app.logger.warning("2FA login failed", extra={"email": email})
+        flash(data.get("error", "Invalid credentials."), "error")
         return render_template("login.html"), 401
 
-    if role == "admin":
-        status, data = api_get_auth("/admin/authenticate", token=token)
-        if status != 202:
-            current_app.logger.warning("failed admin login attempt")
-            flash(data.get("error", "Invalid token."), "error")
-            return render_template("login.html"), 401
-        session["token"] = token
-        session["role"] = "admin"
-        set_active_sessions(1)
-        current_app.logger.info("admin login", extra={"role": "admin"})
-        return redirect(url_for("admin.admin_dashboard"))
+    elif step == "2":
+        email = session.get("pending_email", "")
+        password = session.get("pending_password", "")
+        role = session.get("pending_role", "")
+        code = request.form.get("code", "").strip()
 
-    elif role == "jury":
-        status, data = api_get_auth("/jury/authenticate", token=token)
-        if status != 202:
-            current_app.logger.warning("failed jury login attempt")
-            flash(data.get("error", "Invalid token."), "error")
-            return render_template("login.html"), 401
-        session["token"] = token
-        session["role"] = "jury"
-        set_active_sessions(1)
-        current_app.logger.info("jury login", extra={"role": "jury"})
-        return redirect(url_for("jury.jury_page"))
+        if not email or not code:
+            flash("Verification code is required.", "error")
+            return render_template("login.html", step=2, email=email, role=role), 401
 
-    else:
-        flash("Invalid role.", "error")
-        return render_template("login.html"), 422
+        status, data = api_post_json("/auth/verify", {
+            "email": email,
+            "code": code,
+        })
+
+        if status == 202:
+            # 2FA verified — create session
+            session.pop("pending_email", None)
+            session.pop("pending_password", None)
+            session.pop("pending_role", None)
+
+            session["token"] = password
+            session["email"] = email
+            session["role"] = role
+            set_active_sessions(1)
+            current_app.logger.info("2FA login complete", extra={"email": email, "role": role})
+
+            if role == "admin":
+                return redirect(url_for("admin.admin_dashboard"))
+            return redirect(url_for("jury.jury_page"))
+
+        current_app.logger.warning("2FA verification failed", extra={"email": email})
+        flash(data.get("error", "Invalid or expired code."), "error")
+        return render_template("login.html", step=2, email=email, role=role), 401
+
+    flash("Invalid request.", "error")
+    return render_template("login.html"), 422
 
 
 @auth_bp.route("/logout")

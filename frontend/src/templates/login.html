@@ -10,7 +10,11 @@
                 Welcome Back
             </h1>
             <p class="text-sm text-esc-muted">
-                Enter your token to access the dashboard.
+                {% if step == 2 %}
+                    Enter the verification code sent to <strong class="text-esc-yellow">{{ email }}</strong>.
+                {% else %}
+                    Sign in with your credentials.
+                {% endif %}
             </p>
         </div>
 
@@ -18,7 +22,61 @@
         <div
             class="rounded-2xl border border-esc-surface bg-esc-surface/30 p-6 shadow-xl shadow-black/20"
         >
+            {% if step == 2 %}
+            <!-- Step 2: Verification Code -->
             <form method="POST" action="/login" class="space-y-5">
+                <input type="hidden" name="step" value="2" />
+
+                <div>
+                    <label
+                        for="code"
+                        class="block text-xs font-medium text-esc-muted mb-1.5 uppercase tracking-wider"
+                    >
+                        Verification Code
+                    </label>
+                    <input
+                        type="text"
+                        id="code"
+                        name="code"
+                        required
+                        autofocus
+                        maxlength="6"
+                        pattern="[0-9]{6}"
+                        inputmode="numeric"
+                        autocomplete="one-time-code"
+                        placeholder="000000"
+                        class="w-full rounded-lg border border-esc-surface bg-esc-surface/50 px-3 py-3 text-center text-2xl font-mono tracking-[0.5em] text-esc-yellow placeholder-esc-muted/30 focus:border-esc-yellow focus:ring-1 focus:ring-esc-yellow focus:outline-none transition-colors"
+                    />
+                    <p class="mt-2 text-[11px] text-esc-muted/60">
+                        Check your email for the 6-digit code. It expires in 5 minutes.
+                    </p>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full flex items-center justify-center gap-2 rounded-lg bg-esc-yellow px-4 py-3 text-sm font-heading font-bold text-esc-black uppercase tracking-wider hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-esc-yellow focus:ring-offset-2 focus:ring-offset-esc-black transition-colors active:scale-[0.98]"
+                >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    Verify
+                </button>
+            </form>
+
+            <div class="mt-4 text-center">
+                <a
+                    href="/login"
+                    class="text-xs text-esc-muted hover:text-esc-yellow transition-colors"
+                >
+                    &larr; Back to login
+                </a>
+            </div>
+
+            {% else %}
+            <!-- Step 1: Credentials -->
+            <form method="POST" action="/login" class="space-y-5">
+                <input type="hidden" name="step" value="1" />
+
                 <div>
                     <label
                         for="role"
@@ -90,26 +148,44 @@
 
                 <div>
                     <label
-                        for="token"
+                        for="email"
                         class="block text-xs font-medium text-esc-muted mb-1.5 uppercase tracking-wider"
                     >
-                        Access Token
+                        Email
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        required
+                        autocomplete="email"
+                        placeholder="you@example.com"
+                        class="w-full rounded-lg border border-esc-surface bg-esc-surface/50 px-3 py-2.5 text-sm text-esc-text placeholder-esc-muted/50 focus:border-esc-yellow focus:ring-1 focus:ring-esc-yellow focus:outline-none transition-colors"
+                    />
+                </div>
+
+                <div>
+                    <label
+                        for="password"
+                        class="block text-xs font-medium text-esc-muted mb-1.5 uppercase tracking-wider"
+                    >
+                        Password
                     </label>
                     <div class="relative">
                         <input
                             type="password"
-                            id="token"
-                            name="token"
+                            id="password"
+                            name="password"
                             required
                             autocomplete="current-password"
-                            placeholder="Enter your token"
+                            placeholder="Enter your password"
                             class="w-full rounded-lg border border-esc-surface bg-esc-surface/50 pl-3 pr-10 py-2.5 text-sm text-esc-text placeholder-esc-muted/50 focus:border-esc-yellow focus:ring-1 focus:ring-esc-yellow focus:outline-none transition-colors"
                         />
                         <button
                             type="button"
                             id="toggle-visibility"
                             class="absolute inset-y-0 right-0 flex items-center pr-3 text-esc-muted hover:text-esc-yellow transition-colors"
-                            aria-label="Toggle token visibility"
+                            aria-label="Toggle password visibility"
                         >
                             <svg
                                 id="eye-icon"
@@ -146,9 +222,6 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="mt-1.5 text-[10px] text-esc-muted/60">
-                        Tokens are issued by the contest administrator.
-                    </p>
                 </div>
 
                 <button
@@ -158,6 +231,7 @@
                     Sign In
                 </button>
             </form>
+            {% endif %}
 
             {% with messages = get_flashed_messages(with_categories=true) %} {%
             if messages %}
@@ -173,6 +247,7 @@
             {% endif %} {% endwith %}
         </div>
 
+        {% if step != 2 %}
         <div class="text-center mt-6">
             <a
                 href="/"
@@ -181,6 +256,7 @@
                 &larr; Back to voting
             </a>
         </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %} {% block scripts %}
