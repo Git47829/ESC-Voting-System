@@ -9,6 +9,8 @@ interface AuthContextValue {
   authenticated: boolean;
   loading: boolean;
   login: (role: Role, token: string) => Promise<void>;
+  authLogin: (email: string, password: string, role: Role) => Promise<void>;
+  authVerify: (email: string, code: string, role: Role) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -42,6 +44,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await api.login(nextRole, nextToken);
         setRole(nextRole);
         setToken(nextToken);
+      },
+      authLogin: async (email, password, nextRole) => {
+        await api.authLogin(email, password, nextRole);
+      },
+      authVerify: async (email, code, nextRole) => {
+        await api.authVerify(email, code, nextRole);
+        setRole(nextRole);
+        setToken(email);
       },
       logout: async () => {
         await api.logout();

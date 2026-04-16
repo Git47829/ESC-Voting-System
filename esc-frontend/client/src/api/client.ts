@@ -45,6 +45,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }),
+  authLogin: (email: string, password: string, role: Role): Promise<{ message: string }> =>
+    fetchJson<{ message: string }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password, role })
+    }),
+  authVerify: (email: string, code: string, role: Role): Promise<{ ok: boolean; role: Role }> =>
+    fetchJson<{ ok: boolean; role: Role }>("/api/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ email, code, role })
+    }),
   login: (role: Role, token: string): Promise<{ ok: boolean; role: Role }> =>
     fetchJson<{ ok: boolean; role: Role }>("/api/login", {
       method: "POST",

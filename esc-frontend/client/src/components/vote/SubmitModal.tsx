@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { api } from "../../api/client";
+import type { Song } from "../../types";
 import { Modal } from "../ui/Modal";
 
 export const SubmitModal = ({
@@ -15,6 +17,13 @@ export const SubmitModal = ({
 }) => {
   const [phone, setPhone] = useState("");
   const [ownCountry, setOwnCountry] = useState("");
+  const [songs, setSongs] = useState<Song[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      void api.getSongs().then(setSongs);
+    }
+  }, [open]);
 
   return (
     <Modal open={open} title="Submit votes" onClose={onClose}>
@@ -29,12 +38,19 @@ export const SubmitModal = ({
           />
         </label>
         <label className="block text-sm text-esc-black-soft">
-          Your country (f.e. DE, FR, IT)
-          <input
+          Your country
+          <select
             value={ownCountry}
-            onChange={(e) => setOwnCountry(e.target.value.toUpperCase())}
+            onChange={(e) => setOwnCountry(e.target.value)}
             className="mt-1.5 w-full rounded-xl border border-esc-border bg-esc-surface px-3 py-2 text-esc-black transition-colors duration-200 focus:border-esc-pink"
-          />
+          >
+            <option value="">Select your country</option>
+            {songs.map((song) => (
+              <option key={song.countryId} value={song.countryId}>
+                {song.countryName} ({song.countryId})
+              </option>
+            ))}
+          </select>
         </label>
         <button
           className="rounded-xl border border-esc-pink bg-esc-pink px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:border-esc-pink-dim hover:bg-esc-pink-dim"
