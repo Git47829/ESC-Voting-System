@@ -23,6 +23,7 @@
     "@types/cors": "^2.8.18",
     "@types/express": "^4.17.21",
     "@types/express-session": "^1.18.0",
+    "@types/lusca": "^1.7.5",
     "@types/node": "^22.14.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
