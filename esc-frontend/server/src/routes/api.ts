@@ -1,3 +1,4 @@
+import axios from "axios";
 import { Router } from "express";
 
 import { config, isMockMode } from "../config.js";
@@ -5,6 +6,11 @@ import { requireRole } from "../middleware/auth.js";
 import { mockDataService } from "../mock/index.js";
 import { parseConsentCookie, upstream } from "../upstream.js";
 import type { Song } from "../types.js";
+
+const authHeaders = (session: { token?: string; role?: string }) => ({
+  authorization: `Bearer ${session.token ?? ""}`,
+  "X-Email": session.token ?? ""
+});
 
 export const apiRouter = Router();
 
@@ -140,6 +146,17 @@ apiRouter.get("/songs", async (_req, res) => {
     return;
   }
   const response = await upstream.get("/songs/");
+  if (response.status === 200 && Array.isArray((response.data as Record<string, unknown>)?.payload)) {
+    const raw = (response.data as { payload: Song[] }).payload;
+    const seen = new Map<number, Song>();
+    for (const song of raw) {
+      if (!seen.has(song.songId)) {
+        seen.set(song.songId, song);
+      }
+    }
+    res.json({ message: "Success", payload: [...seen.values()] });
+    return;
+  }
   res.status(response.status).json(response.data);
 });
 
@@ -249,9 +266,7 @@ apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
       songID: req.body?.songID,
       points: req.body?.points
     },
-    headers: {
-      authorization: `Bearer ${req.session.token ?? ""}`
-    }
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -286,7 +301,7 @@ apiRouter.post("/admin/open", requireRole("admin"), async (_req, res) => {
     res.json({ message: "Voting opened" });
     return;
   }
-  const response = await upstream.post("/admin/open/", null, { params: { Token: _req.session.token } });
+  const response = await upstream.post("/admin/open/", null, { headers: authHeaders(_req.session) });
   res.status(response.status).json(response.data);
 });
 
@@ -296,7 +311,7 @@ apiRouter.post("/admin/close", requireRole("admin"), async (req, res) => {
     res.json({ message: "Voting closed" });
     return;
   }
-  const response = await upstream.post("/admin/close", null, { params: { Token: req.session.token } });
+  const response = await upstream.post("/admin/close", null, { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
 });
 
@@ -307,7 +322,7 @@ apiRouter.delete("/admin/deleteVotes", requireRole("admin"), async (req, res) =>
     res.json({ message: "Votes reset" });
     return;
   }
-  const response = await upstream.delete("/admin/deleteVotes/", { params: { Token: req.session.token } });
+  const response = await upstream.delete("/admin/deleteVotes/", { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
 });
 
@@ -319,10 +334,10 @@ apiRouter.post("/admin/addCountry", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addCountry/", null, {
     params: {
-      Token: req.session.token,
       ID: req.body?.countryId,
       Name: req.body?.countryName
-    }
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -335,11 +350,11 @@ apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addArtist/", null, {
     params: {
-      Token: req.session.token,
       FirstName: req.body?.firstName,
       LastName: req.body?.lastName,
       CountryID: req.body?.countryId
-    }
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -361,12 +376,12 @@ apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addSong/", null, {
     params: {
-      Token: req.session.token,
       SongName: req.body?.songName,
       CountryID: req.body?.countryId,
       KuenstlerID: req.body?.artistId,
       YoutubeURL: req.body?.youtubeUrl
-    }
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -377,7 +392,7 @@ apiRouter.post("/admin/startContest", requireRole("admin"), async (req, res) => 
     return;
   }
   const response = await upstream.post("/admin/startContest/", null, {
-    params: { Token: req.session.token }
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -388,7 +403,7 @@ apiRouter.post("/admin/advanceContest", requireRole("admin"), async (req, res) =
     return;
   }
   const response = await upstream.post("/admin/advanceContest/", null, {
-    params: { Token: req.session.token }
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -399,7 +414,10 @@ apiRouter.get("/results", async (_req, res) => {
     return;
   }
 
-  const escResponse = await upstream.get(`${config.escConverterUrl}/api/esc-points`);
+  const escResponse = await axios.get(`${config.escConverterUrl}/api/esc-points`, {
+    timeout: config.apiTimeout,
+    validateStatus: () => true
+  });
   if (escResponse.status >= 400) {
     res.status(escResponse.status).json({ error: "ESC converter unavailable" });
     return;
@@ -442,7 +460,10 @@ apiRouter.get("/stats", async (_req, res) => {
     });
     return;
   }
-  const response = await upstream.get(`${config.eurostatsUrl}/votes/subscribe`);
+  const response = await axios.get(`${config.eurostatsUrl}/votes/subscribe`, {
+    timeout: config.apiTimeout,
+    validateStatus: () => true
+  });
   res.status(response.status).json(response.data);
 });
 
