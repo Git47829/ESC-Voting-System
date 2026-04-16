@@ -219,6 +219,21 @@ apiRouter.post("/vote", async (req, res) => {
     return;
   }
 
+  const songID = toInt(req.body?.songID);
+  const points = toInt(req.body?.points, 1);
+  const state = req.session.voteState ?? {
+    votesRemaining: config.totalVotePoints,
+    votesCast: {}
+  };
+
+  if (points > state.votesRemaining) {
+    res.status(403).json({
+      error: `Not enough vote points remaining (have ${state.votesRemaining}, requested ${points})`,
+      votes_remaining: state.votesRemaining
+    });
+    return;
+  }
+
   const response = await upstream.post("/vote/", null, {
     params: {
       songID: req.body?.songID,
@@ -234,6 +249,13 @@ apiRouter.post("/vote", async (req, res) => {
   if (setCookie) {
     res.setHeader("set-cookie", setCookie);
   }
+
+  if (response.status === 201) {
+    state.votesRemaining -= points;
+    state.votesCast[songID] = (state.votesCast[songID] ?? 0) + points;
+    req.session.voteState = state;
+  }
+
   res.status(response.status).json(response.data);
 });
 
