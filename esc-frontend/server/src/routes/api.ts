@@ -187,6 +187,14 @@ apiRouter.get("/contest/current", async (_req, res) => {
   res.status(response.status).json(response.data);
 });
 
+apiRouter.get("/vote/state", (req, res) => {
+  const state = req.session.voteState ?? {
+    votesRemaining: config.totalVotePoints,
+    votesCast: {}
+  };
+  res.json(state);
+});
+
 apiRouter.post("/vote", async (req, res) => {
   const essentialConsent = parseConsentCookie(req.headers.cookie);
   if (!essentialConsent) {
@@ -254,9 +262,18 @@ apiRouter.post("/vote", async (req, res) => {
     state.votesRemaining -= points;
     state.votesCast[songID] = (state.votesCast[songID] ?? 0) + points;
     req.session.voteState = state;
+    res.cookie("vote_state", JSON.stringify(state), {
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "strict"
+    });
   }
 
-  res.status(response.status).json(response.data);
+  res.status(response.status).json(
+    response.status === 201
+      ? { ...response.data, payload: state }
+      : response.data
+  );
 });
 
 apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {

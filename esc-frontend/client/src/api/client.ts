@@ -26,6 +26,8 @@ export const api = {
     const data = await fetchJson<{ payload: VoteResult[] }>("/api/votes");
     return data.payload;
   },
+  getVoteState: (): Promise<{ votesRemaining: number; votesCast: Record<number, number> }> =>
+    fetchJson("/api/vote/state"),
   getResults: (): Promise<VoteResult[]> => fetchJson<VoteResult[]>("/api/results"),
   getCountries: async (): Promise<Country[]> => {
     const data = await fetchJson<{ payload: Country[] }>("/api/countries");

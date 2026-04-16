@@ -7,11 +7,17 @@ export const useResultsPoll = () => {
   const [results, setResults] = useState<VoteResult[]>([]);
   const [countdown, setCountdown] = useState(10);
   const [paused, setPaused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchResults = async () => {
-      const next = await api.getResults();
-      setResults(next);
+      try {
+        const next = await api.getResults();
+        setResults(next);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load results");
+      }
       setCountdown(10);
     };
 
@@ -37,7 +43,8 @@ export const useResultsPoll = () => {
     results,
     countdown,
     paused,
-    setPaused
+    setPaused,
+    error
   };
 };
 

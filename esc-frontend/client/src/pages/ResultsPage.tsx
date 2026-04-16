@@ -2,7 +2,7 @@ import { ResultsRow } from "../components/results/ResultsRow";
 import { useResultsPoll } from "../hooks/useResultsPoll";
 
 export const ResultsPage = () => {
-  const { results, countdown, paused, setPaused } = useResultsPoll();
+  const { results, countdown, paused, setPaused, error } = useResultsPoll();
 
   return (
     <section className="space-y-6">
@@ -42,9 +42,13 @@ export const ResultsPage = () => {
           <span>Total</span>
         </div>
         <div>
-          {results.map((item) => (
-            <ResultsRow key={item.id} item={item} />
-          ))}
+          {error ? (
+            <div className="px-4 py-8 text-center text-sm text-red-600">{error}</div>
+          ) : (
+            results.map((item) => (
+              <ResultsRow key={item.id} item={item} />
+            ))
+          )}
         </div>
       </div>
     </section>

@@ -26,7 +26,12 @@ export const VotePage = () => {
   const { consent } = useCookieConsent();
 
   useEffect(() => {
-    void api.getSongs().then(setSongs);
+    void Promise.all([api.getSongs(), api.getVoteState()]).then(([songs, state]) => {
+      setSongs(songs);
+      if (Object.keys(state.votesCast).length > 0) {
+        setSelection(state.votesCast);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -106,15 +111,14 @@ export const VotePage = () => {
       addFlash("Bitte zuerst erforderliche Vote-Cookies akzeptieren.", "error");
       return;
     }
-    const tasks = Object.entries(selection)
-      .filter(([, points]) => points > 0)
-      .map(([songID, points]) =>
-        api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points })
-      );
-    await Promise.all(tasks);
+    const entries = Object.entries(selection).filter(([, points]) => points > 0);
+    for (const [songID, points] of entries) {
+      await api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points });
+    }
+    const state = await api.getVoteState();
+    setSelection(state.votesCast);
     setOpenSubmit(false);
     addFlash("Votes submitted", "success");
-    setSelection({});
   };
 
   return (
@@ -538,7 +542,7 @@ export const VotePage = () => {
               </div>
             </div>
 
-            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
+            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} disabled={remaining <= 0 && used > 0} />
 
             <SubmitModal
               open={openSubmit}

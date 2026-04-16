@@ -1,9 +1,11 @@
 export const VoteBasket = ({
   total,
-  onSubmit
+  onSubmit,
+  disabled = false
 }: {
   total: number;
   onSubmit: () => void;
+  disabled?: boolean;
 }) => {
   return (
     <div className="sticky bottom-4 z-30 w-full sm:bottom-5">
@@ -13,8 +15,9 @@ export const VoteBasket = ({
           <span className="font-semibold text-esc-black">{total}</span>
         </span>
         <button
-          className="rounded-xl border border-esc-pink bg-esc-pink px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:border-esc-pink-dim hover:bg-esc-pink-dim"
+          className="rounded-xl border border-esc-pink bg-esc-pink px-4 py-2 text-sm font-semibold text-white transition-colors duration-200 hover:border-esc-pink-dim hover:bg-esc-pink-dim disabled:cursor-not-allowed disabled:opacity-50"
           onClick={onSubmit}
+          disabled={disabled}
         >
           Submit Votes
         </button>
