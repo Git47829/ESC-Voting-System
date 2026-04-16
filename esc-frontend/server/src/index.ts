@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import session from "express-session";
+import lusca from "lusca";
 
 import { config, isMockMode } from "./config.js";
 import { apiRouter } from "./routes/api.js";
@@ -29,9 +30,14 @@ app.use(
     }
   })
 );
+app.use(lusca.csrf());
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "healthy", service: "esc-frontend-server", mock: isMockMode() });
+});
+
+app.get("/api/csrf-token", (req, res) => {
+  res.status(200).json({ csrfToken: req.csrfToken() });
 });
 
 app.use("/api", apiRouter);
