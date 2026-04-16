@@ -1,0 +1,10 @@
+/Users/marius/Documents/Uni/Coding-Projects/ESC-Voting-System/backend/EuroMail/target/debug/deps/resend-1b95da9a2ff378a7.d: /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/lib.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/big.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/impl_macro.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/little.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/error.rs
+
+/Users/marius/Documents/Uni/Coding-Projects/ESC-Voting-System/backend/EuroMail/target/debug/deps/libresend-1b95da9a2ff378a7.rmeta: /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/lib.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/big.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/impl_macro.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/little.rs /Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/error.rs
+
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/lib.rs:
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian.rs:
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/big.rs:
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/impl_macro.rs:
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/endian/little.rs:
+/Users/marius/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/resend-0.1.4/src/error.rs:
