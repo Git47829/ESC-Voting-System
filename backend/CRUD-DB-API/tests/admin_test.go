@@ -272,7 +272,7 @@ func TestAddSong_ValidToken_Returns201(t *testing.T) {
 	mock.ExpectExec("INSERT INTO Song").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/admin/addSong/?ID=1&Name=TestSong&Land=DE", nil)
+		"/admin/addSong/?KuenstlerID=1&SongName=TestSong&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
 	server.AddSong(rr, req)
 
@@ -281,9 +281,9 @@ func TestAddSong_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddSong_InvalidID_Returns422(t *testing.T) {
+func TestAddSong_InvalidKuenstlerID_Returns422(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
-		"/admin/addSong/?ID=notanumber&Name=TestSong&Land=DE", nil)
+		"/admin/addSong/?KuenstlerID=notanumber&SongName=TestSong&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
 	server.AddSong(rr, req)
 
@@ -303,7 +303,7 @@ func TestAddSong_WithYoutubeURL_Returns201(t *testing.T) {
 	mock.ExpectExec("INSERT INTO Song").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/admin/addSong/?ID=1&Name=TestSong&Land=DE&YoutubeURL=https://youtube.com/watch?v=test", nil)
+		"/admin/addSong/?KuenstlerID=1&SongName=TestSong&CountryID=DE&YoutubeURL=https://youtube.com/watch?v=test", nil)
 	rr := httptest.NewRecorder()
 	server.AddSong(rr, req)
 

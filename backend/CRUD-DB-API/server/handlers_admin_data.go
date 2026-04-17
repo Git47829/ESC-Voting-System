@@ -71,20 +71,30 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	IDstr := query.Get("ID")
-	ID, err := strconv.Atoi(IDstr)
+	Name := query.Get("SongName")
+	if Name == "" {
+		Name = query.Get("Name")
+	}
 
+	country := query.Get("CountryID")
+	if country == "" {
+		country = query.Get("Land")
+	}
+
+	artistIDStr := query.Get("KuenstlerID")
+	if artistIDStr == "" {
+		artistIDStr = query.Get("ID")
+	}
+	artistID, err := strconv.Atoi(artistIDStr)
 	if err != nil {
-		Logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", IDstr))
+		Logger.ErrorContext(ctx, "Invalid KuenstlerID Value", slog.Any("error", err), slog.String("KuenstlerID", artistIDStr))
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "ID must be an Integer",
+			"error": "KuenstlerID must be an Integer",
 		})
 		return
 	}
 
-	Name := query.Get("Name")
-	country := query.Get("Land")
 	youtubeURL := query.Get("YoutubeURL")
 
 	if len(country) != 2 {
@@ -100,11 +110,11 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	if youtubeURL != "" {
 		result, err = DB.ExecContext(ctx,
 			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte, YoutubeURL) VALUES (?, ?, ?, 0, 0, ?)`,
-			Name, country, ID, youtubeURL)
+			Name, country, artistID, youtubeURL)
 	} else {
 		result, err = DB.ExecContext(ctx,
 			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte) VALUES (?, ?, ?, 0, 0)`,
-			Name, country, ID)
+			Name, country, artistID)
 	}
 
 	if err != nil {
