@@ -56,8 +56,8 @@ export class MockDataService {
     this.songs = this.songs.map((song) => ({ ...song, publicVotes: 0, juryVotes: 0, totalVotes: 0 }));
   }
 
-  public addCountry(countryId: string, countryName: string): void {
-    this.countries.push({ id: countryId, name: countryName });
+  public addCountry(countryId: string, countryName: string, pot: number): void {
+    this.countries.push({ id: countryId, name: countryName, pot });
   }
 
   public addArtist(): void {
@@ -134,4 +134,3 @@ export class MockDataService {
 }
 
 export const mockDataService = new MockDataService();
-

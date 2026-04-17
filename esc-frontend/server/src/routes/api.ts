@@ -419,15 +419,17 @@ apiRouter.delete("/admin/deleteVotes", requireRole("admin"), async (req, res) =>
 });
 
 apiRouter.post("/admin/addCountry", requireRole("admin"), async (req, res) => {
+  const pot = toInt(req.body?.pot, 1);
   if (isMockMode()) {
-    mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""));
+    mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""), pot);
     res.json({ message: "Country added" });
     return;
   }
   const response = await upstream.post("/admin/addCountry/", null, {
     params: {
       ID: req.body?.countryId,
-      Name: req.body?.countryName
+      Name: req.body?.countryName,
+      Pot: pot
     },
     headers: authHeaders(req.session)
   });

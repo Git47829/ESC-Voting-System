@@ -1,5 +1,15 @@
 import type { ContestState, Country, Role, SessionState, Song, VoteResult } from "../types";
 
+export class ApiError extends Error {
+  public readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 const extractErrorMessage = (value: unknown): string | null => {
   if (typeof value === "string") {
     const trimmed = value.trim();
@@ -43,24 +53,36 @@ const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const rawBody = await response.text();
   let data = {} as T;
   if (rawBody.length > 0) {
-    try {
-      data = JSON.parse(rawBody) as T;
-    } catch {
-      if (!response.ok) {
-        throw new Error(rawBody.trim() || `Request failed: ${response.status}`);
+      try {
+        data = JSON.parse(rawBody) as T;
+      } catch {
+        if (!response.ok) {
+          throw new ApiError(rawBody.trim() || `Request failed: ${response.status}`, response.status);
+        }
+        throw new Error("Received invalid JSON response");
       }
-      throw new Error("Received invalid JSON response");
-    }
   }
 
   if (!response.ok) {
     const message =
       extractErrorMessage(data) ??
       (response.statusText || `Request failed: ${response.status}`);
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return data;
+};
+
+const isContestState = (value: unknown): value is ContestState => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.runId === "string" &&
+    typeof record.currentIndex === "number" &&
+    typeof record.totalSongs === "number" &&
+    typeof record.contestActive === "boolean" &&
+    ("currentSong" in record)
+  );
 };
 
 export const api = {
@@ -74,14 +96,36 @@ export const api = {
   },
   getVoteState: (): Promise<{ votesRemaining: number; votesCast: Record<number, number> }> =>
     fetchJson("/api/vote/state"),
-  getResults: (): Promise<VoteResult[]> => fetchJson<VoteResult[]>("/api/results"),
+  getResults: async (): Promise<VoteResult[]> => {
+    const data = await fetchJson<VoteResult[] | { payload?: VoteResult[] }>("/api/results");
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (Array.isArray(data.payload)) {
+      return data.payload;
+    }
+    return [];
+  },
   getCountries: async (): Promise<Country[]> => {
     const data = await fetchJson<{ payload: Country[] }>("/api/countries");
     return data.payload;
   },
-  getContestCurrent: async (): Promise<ContestState> => {
-    const data = await fetchJson<{ payload: ContestState }>("/api/contest/current");
-    return data.payload;
+  getContestCurrent: async (): Promise<ContestState | null> => {
+    try {
+      const data = await fetchJson<ContestState | { payload?: ContestState; error?: string }>("/api/contest/current");
+      if (isContestState(data)) {
+        return data;
+      }
+      if (data && typeof data === "object" && "payload" in data && isContestState(data.payload)) {
+        return data.payload;
+      }
+      return null;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return null;
+      }
+      throw error;
+    }
   },
   submitVote: (payload: {
     songID: number;
@@ -117,10 +161,10 @@ export const api = {
     fetchJson<{ message: string }>("/api/admin/close", { method: "POST" }),
   adminDeleteVotes: (): Promise<{ message: string }> =>
     fetchJson<{ message: string }>("/api/admin/deleteVotes", { method: "DELETE" }),
-  adminAddCountry: (countryId: string, countryName: string): Promise<{ message: string }> =>
+  adminAddCountry: (countryId: string, countryName: string, pot: number): Promise<{ message: string }> =>
     fetchJson<{ message: string }>("/api/admin/addCountry", {
       method: "POST",
-      body: JSON.stringify({ countryId, countryName })
+      body: JSON.stringify({ countryId, countryName, pot })
     }),
   adminAddArtist: (firstName: string, lastName: string, countryId: string): Promise<{ message: string }> =>
     fetchJson<{ message: string }>("/api/admin/addArtist", {

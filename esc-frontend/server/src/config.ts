@@ -7,9 +7,17 @@ const toInt = (value: string | undefined, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const parseBoolean = (value: string | undefined): boolean | null => {
+  if (!value) return null;
+  const normalized = value.toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return null;
+};
+
 export const config = {
   nodeEnv: process.env.NODE_ENV ?? "development",
-  useMock: (process.env.USE_MOCK ?? "").toLowerCase() === "true",
+  useMock: parseBoolean(process.env.USE_MOCK),
   apiBaseUrl: process.env.API_BASE_URL ?? "http://db-crud-api:8000",
   apiTimeout: toInt(process.env.API_TIMEOUT, 10_000),
   escConverterUrl:
@@ -21,5 +29,4 @@ export const config = {
 };
 
 export const isMockMode = (): boolean =>
-  config.useMock || config.nodeEnv === "development";
-
+  config.useMock ?? config.nodeEnv === "development";

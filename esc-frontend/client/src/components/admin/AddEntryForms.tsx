@@ -13,6 +13,7 @@ export const AddEntryForms = ({
 }) => {
   const [countryId, setCountryId] = useState("");
   const [countryName, setCountryName] = useState("");
+  const [countryPot, setCountryPot] = useState("1");
   const [artistFirstName, setArtistFirstName] = useState("");
   const [artistLastName, setArtistLastName] = useState("");
   const [songName, setSongName] = useState("");
@@ -36,15 +37,16 @@ export const AddEntryForms = ({
         onSubmit={(e) => {
           e.preventDefault();
           void run(
-            () => api.adminAddCountry(countryId, countryName),
+            () => api.adminAddCountry(countryId, countryName, Number.parseInt(countryPot, 10) || 1),
             `Country '${countryName}' added`,
-            () => { setCountryId(""); setCountryName(""); }
+            () => { setCountryId(""); setCountryName(""); setCountryPot("1"); }
           );
         }}
       >
         <h3 className="mb-3 text-base font-bold text-esc-black">Add Country</h3>
         <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={countryId} onChange={(e) => setCountryId(e.target.value.toUpperCase())} placeholder="ID" />
-        <input className="mb-3 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={countryName} onChange={(e) => setCountryName(e.target.value)} placeholder="Name" />
+        <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={countryName} onChange={(e) => setCountryName(e.target.value)} placeholder="Name" />
+        <input className="mb-3 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" type="number" min={1} max={99} value={countryPot} onChange={(e) => setCountryPot(e.target.value)} placeholder="Pot" />
         <button className="rounded-xl border border-esc-pink bg-esc-pink px-3 py-2 text-sm font-semibold text-white hover:bg-esc-pink-dim">Save</button>
       </form>
 

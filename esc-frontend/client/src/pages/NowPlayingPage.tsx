@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client";
 import { useFlash } from "../context/FlashContext";
@@ -6,7 +6,7 @@ import { useContestPoll } from "../hooks/useContestPoll";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
 
 export const NowPlayingPage = () => {
-  const contest = useContestPoll();
+  const { contest, error, contestEnded } = useContestPoll();
   const [points, setPoints] = useState(1);
   const [phoneNum, setPhoneNum] = useState("");
   const [ownCountry, setOwnCountry] = useState("");
@@ -23,6 +23,12 @@ export const NowPlayingPage = () => {
     return `${normalized}${normalized.includes("?") ? "&" : "?"}rel=0&modestbranding=1&playsinline=1`;
   }, [contest]);
 
+  useEffect(() => {
+    setPoints(1);
+    setPhoneNum("");
+    setOwnCountry("");
+  }, [contest?.runId, contest?.currentIndex]);
+
   if (!contest?.currentSong) {
     return (
       <section className="-mx-4 sm:-mx-6 lg:-mx-8">
@@ -35,7 +41,17 @@ export const NowPlayingPage = () => {
           <div className="relative z-10 mx-auto max-w-7xl">
             <section className="px-2 py-10 text-center sm:px-4">
               <h1 className="text-3xl font-bold text-white">Running Now</h1>
-              <p className="mt-3 text-sm text-white/70">No active contest song.</p>
+              <p className="mt-3 text-sm text-white/70">
+                {error ?? "No active contest song."}
+              </p>
+              {contestEnded ? (
+                <a
+                  href="/results"
+                  className="mt-5 inline-flex items-center rounded-xl border border-esc-pink/60 bg-esc-pink px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-esc-pink-dim"
+                >
+                  View live results
+                </a>
+              ) : null}
             </section>
           </div>
         </div>
@@ -165,6 +181,7 @@ export const NowPlayingPage = () => {
                       points
                     });
                     addFlash("Vote submitted", "success");
+                    setPoints(1);
                   } catch (error: unknown) {
                     addFlash(error instanceof Error ? error.message : "Vote failed", "error");
                   }
