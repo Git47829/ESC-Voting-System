@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import session from "express-session";
 import lusca from "lusca";
 
@@ -16,6 +17,13 @@ const __dirname = path.dirname(__filename);
 const isProduction = config.nodeEnv === "production";
 
 const app = express();
+
+const spaFallbackRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 if (isProduction) {
   app.set("trust proxy", 1);
@@ -62,7 +70,7 @@ app.use("/api", apiRouter);
 if (isProduction) {
   const clientDist = path.resolve(__dirname, "../../client/dist");
   app.use(express.static(clientDist));
-  app.get("*", (_req, res) => {
+  app.get("*", spaFallbackRateLimiter, (_req, res) => {
     res.sendFile(path.join(clientDist, "index.html"));
   });
 }

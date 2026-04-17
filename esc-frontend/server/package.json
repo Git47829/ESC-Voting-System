@@ -16,7 +16,8 @@
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "lusca": "^1.7.0"
+    "lusca": "^1.7.0",
+    "express-rate-limit": "^8.3.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.8",
