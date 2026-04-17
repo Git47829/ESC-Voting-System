@@ -219,7 +219,7 @@ apiRouter.get("/contest/current", async (_req, res) => {
     res.json({ payload: mockDataService.getContestCurrent() });
     return;
   }
-  const response = await upstream.get("/contest/current/");
+  const response = await upstream.get("/contest/current");
   res.status(response.status).json(response.data);
 });
 
