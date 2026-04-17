@@ -327,7 +327,7 @@ func TestAddArtist_ValidToken_Returns201(t *testing.T) {
 	mock.ExpectExec("INSERT INTO Kuenstler").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/admin/addArtist/?ID=1&Name=Mueller&vorName=Max&typ=solo&Land=DE", nil)
+		"/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
 	server.AddArtist(rr, req)
 
@@ -336,9 +336,9 @@ func TestAddArtist_ValidToken_Returns201(t *testing.T) {
 	}
 }
 
-func TestAddArtist_InvalidID_Returns422(t *testing.T) {
+func TestAddArtist_InvalidCountryID_Returns422(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
-		"/admin/addArtist/?ID=notanumber&Name=Mueller&vorName=Max&typ=solo&Land=DE", nil)
+		"/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DEU", nil)
 	rr := httptest.NewRecorder()
 	server.AddArtist(rr, req)
 
@@ -348,7 +348,7 @@ func TestAddArtist_InvalidID_Returns422(t *testing.T) {
 }
 
 func TestAddArtist_InvalidToken_Returns403(t *testing.T) {
-	req := badTokenReq(http.MethodPost, "/admin/addArtist/?ID=1&Name=Mueller&vorName=Max&typ=solo&Land=DE")
+	req := badTokenReq(http.MethodPost, "/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DE")
 	rr := httptest.NewRecorder()
 	server.RequireAdmin(http.HandlerFunc(server.AddArtist)).ServeHTTP(rr, req)
 

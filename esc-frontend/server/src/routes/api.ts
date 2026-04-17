@@ -444,9 +444,10 @@ apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addArtist/", null, {
     params: {
-      FirstName: req.body?.firstName,
-      LastName: req.body?.lastName,
-      CountryID: req.body?.countryId
+      vorName: req.body?.firstName,
+      Name: req.body?.lastName,
+      typ: "solo",
+      Land: req.body?.countryId
     },
     headers: authHeaders(req.session)
   });
