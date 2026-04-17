@@ -227,9 +227,11 @@ apiRouter.get("/contest/current", async (_req, res) => {
 
   const raw = response.data?.payload ?? response.data;
 
-  // Backend already sends nested currentSong — pass through
+  // Backend already sends nested currentSong — pass through, coerce runId to string
   if (raw && typeof raw === "object" && "currentSong" in raw) {
-    res.json({ payload: raw });
+    const payload = raw as Record<string, unknown>;
+    payload.runId = String(payload.runId ?? "");
+    res.json({ payload });
     return;
   }
 
@@ -241,7 +243,7 @@ apiRouter.get("/contest/current", async (_req, res) => {
       ...rest } = raw as Record<string, unknown>;
     res.json({
       payload: {
-        runId, currentIndex, totalSongs,
+        runId: String(runId ?? ""), currentIndex, totalSongs,
         contestActive: true,
         currentSong: {
           songId, songName, youtubeUrl, countryId, countryName,

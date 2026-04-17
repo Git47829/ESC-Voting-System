@@ -77,7 +77,7 @@ const isContestState = (value: unknown): value is ContestState => {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
-    typeof record.runId === "string" &&
+    (typeof record.runId === "string" || typeof record.runId === "number") &&
     typeof record.currentIndex === "number" &&
     typeof record.totalSongs === "number" &&
     typeof record.contestActive === "boolean" &&
