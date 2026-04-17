@@ -17,6 +17,7 @@ export interface Song {
 export interface Country {
   id: string;
   name: string;
+  pot?: number;
 }
 
 export interface ContestState {
@@ -49,4 +50,3 @@ export interface FlashMessage {
   category: "success" | "error" | "info";
   message: string;
 }
-

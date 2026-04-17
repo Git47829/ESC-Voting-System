@@ -38,5 +38,4 @@ SESSION_SECRET=change-me-in-production
 TOTAL_VOTE_POINTS=20
 ```
 
-In development, mock mode is active by default (`NODE_ENV=development`).
-
+In development, mock mode is active by default (`NODE_ENV=development`), but you can force real-backend mode with `USE_MOCK=false`.

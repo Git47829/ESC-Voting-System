@@ -19,15 +19,32 @@ const HERO_CHIPS = ["Live voting", "20 points to spend", "Choose your favorites"
 export const VotePage = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [selection, setSelection] = useState<Record<number, number>>({});
+  const [serverRemaining, setServerRemaining] = useState(TOTAL);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [openSubmit, setOpenSubmit] = useState(false);
   const [heroAccentActive, setHeroAccentActive] = useState(false);
   const [heroSweepX, setHeroSweepX] = useState(-20);
   const { addFlash } = useFlash();
   const { consent } = useCookieConsent();
 
+  const votingLocked = hasSubmitted || serverRemaining === 0;
+
   useEffect(() => {
-    void api.getSongs().then(setSongs);
-  }, []);
+    void Promise.all([api.getSongs(), api.getVoteState()])
+      .then(([songs, state]) => {
+        setSongs(songs);
+        setServerRemaining(state.votesRemaining);
+        if (Object.keys(state.votesCast).length > 0) {
+          setSelection(state.votesCast);
+        }
+        if (state.votesRemaining === 0 && Object.keys(state.votesCast).length > 0) {
+          setHasSubmitted(true);
+        }
+      })
+      .catch((error: unknown) => {
+        addFlash(error instanceof Error ? error.message : "Failed to load voting data", "error");
+      });
+  }, [addFlash]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -92,6 +109,7 @@ export const VotePage = () => {
   }, [selectedSongs, selection]);
 
   const changePoints = (songId: number, delta: number) => {
+    if (votingLocked) return;
     setSelection((current) => {
       const nextValue = Math.max(0, (current[songId] ?? 0) + delta);
       const next = { ...current, [songId]: nextValue };
@@ -106,15 +124,29 @@ export const VotePage = () => {
       addFlash("Bitte zuerst erforderliche Vote-Cookies akzeptieren.", "error");
       return;
     }
-    const tasks = Object.entries(selection)
-      .filter(([, points]) => points > 0)
-      .map(([songID, points]) =>
-        api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points })
-      );
-    await Promise.all(tasks);
+    const entries = Object.entries(selection).filter(([, points]) => points > 0);
+    let failed = false;
+    for (const [songID, points] of entries) {
+      try {
+        await api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points });
+      } catch (error: unknown) {
+        failed = true;
+        const msg = error instanceof Error ? error.message : "Vote submission failed";
+        addFlash(msg, "error");
+        break;
+      }
+    }
+    const state = await api.getVoteState();
+    setSelection(state.votesCast);
+    setServerRemaining(state.votesRemaining);
     setOpenSubmit(false);
-    addFlash("Votes submitted", "success");
-    setSelection({});
+    if (state.votesRemaining === 0) {
+      setHasSubmitted(true);
+    }
+    if (!failed) {
+      setHasSubmitted(true);
+      addFlash("Votes submitted", "success");
+    }
   };
 
   return (
@@ -532,13 +564,24 @@ export const VotePage = () => {
                       song={song}
                       points={selection[song.songId] ?? 0}
                       onChange={changePoints}
+                      disabled={votingLocked}
                     />
                   ))}
                 </div>
               </div>
             </div>
 
-            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} />
+            {votingLocked ? (
+              <div className="sticky bottom-4 z-30 w-full sm:bottom-5">
+                <div className="flex items-center justify-center rounded-xl border border-green-400/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,253,244,0.94))] px-4 py-3 shadow-[0_8px_28px_rgba(34,197,94,0.06)] backdrop-blur-md">
+                  <span className="text-sm font-semibold text-green-700">
+                    Votes submitted — {used} points spent
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} disabled={used === 0} />
+            )}
 
             <SubmitModal
               open={openSubmit}

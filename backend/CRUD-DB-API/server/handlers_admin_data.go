@@ -71,20 +71,30 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	IDstr := query.Get("ID")
-	ID, err := strconv.Atoi(IDstr)
+	Name := query.Get("SongName")
+	if Name == "" {
+		Name = query.Get("Name")
+	}
 
+	country := query.Get("CountryID")
+	if country == "" {
+		country = query.Get("Land")
+	}
+
+	artistIDStr := query.Get("KuenstlerID")
+	if artistIDStr == "" {
+		artistIDStr = query.Get("ID")
+	}
+	artistID, err := strconv.Atoi(artistIDStr)
 	if err != nil {
-		Logger.ErrorContext(ctx, "Invalid ID Value", slog.Any("error", err), slog.String("ID", IDstr))
+		Logger.ErrorContext(ctx, "Invalid KuenstlerID Value", slog.Any("error", err), slog.String("KuenstlerID", artistIDStr))
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": "ID must be an Integer",
+			"error": "KuenstlerID must be an Integer",
 		})
 		return
 	}
 
-	Name := query.Get("Name")
-	country := query.Get("Land")
 	youtubeURL := query.Get("YoutubeURL")
 
 	if len(country) != 2 {
@@ -100,11 +110,11 @@ func AddSong(w http.ResponseWriter, r *http.Request) {
 	if youtubeURL != "" {
 		result, err = DB.ExecContext(ctx,
 			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte, YoutubeURL) VALUES (?, ?, ?, 0, 0, ?)`,
-			Name, country, ID, youtubeURL)
+			Name, country, artistID, youtubeURL)
 	} else {
 		result, err = DB.ExecContext(ctx,
 			`INSERT INTO Song (Name, Land_ID, Kuenstler_ID, PublikumsPunkte, JuryPunkte) VALUES (?, ?, ?, 0, 0)`,
-			Name, country, ID)
+			Name, country, artistID)
 	}
 
 	if err != nil {
@@ -140,23 +150,26 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query()
-	IDstr := query.Get("ID")
-	ID, err := strconv.Atoi(IDstr)
-
-	if err != nil {
-		Logger.ErrorContext(ctx, "Error Parsing ID", slog.Any("error", err), slog.String("ID", IDstr))
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "ID must be an Integer",
-		})
-		return
-	}
-
 	Name := query.Get("Name")
+	if Name == "" {
+		Name = query.Get("LastName")
+	}
 	vorName := query.Get("vorName")
+	if vorName == "" {
+		vorName = query.Get("FirstName")
+	}
 	typ := query.Get("typ")
-	country := query.Get("Land")
-	dbQuery := `INSERT INTO Kuenstler (ID, Vorname, Name, Typ, Land_ID) VALUES (?, ?, ?, ?, ?)`
+	if typ == "" {
+		typ = query.Get("Type")
+	}
+	if typ == "" {
+		typ = "solo"
+	}
+	country := query.Get("CountryID")
+	if country == "" {
+		country = query.Get("Land")
+	}
+	dbQuery := `INSERT INTO Kuenstler (Vorname, Name, Typ, Land_ID) VALUES (?, ?, ?, ?)`
 
 	if len(country) != 2 {
 		Logger.ErrorContext(ctx, "CountryID can only be two charakters in length", slog.String("CountryID: ", country))
@@ -167,7 +180,7 @@ func AddArtist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := DB.ExecContext(ctx, dbQuery, ID, Name, vorName, typ, country)
+	result, err := DB.ExecContext(ctx, dbQuery, vorName, Name, typ, country)
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to Insert Data", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)

@@ -14,7 +14,7 @@ export const passSetCookie = (
 ): void => {
   const raw = headers["set-cookie"];
   if (raw && Array.isArray(raw) && raw.length > 0) {
-    setCookie("set-cookie", raw);
+    setCookie("set-cookie", raw as unknown as string);
   }
 };
 

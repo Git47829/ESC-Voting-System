@@ -75,35 +75,30 @@ services:
       - observability
 
   frontend:
-    build: ./frontend/
+    build: ./esc-frontend/
     container_name: esc-frontend
     restart: unless-stopped
     environment:
-      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-esc-voting-secret-change-me}
+      NODE_ENV: production
+      USE_MOCK: "false"
       API_BASE_URL: http://db-crud-api:8000
-      API_TIMEOUT: 10
-      FLASK_PORT: 5000
-      OTEL_SERVICE_NAME: esc-voting-frontend
-      OTEL_SERVICE_VERSION: "1.0.0"
-      OTEL_ENVIRONMENT: production
-      OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
-      OTEL_EXPORTER_OTLP_GRPC_ENDPOINT: http://otel-collector:4317
+      API_TIMEOUT: 10000
       ESC_CONVERTER_URL: http://public-vote-converter:8090
       EUROSTATS_URL: http://eurostats:8880
+      PORT: 3001
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      TOTAL_VOTE_POINTS: 20
     depends_on:
       api:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
       public-vote-converter:
         condition: service_healthy
       eurostats:
         condition: service_healthy
     networks:
       - frontend
-      - observability
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3

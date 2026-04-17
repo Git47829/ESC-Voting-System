@@ -43,7 +43,7 @@ https:// {
 	# ── Frontend (root) ───────────────────────────────────────────────────────
 	# Catch-all, must be last so more specific handles below take priority.
 	handle {
-		reverse_proxy esc-frontend:5000
+		reverse_proxy esc-frontend:3001
 	}
 
 	# ── CRUD REST API ─────────────────────────────────────────────────────────

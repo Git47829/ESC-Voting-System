@@ -2,7 +2,7 @@ import { ResultsRow } from "../components/results/ResultsRow";
 import { useResultsPoll } from "../hooks/useResultsPoll";
 
 export const ResultsPage = () => {
-  const { results, countdown, paused, setPaused } = useResultsPoll();
+  const { results, countdown, paused, setPaused, error } = useResultsPoll();
 
   return (
     <section className="space-y-6">
@@ -13,7 +13,7 @@ export const ResultsPage = () => {
             <h1 className="mt-2 text-4xl font-bold text-esc-black">Live Results</h1>
           </div>
           <div className="flex items-center gap-3 text-sm text-esc-muted">
-            <span>Refresh in {countdown}s</span>
+            <span>{paused ? "Paused" : `Refresh in ${countdown}s`}</span>
             <button
               className="rounded-xl border border-esc-border px-3 py-1.5 transition-colors hover:border-esc-pink hover:text-esc-pink"
               onClick={() => setPaused(!paused)}
@@ -42,9 +42,17 @@ export const ResultsPage = () => {
           <span>Total</span>
         </div>
         <div>
-          {results.map((item) => (
-            <ResultsRow key={item.id} item={item} />
-          ))}
+          {error ? (
+            <div className="px-4 py-8 text-center text-sm text-red-600">{error}</div>
+          ) : results.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-esc-muted">
+              No ranking data available yet.
+            </div>
+          ) : (
+            results.map((item) => (
+              <ResultsRow key={item.id} item={item} />
+            ))
+          )}
         </div>
       </div>
     </section>
