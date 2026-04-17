@@ -17,6 +17,10 @@ const isProduction = config.nodeEnv === "production";
 
 const app = express();
 
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+
 if (!isProduction) {
   app.use(
     cors({
