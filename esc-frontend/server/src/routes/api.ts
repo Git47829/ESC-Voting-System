@@ -23,6 +23,14 @@ const authLimiter = rateLimit({
   message: { error: "Too many authentication attempts, please try again later" }
 });
 
+const authorizedLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" }
+});
+
 const decodeVoteStateCookie = (
   cookieValue: string
 ): { votes_remaining: number; votes_cast: Record<string, number> } | null => {
@@ -357,7 +365,7 @@ apiRouter.post("/vote", async (req, res) => {
   );
 });
 
-apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
+apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), async (req, res) => {
   const songID = toInt(req.body?.songID);
   const points = toInt(req.body?.points);
   const juryVoteState = getJuryVoteState(req.session);
@@ -403,7 +411,7 @@ apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.get("/jury/vote/state", requireRole("jury"), (req, res) => {
+apiRouter.get("/jury/vote/state", authorizedLimiter, requireRole("jury"), (req, res) => {
   const state = getJuryVoteState(req.session);
   res.json({ payload: { votesCast: state.votesCast } });
 });
@@ -432,7 +440,7 @@ apiRouter.get("/jury/authenticate", authLimiter, async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/open", requireRole("admin"), async (_req, res) => {
+apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), async (_req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(true);
     res.json({ message: "Voting opened" });
@@ -442,7 +450,7 @@ apiRouter.post("/admin/open", requireRole("admin"), async (_req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/close", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(false);
     res.json({ message: "Voting closed" });
@@ -452,7 +460,7 @@ apiRouter.post("/admin/close", requireRole("admin"), async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.delete("/admin/deleteVotes", requireRole("admin"), async (req, res) => {
+apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.resetVotes();
     req.session.voteState = { votesRemaining: config.totalVotePoints, votesCast: {} };
@@ -463,7 +471,7 @@ apiRouter.delete("/admin/deleteVotes", requireRole("admin"), async (req, res) =>
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addCountry", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), async (req, res) => {
   const pot = toInt(req.body?.pot, 1);
   if (isMockMode()) {
     mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""), pot);
@@ -481,7 +489,7 @@ apiRouter.post("/admin/addCountry", requireRole("admin"), async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.addArtist();
     res.json({ message: "Artist added" });
@@ -499,7 +507,7 @@ apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     const songs = mockDataService.getSongs();
     const country = songs.find((entry) => entry.countryId === String(req.body?.countryId)) ?? songs[0];
@@ -527,7 +535,7 @@ apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/startContest", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.startContest() });
     return;
@@ -538,7 +546,7 @@ apiRouter.post("/admin/startContest", requireRole("admin"), async (req, res) => 
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/advanceContest", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.advanceContest() });
     return;
