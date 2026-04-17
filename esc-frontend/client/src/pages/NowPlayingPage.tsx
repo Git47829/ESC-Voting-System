@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { api } from "../api/client";
+import { useFlash } from "../context/FlashContext";
 import { useContestPoll } from "../hooks/useContestPoll";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
 
@@ -9,6 +10,7 @@ export const NowPlayingPage = () => {
   const [points, setPoints] = useState(1);
   const [phoneNum, setPhoneNum] = useState("");
   const [ownCountry, setOwnCountry] = useState("");
+  const { addFlash } = useFlash();
 
   const progress = useMemo(() => {
     if (!contest || contest.totalSongs === 0) return 0;
@@ -153,14 +155,19 @@ export const NowPlayingPage = () => {
 
               <form
                 className="space-y-4"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  void api.submitVote({
-                    songID: contest.currentSong!.songId,
-                    phoneNum,
-                    ownCountry,
-                    points,
-                  });
+                  try {
+                    await api.submitVote({
+                      songID: contest.currentSong!.songId,
+                      phoneNum,
+                      ownCountry,
+                      points
+                    });
+                    addFlash("Vote submitted", "success");
+                  } catch (error: unknown) {
+                    addFlash(error instanceof Error ? error.message : "Vote failed", "error");
+                  }
                 }}
               >
                 {/* Phone input */}

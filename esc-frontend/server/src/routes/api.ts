@@ -33,6 +33,22 @@ const toInt = (value: unknown, fallback = 0): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const juryPointValues = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] as const;
+
+const getJuryVoteState = (session: {
+  token?: string;
+  juryVoteState?: { token: string; votesCast: Record<number, number> };
+}) => {
+  const token = session.token ?? "";
+  if (!session.juryVoteState || session.juryVoteState.token !== token) {
+    session.juryVoteState = {
+      token,
+      votesCast: {}
+    };
+  }
+  return session.juryVoteState;
+};
+
 const normalizeYoutubeUrl = (url: string): string => {
   if (!url) return url;
   const embedMatch = /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/.exec(url);
@@ -297,22 +313,30 @@ apiRouter.post("/vote", async (req, res) => {
 });
 
 apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
+  const songID = toInt(req.body?.songID);
+  const points = toInt(req.body?.points);
+  const juryVoteState = getJuryVoteState(req.session);
+
+  if (!songID || !juryPointValues.includes(points as (typeof juryPointValues)[number])) {
+    res.status(422).json({ error: "Invalid jury vote payload" });
+    return;
+  }
+
+  if (juryVoteState.votesCast[songID] !== undefined) {
+    res.status(409).json({ error: "This song already has a jury vote from this session." });
+    return;
+  }
+
+  if (Object.values(juryVoteState.votesCast).includes(points)) {
+    res.status(409).json({ error: `${points} points were already used for another song in this session.` });
+    return;
+  }
+
   if (isMockMode()) {
-    const token = req.session.token ?? "jury-token";
-    const songID = toInt(req.body?.songID);
-    const points = toInt(req.body?.points, 12);
-    const cookieKey = `jury_votes_${token}`;
-    const already = req.session.juryVotes?.[`${cookieKey}_${songID}`];
-    if (already) {
-      res.status(409).json({ error: "Duplicate jury vote detected" });
-      return;
-    }
     try {
       mockDataService.castJuryVote(songID, points);
-      req.session.juryVotes = {
-        ...(req.session.juryVotes ?? {}),
-        [`${cookieKey}_${songID}`]: true
-      };
+      juryVoteState.votesCast[songID] = points;
+      req.session.juryVoteState = juryVoteState;
       res.json({ message: "Jury vote submitted" });
     } catch (error) {
       res.status(422).json({ error: error instanceof Error ? error.message : "Vote failed" });
@@ -322,12 +346,21 @@ apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
 
   const response = await upstream.post("/jury/vote/", null, {
     params: {
-      songID: req.body?.songID,
-      points: req.body?.points
+      songID,
+      points
     },
     headers: authHeaders(req.session)
   });
+  if (response.status >= 200 && response.status < 300) {
+    juryVoteState.votesCast[songID] = points;
+    req.session.juryVoteState = juryVoteState;
+  }
   res.status(response.status).json(response.data);
+});
+
+apiRouter.get("/jury/vote/state", requireRole("jury"), (req, res) => {
+  const state = getJuryVoteState(req.session);
+  res.json({ payload: { votesCast: state.votesCast } });
 });
 
 apiRouter.get("/admin/authenticate", async (req, res) => {

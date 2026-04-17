@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../../api/client";
+import { useFlash } from "../../context/FlashContext";
 import type { Song } from "../../types";
 import { Modal } from "../ui/Modal";
 
@@ -20,13 +21,21 @@ export const SubmitModal = ({
   const [songs, setSongs] = useState<Song[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const { addFlash } = useFlash();
 
   useEffect(() => {
     if (open) {
-      void api.getSongs().then(setSongs);
+      void api
+        .getSongs()
+        .then(setSongs)
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : "Failed to load songs";
+          setError(message);
+          addFlash(message, "error");
+        });
       setError(null);
     }
-  }, [open]);
+  }, [addFlash, open]);
 
   const handleSubmit = async () => {
     setError(null);

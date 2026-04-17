@@ -1,5 +1,35 @@
 import type { ContestState, Country, Role, SessionState, Song, VoteResult } from "../types";
 
+const extractErrorMessage = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const direct =
+    extractErrorMessage(record.error) ??
+    extractErrorMessage(record.message) ??
+    extractErrorMessage(record.detail) ??
+    extractErrorMessage(record.title) ??
+    extractErrorMessage(record.payload);
+
+  if (direct) {
+    return direct;
+  }
+
+  if (Array.isArray(record.errors)) {
+    const first = record.errors.map(extractErrorMessage).find(Boolean);
+    return first ?? null;
+  }
+
+  return null;
+};
+
 const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   const response = await fetch(url, {
     credentials: "include",
@@ -10,10 +40,26 @@ const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
     ...init
   });
 
-  const data = (await response.json()) as T & { error?: string };
-  if (!response.ok) {
-    throw new Error(data.error ?? `Request failed: ${response.status}`);
+  const rawBody = await response.text();
+  let data = {} as T;
+  if (rawBody.length > 0) {
+    try {
+      data = JSON.parse(rawBody) as T;
+    } catch {
+      if (!response.ok) {
+        throw new Error(rawBody.trim() || `Request failed: ${response.status}`);
+      }
+      throw new Error("Received invalid JSON response");
+    }
   }
+
+  if (!response.ok) {
+    const message =
+      extractErrorMessage(data) ??
+      (response.statusText || `Request failed: ${response.status}`);
+    throw new Error(message);
+  }
+
   return data;
 };
 
@@ -101,10 +147,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ songID, points })
     }),
+  getJuryVoteState: (): Promise<{ votesCast: Record<number, number> }> =>
+    fetchJson<{ payload: { votesCast: Record<number, number> } }>("/api/jury/vote/state")
+      .then((data) => data.payload),
   getStats: (): Promise<{
     totalPublic: number;
     totalJury: number;
     byCountry: Array<{ countryId: string; country: string; total: number }>;
   }> => fetchJson("/api/stats")
 };
-

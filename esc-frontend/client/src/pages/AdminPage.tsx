@@ -12,20 +12,27 @@ export const AdminPage = () => {
   const [confirmReset, setConfirmReset] = useState(false);
   const { addFlash } = useFlash();
 
-  const load = () => void api.getSongs().then(setSongs);
+  const load = async () => {
+    try {
+      const nextSongs = await api.getSongs();
+      setSongs(nextSongs);
+    } catch (err) {
+      addFlash(err instanceof Error ? err.message : "Failed to load songs", "error");
+    }
+  };
 
   const run = async (action: () => Promise<unknown>, successMsg: string) => {
     try {
       await action();
       addFlash(successMsg, "success");
-      load();
+      void load();
     } catch (err) {
       addFlash(err instanceof Error ? err.message : "Action failed", "error");
     }
   };
 
   useEffect(() => {
-    load();
+    void load();
   }, []);
 
   return (

@@ -13,6 +13,9 @@ declare module "express-session" {
       votesCast: Record<number, number>;
     };
     juryVotes?: Record<string, boolean>;
+    juryVoteState?: {
+      token: string;
+      votesCast: Record<number, number>;
+    };
   }
 }
-

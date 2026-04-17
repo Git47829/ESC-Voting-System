@@ -26,13 +26,17 @@ export const VotePage = () => {
   const { consent } = useCookieConsent();
 
   useEffect(() => {
-    void Promise.all([api.getSongs(), api.getVoteState()]).then(([songs, state]) => {
-      setSongs(songs);
-      if (Object.keys(state.votesCast).length > 0) {
-        setSelection(state.votesCast);
-      }
-    });
-  }, []);
+    void Promise.all([api.getSongs(), api.getVoteState()])
+      .then(([songs, state]) => {
+        setSongs(songs);
+        if (Object.keys(state.votesCast).length > 0) {
+          setSelection(state.votesCast);
+        }
+      })
+      .catch((error: unknown) => {
+        addFlash(error instanceof Error ? error.message : "Failed to load voting data", "error");
+      });
+  }, [addFlash]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
