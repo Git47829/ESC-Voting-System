@@ -200,20 +200,20 @@ func TestCheckPhoneNum_ValidFrenchNumber_ReturnsFR(t *testing.T) {
 	}
 }
 
-func TestCheckPhoneNum_InvalidNumber_ReturnsEmpty(t *testing.T) {
+func TestCheckPhoneNum_InvalidNumber_ReturnsError(t *testing.T) {
 	region, err := server.CheckPhoneNum("notaphone")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for invalid phone number")
 	}
 	if region != "" {
 		t.Errorf("expected empty region for invalid number, got %q", region)
 	}
 }
 
-func TestCheckPhoneNum_EmptyString_ReturnsEmpty(t *testing.T) {
+func TestCheckPhoneNum_EmptyString_ReturnsError(t *testing.T) {
 	region, err := server.CheckPhoneNum("")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected error for empty phone input")
 	}
 	if region != "" {
 		t.Errorf("expected empty region for empty input, got %q", region)
