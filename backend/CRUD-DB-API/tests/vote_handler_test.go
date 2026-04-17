@@ -353,6 +353,27 @@ func TestVote_InsufficientBudget_Returns403(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// Phone hash determinism
+// ---------------------------------------------------------------------------
+
+func TestHashPhoneNumber_Deterministic(t *testing.T) {
+	phone := "+4915123456789"
+	h1 := server.HashPhoneNumber(phone)
+	h2 := server.HashPhoneNumber(phone)
+	if h1 != h2 {
+		t.Errorf("same phone produced different hashes: %s vs %s", h1, h2)
+	}
+}
+
+func TestHashPhoneNumber_DifferentPhones(t *testing.T) {
+	h1 := server.HashPhoneNumber("+4915123456789")
+	h2 := server.HashPhoneNumber("+4915199999999")
+	if h1 == h2 {
+		t.Error("different phones produced same hash")
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Full 20-point budget vote
 // ---------------------------------------------------------------------------
 

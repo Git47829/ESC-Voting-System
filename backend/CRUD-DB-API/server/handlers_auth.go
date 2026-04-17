@@ -1,6 +1,9 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
@@ -65,6 +68,12 @@ func CheckPhoneNum(num string) (string, error) {
 	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
 
 	return numRegion, nil
+}
+
+func HashPhoneNumber(phone string) string {
+	mac := hmac.New(sha256.New, SignedCookieSecret)
+	mac.Write([]byte(phone))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func HashPassword(password string) (string, error) {

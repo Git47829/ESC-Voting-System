@@ -116,12 +116,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	phoneHash, err := HashPassword(phone)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "could not process Phone Number"})
-		return
-	}
+	phoneHash := HashPhoneNumber(phone)
 
 	rawID := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(rawID)
