@@ -174,8 +174,7 @@ export const api = {
   adminAddSong: (payload: {
     songName: string;
     countryId: string;
-    artistFirstName: string;
-    artistLastName: string;
+    artistId: number;
     youtubeUrl: string;
   }): Promise<{ message: string }> =>
     fetchJson<{ message: string }>("/api/admin/addSong", {

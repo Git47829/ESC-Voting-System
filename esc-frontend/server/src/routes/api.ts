@@ -457,12 +457,13 @@ apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     const songs = mockDataService.getSongs();
     const country = songs.find((entry) => entry.countryId === String(req.body?.countryId)) ?? songs[0];
+    const artistId = String(req.body?.artistId ?? "").trim();
     const song = mockDataService.addSong({
       countryId: String(req.body?.countryId),
       countryName: country?.countryName ?? String(req.body?.countryId),
       songName: String(req.body?.songName),
-      artistFirstName: String(req.body?.artistFirstName),
-      artistLastName: String(req.body?.artistLastName),
+      artistFirstName: "Artist",
+      artistLastName: artistId !== "" ? `#${artistId}` : "Unknown",
       youtubeUrl: normalizeYoutubeUrl(String(req.body?.youtubeUrl ?? ""))
     });
     res.json({ message: "Song added", payload: song });

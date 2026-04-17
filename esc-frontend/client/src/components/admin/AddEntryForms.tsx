@@ -17,6 +17,7 @@ export const AddEntryForms = ({
   const [artistFirstName, setArtistFirstName] = useState("");
   const [artistLastName, setArtistLastName] = useState("");
   const [songName, setSongName] = useState("");
+  const [songArtistId, setSongArtistId] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
 
   const run = async (action: () => Promise<unknown>, successMsg: string, resetFields?: () => void) => {
@@ -76,20 +77,18 @@ export const AddEntryForms = ({
             () => api.adminAddSong({
               songName,
               countryId,
-              artistFirstName,
-              artistLastName,
+              artistId: Number.parseInt(songArtistId, 10),
               youtubeUrl: normalizeYoutubeUrl(youtubeUrl)
             }),
             `Song '${songName}' added`,
-            () => { setSongName(""); setYoutubeUrl(""); }
+            () => { setSongName(""); setSongArtistId(""); setYoutubeUrl(""); }
           );
         }}
       >
         <h3 className="mb-3 text-base font-bold text-esc-black">Add Song</h3>
         <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={songName} onChange={(e) => setSongName(e.target.value)} placeholder="Song name" />
         <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={countryId} onChange={(e) => setCountryId(e.target.value.toUpperCase())} placeholder="Country ID" />
-        <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={artistFirstName} onChange={(e) => setArtistFirstName(e.target.value)} placeholder="Artist first name" />
-        <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={artistLastName} onChange={(e) => setArtistLastName(e.target.value)} placeholder="Artist last name" />
+        <input className="mb-2 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" type="number" min={1} value={songArtistId} onChange={(e) => setSongArtistId(e.target.value)} placeholder="Artist ID" />
         <input className="mb-3 w-full rounded-xl border border-esc-border bg-white px-3 py-2 focus:border-esc-pink" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} placeholder="YouTube URL" />
         <button className="rounded-xl border border-esc-pink bg-esc-pink px-3 py-2 text-sm font-semibold text-white hover:bg-esc-pink-dim">Save</button>
       </form>
