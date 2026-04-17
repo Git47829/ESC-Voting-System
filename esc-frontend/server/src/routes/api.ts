@@ -7,9 +7,9 @@ import { mockDataService } from "../mock/index.js";
 import { parseConsentCookie, upstream } from "../upstream.js";
 import type { Song } from "../types.js";
 
-const authHeaders = (session: { token?: string; role?: string }) => ({
+const authHeaders = (session: { token?: string; email?: string }) => ({
   authorization: `Bearer ${session.token ?? ""}`,
-  "X-Email": session.token ?? ""
+  "X-Email": session.email ?? ""
 });
 
 export const apiRouter = Router();
@@ -102,6 +102,7 @@ apiRouter.post("/auth/login", async (req, res) => {
     }
     req.session.pendingEmail = email;
     req.session.pendingRole = role;
+    req.session.pendingPassword = password;
     res.json({ message: "Verification code sent" });
     return;
   }
@@ -110,6 +111,7 @@ apiRouter.post("/auth/login", async (req, res) => {
   if (response.status === 202) {
     req.session.pendingEmail = email;
     req.session.pendingRole = role;
+    req.session.pendingPassword = password;
   }
   res.status(response.status).json(response.data);
 });
@@ -126,9 +128,11 @@ apiRouter.post("/auth/verify", async (req, res) => {
   if (isMockMode()) {
     if (req.session.pendingEmail === email) {
       req.session.role = req.session.pendingRole as "admin" | "jury";
-      req.session.token = "mock-2fa-token";
+      req.session.token = req.session.pendingPassword ?? "mock-2fa-token";
+      req.session.email = email;
       delete req.session.pendingEmail;
       delete req.session.pendingRole;
+      delete req.session.pendingPassword;
       res.json({ ok: true, role: req.session.role });
       return;
     }
@@ -139,9 +143,11 @@ apiRouter.post("/auth/verify", async (req, res) => {
   const response = await upstream.post("/auth/verify", { email, code });
   if (response.status === 202) {
     req.session.role = role;
-    req.session.token = email;
+    req.session.token = req.session.pendingPassword ?? "";
+    req.session.email = email;
     delete req.session.pendingEmail;
     delete req.session.pendingRole;
+    delete req.session.pendingPassword;
     res.json({ ok: true, role });
     return;
   }
