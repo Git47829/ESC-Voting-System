@@ -220,7 +220,41 @@ apiRouter.get("/contest/current", async (_req, res) => {
     return;
   }
   const response = await upstream.get("/contest/current");
-  res.status(response.status).json(response.data);
+  if (response.status !== 200) {
+    res.status(response.status).json(response.data);
+    return;
+  }
+
+  const raw = response.data?.payload ?? response.data;
+
+  // Backend already sends nested currentSong — pass through
+  if (raw && typeof raw === "object" && "currentSong" in raw) {
+    res.json({ payload: raw });
+    return;
+  }
+
+  // Legacy flat shape — reshape into { currentSong: Song, ... }
+  if (raw && typeof raw === "object" && "songId" in raw) {
+    const { runId, currentIndex, totalSongs, songId, songName, youtubeUrl,
+      countryId, countryName, artistId, artistFirstName, artistLastName,
+      artistType, publicVotes, juryVotes, totalVotes, votingIsOpen,
+      ...rest } = raw as Record<string, unknown>;
+    res.json({
+      payload: {
+        runId, currentIndex, totalSongs,
+        contestActive: true,
+        currentSong: {
+          songId, songName, youtubeUrl, countryId, countryName,
+          artistFirstName, artistLastName,
+          publicVotes, juryVotes, totalVotes, votingIsOpen
+        },
+        ...rest
+      }
+    });
+    return;
+  }
+
+  res.json(response.data);
 });
 
 apiRouter.get("/vote/state", (req, res) => {
