@@ -125,22 +125,26 @@ export const VotePage = () => {
       return;
     }
     const entries = Object.entries(selection).filter(([, points]) => points > 0);
-    try {
-      for (const [songID, points] of entries) {
+    let failed = false;
+    for (const [songID, points] of entries) {
+      try {
         await api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points });
+      } catch (error: unknown) {
+        failed = true;
+        const msg = error instanceof Error ? error.message : "Vote submission failed";
+        addFlash(msg, "error");
+        break;
       }
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : "Vote submission failed";
-      addFlash(msg, "error");
     }
     const state = await api.getVoteState();
     setSelection(state.votesCast);
     setServerRemaining(state.votesRemaining);
+    setOpenSubmit(false);
     if (state.votesRemaining === 0) {
       setHasSubmitted(true);
     }
-    setOpenSubmit(false);
-    if (!hasSubmitted) {
+    if (!failed) {
+      setHasSubmitted(true);
       addFlash("Votes submitted", "success");
     }
   };
