@@ -360,7 +360,7 @@ apiRouter.post("/admin/open", requireRole("admin"), async (_req, res) => {
     res.json({ message: "Voting opened" });
     return;
   }
-  const response = await upstream.post("/admin/open/", null, { headers: authHeaders(_req.session) });
+  const response = await upstream.post("/admin/open", null, { headers: authHeaders(_req.session) });
   res.status(response.status).json(response.data);
 });
 
@@ -450,7 +450,7 @@ apiRouter.post("/admin/startContest", requireRole("admin"), async (req, res) => 
     res.json({ payload: mockDataService.startContest() });
     return;
   }
-  const response = await upstream.post("/admin/startContest/", null, {
+  const response = await upstream.post("/admin/startContest", null, {
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
@@ -461,7 +461,7 @@ apiRouter.post("/admin/advanceContest", requireRole("admin"), async (req, res) =
     res.json({ payload: mockDataService.advanceContest() });
     return;
   }
-  const response = await upstream.post("/admin/advanceContest/", null, {
+  const response = await upstream.post("/admin/advanceContest", null, {
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
@@ -525,4 +525,3 @@ apiRouter.get("/stats", async (_req, res) => {
   });
   res.status(response.status).json(response.data);
 });
-
