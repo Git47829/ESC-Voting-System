@@ -30,9 +30,13 @@ export const SubmitModal = ({
 
   const handleSubmit = async () => {
     setError(null);
+    if (!phone.trim() || !ownCountry) {
+      setError("Please fill in your country and phone number.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await onSubmit(phone, ownCountry);
+      await onSubmit(phone.trim(), ownCountry);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Submission failed");
     } finally {

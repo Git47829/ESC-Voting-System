@@ -542,7 +542,7 @@ export const VotePage = () => {
               </div>
             </div>
 
-            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} disabled={remaining <= 0 && used > 0} />
+            <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} disabled={used === 0} />
 
             <SubmitModal
               open={openSubmit}

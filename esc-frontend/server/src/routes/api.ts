@@ -14,6 +14,20 @@ const authHeaders = (session: { token?: string; role?: string }) => ({
 
 export const apiRouter = Router();
 
+const decodeVoteStateCookie = (
+  cookieValue: string
+): { votes_remaining: number; votes_cast: Record<string, number> } | null => {
+  try {
+    const raw = Buffer.from(cookieValue, "hex");
+    const sep = raw.lastIndexOf(0x2e); // '.'
+    if (sep === -1) return null;
+    const payload = raw.subarray(0, sep).toString("utf-8");
+    return JSON.parse(payload) as { votes_remaining: number; votes_cast: Record<string, number> };
+  } catch {
+    return null;
+  }
+};
+
 const toInt = (value: unknown, fallback = 0): number => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -188,11 +202,21 @@ apiRouter.get("/contest/current", async (_req, res) => {
 });
 
 apiRouter.get("/vote/state", (req, res) => {
-  const state = req.session.voteState ?? {
-    votesRemaining: config.totalVotePoints,
-    votesCast: {}
-  };
-  res.json(state);
+  let state = req.session.voteState;
+  if (!state) {
+    const raw = req.cookies?.vote_state as string | undefined;
+    if (raw) {
+      const decoded = decodeVoteStateCookie(raw);
+      if (decoded) {
+        state = {
+          votesRemaining: decoded.votes_remaining,
+          votesCast: decoded.votes_cast
+        };
+        req.session.voteState = state;
+      }
+    }
+  }
+  res.json(state ?? { votesRemaining: config.totalVotePoints, votesCast: {} });
 });
 
 apiRouter.post("/vote", async (req, res) => {
@@ -212,11 +236,6 @@ apiRouter.post("/vote", async (req, res) => {
       };
       const { voteState } = mockDataService.castPublicVote(songID, points, state);
       req.session.voteState = voteState;
-      res.cookie("vote_state", JSON.stringify(voteState), {
-        maxAge: 365 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        sameSite: "strict"
-      });
       res.json({
         message: "Vote submitted",
         payload: voteState
@@ -262,11 +281,6 @@ apiRouter.post("/vote", async (req, res) => {
     state.votesRemaining -= points;
     state.votesCast[songID] = (state.votesCast[songID] ?? 0) + points;
     req.session.voteState = state;
-    res.cookie("vote_state", JSON.stringify(state), {
-      maxAge: 365 * 24 * 60 * 60 * 1000,
-      httpOnly: true,
-      sameSite: "strict"
-    });
   }
 
   res.status(response.status).json(

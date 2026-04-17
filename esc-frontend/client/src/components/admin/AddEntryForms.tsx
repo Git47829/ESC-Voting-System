@@ -1,9 +1,16 @@
 import { useState } from "react";
 
 import { api } from "../../api/client";
+import type { FlashMessage } from "../../types";
 import { normalizeYoutubeUrl } from "../../utils/normalizeYoutubeUrl";
 
-export const AddEntryForms = ({ onDone }: { onDone: () => void }) => {
+export const AddEntryForms = ({
+  onDone,
+  onFlash
+}: {
+  onDone: () => void;
+  onFlash: (message: string, category: FlashMessage["category"]) => void;
+}) => {
   const [countryId, setCountryId] = useState("");
   const [countryName, setCountryName] = useState("");
   const [artistFirstName, setArtistFirstName] = useState("");
@@ -11,13 +18,28 @@ export const AddEntryForms = ({ onDone }: { onDone: () => void }) => {
   const [songName, setSongName] = useState("");
   const [youtubeUrl, setYoutubeUrl] = useState("");
 
+  const run = async (action: () => Promise<unknown>, successMsg: string, resetFields?: () => void) => {
+    try {
+      await action();
+      onFlash(successMsg, "success");
+      resetFields?.();
+      onDone();
+    } catch (err) {
+      onFlash(err instanceof Error ? err.message : "Action failed", "error");
+    }
+  };
+
   return (
     <section className="grid gap-4 md:grid-cols-3">
       <form
         className="rounded-[1.5rem] border border-esc-border bg-white/92 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.04)]"
         onSubmit={(e) => {
           e.preventDefault();
-          void api.adminAddCountry(countryId, countryName).then(onDone);
+          void run(
+            () => api.adminAddCountry(countryId, countryName),
+            `Country '${countryName}' added`,
+            () => { setCountryId(""); setCountryName(""); }
+          );
         }}
       >
         <h3 className="mb-3 text-base font-bold text-esc-black">Add Country</h3>
@@ -30,7 +52,11 @@ export const AddEntryForms = ({ onDone }: { onDone: () => void }) => {
         className="rounded-[1.5rem] border border-esc-border bg-white/92 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.04)]"
         onSubmit={(e) => {
           e.preventDefault();
-          void api.adminAddArtist(artistFirstName, artistLastName, countryId).then(onDone);
+          void run(
+            () => api.adminAddArtist(artistFirstName, artistLastName, countryId),
+            `Artist '${artistFirstName} ${artistLastName}' added`,
+            () => { setArtistFirstName(""); setArtistLastName(""); }
+          );
         }}
       >
         <h3 className="mb-3 text-base font-bold text-esc-black">Add Artist</h3>
@@ -44,15 +70,17 @@ export const AddEntryForms = ({ onDone }: { onDone: () => void }) => {
         className="rounded-[1.5rem] border border-esc-border bg-white/92 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.04)]"
         onSubmit={(e) => {
           e.preventDefault();
-          void api
-            .adminAddSong({
+          void run(
+            () => api.adminAddSong({
               songName,
               countryId,
               artistFirstName,
               artistLastName,
               youtubeUrl: normalizeYoutubeUrl(youtubeUrl)
-            })
-            .then(onDone);
+            }),
+            `Song '${songName}' added`,
+            () => { setSongName(""); setYoutubeUrl(""); }
+          );
         }}
       >
         <h3 className="mb-3 text-base font-bold text-esc-black">Add Song</h3>
