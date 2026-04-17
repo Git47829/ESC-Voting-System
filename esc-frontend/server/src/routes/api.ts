@@ -1,5 +1,6 @@
 import axios from "axios";
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 
 import { config, isMockMode } from "../config.js";
 import { requireRole } from "../middleware/auth.js";
@@ -13,6 +14,14 @@ const authHeaders = (session: { token?: string; email?: string }) => ({
 });
 
 export const apiRouter = Router();
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts, please try again later" }
+});
 
 const decodeVoteStateCookie = (
   cookieValue: string
@@ -68,7 +77,7 @@ apiRouter.get("/session", (req, res) => {
   });
 });
 
-apiRouter.post("/login", async (req, res) => {
+apiRouter.post("/login", authLimiter, async (req, res) => {
   const role = String(req.body?.role ?? "") as "admin" | "jury";
   const token = String(req.body?.token ?? "").trim();
   if (!token || (role !== "admin" && role !== "jury")) {
@@ -99,7 +108,7 @@ apiRouter.post("/login", async (req, res) => {
   res.json({ ok: true, role });
 });
 
-apiRouter.post("/auth/login", async (req, res) => {
+apiRouter.post("/auth/login", authLimiter, async (req, res) => {
   const email = String(req.body?.email ?? "").trim();
   const password = String(req.body?.password ?? "").trim();
   const role = String(req.body?.role ?? "") as "admin" | "jury";
@@ -132,7 +141,7 @@ apiRouter.post("/auth/login", async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/auth/verify", async (req, res) => {
+apiRouter.post("/auth/verify", authLimiter, async (req, res) => {
   const email = String(req.body?.email ?? "").trim();
   const code = String(req.body?.code ?? "").trim();
   const role = String(req.body?.role ?? "") as "admin" | "jury";
@@ -399,7 +408,7 @@ apiRouter.get("/jury/vote/state", requireRole("jury"), (req, res) => {
   res.json({ payload: { votesCast: state.votesCast } });
 });
 
-apiRouter.get("/admin/authenticate", async (req, res) => {
+apiRouter.get("/admin/authenticate", authLimiter, async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "admin-token" ? 202 : 403).json(
@@ -411,7 +420,7 @@ apiRouter.get("/admin/authenticate", async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.get("/jury/authenticate", async (req, res) => {
+apiRouter.get("/jury/authenticate", authLimiter, async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "jury-token" ? 202 : 403).json(
