@@ -76,8 +76,8 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	for attempt := 1; attempt <= maxDBAttempts; attempt++ {
 		conn, err = sql.Open("mysql", dsn)
 		if err == nil {
-			conn.SetMaxOpenConns(25)
-			conn.SetMaxIdleConns(5)
+			conn.SetMaxOpenConns(50)
+			conn.SetMaxIdleConns(25)
 			conn.SetConnMaxLifetime(5 * time.Minute)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
