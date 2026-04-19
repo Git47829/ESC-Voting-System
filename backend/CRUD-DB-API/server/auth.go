@@ -1,55 +1,22 @@
 package server
 
 import (
-	"bytes"
 	"crypto/rand"
-  "crypto/subtle"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
-	"sync"
 	"time"
 )
 
-var (
-	storedTokens = make(map[string]time.Time)
-	tokenMu      sync.Mutex
-)
-
-// 2FA pending verifications keyed by email
-type PendingVerification struct {
-	Code      string
-	Role      string
-	CreatedAt time.Time
-}
-
-var (
-	pendingVerifications = make(map[string]*PendingVerification)
-	verifyMu             sync.Mutex
-)
-
 func requestVerificationMail(email, token string) error {
-	reqURL := os.Getenv("EuroMailURL")
-	body, jErr := json.Marshal(map[string]string{"email": email, "token": token})
-	if jErr != nil {
-		return jErr
-	}
-	resp, err := http.Post(reqURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		Logger.Error("Unable to connect to EuroMail", slog.Any("error", err))
+	if err := PublishEmailJob(email, token); err != nil {
+		Logger.Error("Failed to publish email job to RabbitMQ", slog.Any("error", err))
 		return err
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusAccepted {
-		Logger.Error("EuroMail returned non-202", slog.Int("status", resp.StatusCode))
-		return fmt.Errorf("euromail status %d", resp.StatusCode)
-	}
-
-	Logger.Info("Verification mail sent", slog.String("email", email))
+	Logger.Info("Verification mail job published", slog.String("email", email))
 	return nil
 }
 
@@ -58,12 +25,21 @@ func RequestToken(w http.ResponseWriter, r *http.Request) {
 	Logger.InfoContext(ctx, "New Verification Token requested")
 
 	w.Header().Set("Content-Type", "application/json")
-	token, err := generateAndStoreToken()
+	token, err := generateToken()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Invalid Token generation", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Unable to generate Token",
+		})
+		return
+	}
+
+	if err := StoreToken(ctx, token, 5*time.Minute); err != nil {
+		Logger.ErrorContext(ctx, "Failed to store token in Redis", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Unable to store Token",
 		})
 		return
 	}
@@ -82,15 +58,18 @@ func VerifiyWithToken(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	tokenMu.Lock()
-	_, exists := storedTokens[providedToken]
-	if exists {
-		evictToken(providedToken)
+	exists, err := CheckAndEvictToken(ctx, providedToken)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to check token in Redis", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Token verification failed",
+		})
+		return
 	}
-	tokenMu.Unlock()
 
 	if exists {
-		Logger.InfoContext(ctx, "New Token verified, evicting from TokenStore", slog.String("message:", "New Verification via Token"))
+		Logger.InfoContext(ctx, "New Token verified, evicted from Redis", slog.String("message:", "New Verification via Token"))
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{
 			"message": "authenticated",
@@ -119,26 +98,6 @@ func generateToken() (string, error) {
 	return hex.EncodeToString(b), err
 }
 
-func generateAndStoreToken() (string, error) {
-	token, err := generateToken()
-	if err != nil {
-		return "", err
-	}
-	tokenMu.Lock()
-	storedTokens[token] = time.Now()
-	tokenMu.Unlock()
-	return token, nil
-}
-
-func evictToken(input string) {
-	delete(storedTokens, input)
-	for k, v := range storedTokens {
-		if time.Since(v) > 5*time.Minute {
-			delete(storedTokens, k)
-		}
-	}
-}
-
 type AuthLoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -161,7 +120,6 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate credentials based on role
 	var ok bool
 	var msg string
 	switch req.Role {
@@ -182,7 +140,6 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate 6-digit code
 	code, err := generate2FACode()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to generate 2FA code", slog.Any("error", err))
@@ -191,16 +148,13 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Store pending verification
-	verifyMu.Lock()
-	pendingVerifications[req.Email] = &PendingVerification{
-		Code:      code,
-		Role:      req.Role,
-		CreatedAt: time.Now(),
+	if err := StorePendingVerification(ctx, req.Email, code, req.Role); err != nil {
+		Logger.ErrorContext(ctx, "Failed to store pending verification in Redis", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to store verification"})
+		return
 	}
-	verifyMu.Unlock()
 
-	// Send code via EuroMail
 	if err := requestVerificationMail(req.Email, code); err != nil {
 		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -224,24 +178,20 @@ func AuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifyMu.Lock()
-	pending, exists := pendingVerifications[req.Email]
-	if exists && subtle.ConstantTimeCompare([]byte(pending.Code), []byte(req.Code)) == 1 && time.Since(pending.CreatedAt) <= 5*time.Minute {
-		delete(pendingVerifications, req.Email)
-		// Clean up expired entries
-		for k, v := range pendingVerifications {
-			if time.Since(v.CreatedAt) > 5*time.Minute {
-				delete(pendingVerifications, k)
-			}
-		}
-		verifyMu.Unlock()
+	code, _, createdAt, exists, err := GetAndDeletePendingVerification(ctx, req.Email)
+	if err != nil {
+		Logger.ErrorContext(ctx, "Failed to check pending verification in Redis", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Verification check failed"})
+		return
+	}
 
+	if exists && subtle.ConstantTimeCompare([]byte(code), []byte(req.Code)) == 1 && time.Since(time.Unix(createdAt, 0)) <= 5*time.Minute {
 		Logger.InfoContext(ctx, "2FA verified", slog.String("email", req.Email))
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Verified"})
 		return
 	}
-	verifyMu.Unlock()
 
 	Logger.WarnContext(ctx, "2FA verification failed", slog.String("email", req.Email))
 	w.WriteHeader(http.StatusUnauthorized)

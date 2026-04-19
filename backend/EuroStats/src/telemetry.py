@@ -8,7 +8,7 @@ from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.grpc import GrpcAioInstrumentorClient
+# gRPC instrumentor removed — EuroStats now uses RabbitMQ instead of gRPC
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -71,8 +71,6 @@ def setup_telemetry(app: FastAPI):
         logging.getLogger().addHandler(otel_log_handler)
 
         FastAPIInstrumentor.instrument_app(app)
-
-        GrpcAioInstrumentorClient().instrument()
 
         logger.info(
             "EuroStats telemetry setup complete. Exporting to %s", otlp_endpoint

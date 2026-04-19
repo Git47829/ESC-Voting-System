@@ -6,11 +6,19 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 func GetCountries(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
+
+	// Try cache first
+	if cached, err := CacheGet(ctx, "countries:all"); err == nil && cached != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write(cached)
+		return
+	}
 
 	query := `SELECT ID, Name, POT FROM Land ORDER BY Name ASC`
 
@@ -48,11 +56,16 @@ func GetCountries(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]any{
+
+	resp := map[string]any{
 		"message": "Success",
 		"payload": countries,
-	})
+	}
+	respBytes, _ := json.Marshal(resp)
+	CacheSet(ctx, "countries:all", respBytes, 60*time.Minute)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write(respBytes)
 }
 
 func GetCountryByName(w http.ResponseWriter, r *http.Request) {

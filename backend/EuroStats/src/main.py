@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import io
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -12,15 +13,16 @@ matplotlib.use("Agg")  # must be called before any other matplotlib import
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import pandas as pd
+import redis.asyncio as aioredis
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-from grpc_consumer import VoteStreamConsumer
+from rabbitmq_consumer import RabbitMQVoteConsumer
 from telemetry import setup_telemetry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-vote_consumer: VoteStreamConsumer = None
+redis_client: aioredis.Redis = None
 
 _vote_df: pd.DataFrame = pd.DataFrame(
     columns=[
@@ -167,90 +169,118 @@ async def _compute_and_broadcast() -> None:
         title="Votes Received by Country",
     )
 
-    await stats_manager.broadcast(
-        {
-            "type": "stats",
-            "vote_count": int(_vote_df["vote_count"].sum()),
-            "charts": {
-                "voters_by_country": chart1,
-                "votes_received_by_country": chart2,
-            },
-        }
-    )
+    payload = {
+        "type": "stats",
+        "vote_count": int(_vote_df["vote_count"].sum()),
+        "charts": {
+            "voters_by_country": chart1,
+            "votes_received_by_country": chart2,
+        },
+    }
+
+    await stats_manager.broadcast(payload)
+
+    # Publish to Redis Pub/Sub for cross-pod broadcast
+    if redis_client:
+        try:
+            await redis_client.publish("stats.broadcast", json.dumps(payload))
+        except Exception as e:
+            logger.error(f"Failed to publish stats to Redis: {e}")
 
 
-async def handle_vote(vote) -> None:
+async def _handle_vote_message(vote_data: dict) -> None:
+    """Process a vote message from RabbitMQ."""
     global _vote_df
     logger.info(
-        f"Processing vote: song_id={vote.song_id}, "
-        f"country={vote.country_voted_for}, "
-        f"votes={vote.vote_count}"
+        f"Processing vote: song_id={vote_data.get('song_id')}, "
+        f"country={vote_data.get('country_voted_for')}, "
+        f"votes={vote_data.get('vote_count')}"
     )
-    new_row = pd.DataFrame(
-        [
-            {
-                "song_id": vote.song_id,
-                "song_name": vote.song_name,
-                "country_voted_for": vote.country_voted_for,
-                "country_voted_for_name": vote.country_voted_for_name,
-                "voter_country": vote.voter_country,
-                "voter_country_name": vote.voter_country_name,
-                "vote_count": vote.vote_count,
-                "timestamp": vote.timestamp,
-            }
-        ]
-    )
+    new_row = pd.DataFrame([vote_data])
     _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
+
+    # Store vote in Redis for persistence across pod restarts
+    if redis_client:
+        try:
+            await redis_client.rpush("votes:all", json.dumps(vote_data))
+        except Exception as e:
+            logger.error(f"Failed to store vote in Redis: {e}")
+
     await _compute_and_broadcast()
 
 
-async def _run_vote_ingestor():
+async def _rebuild_state_from_redis():
+    """Rebuild vote DataFrame from Redis on startup."""
     global _vote_df
-    async for vote in vote_consumer.subscribe_to_votes(include_historical=True):
-        # Store timestamp as int (seconds) to keep DataFrame rows JSON-serializable
-        ts = (
-            int(vote.timestamp.seconds)
-            if hasattr(vote.timestamp, "seconds")
-            else int(vote.timestamp)
-        )
+    if not redis_client:
+        return
 
-        new_row = pd.DataFrame(
-            [
-                {
-                    "song_id": int(vote.song_id),
-                    "song_name": vote.song_name,
-                    "country_voted_for": vote.country_voted_for,
-                    "country_voted_for_name": vote.country_voted_for_name,
-                    "voter_country": vote.voter_country,
-                    "voter_country_name": vote.voter_country_name,
-                    "vote_count": int(vote.vote_count),
-                    "timestamp": ts,
-                }
-            ]
-        )
-        _vote_df = pd.concat([_vote_df, new_row], ignore_index=True)
-        await _compute_and_broadcast()
+    try:
+        votes = await redis_client.lrange("votes:all", 0, -1)
+        if votes:
+            rows = [json.loads(v) for v in votes]
+            _vote_df = pd.DataFrame(rows)
+            logger.info(f"Rebuilt {len(rows)} votes from Redis")
+    except Exception as e:
+        logger.error(f"Failed to rebuild state from Redis: {e}")
+
+
+async def _subscribe_redis_pubsub():
+    """Subscribe to Redis Pub/Sub for cross-pod WebSocket broadcast."""
+    if not redis_client:
+        return
+
+    try:
+        pubsub = redis_client.pubsub()
+        await pubsub.subscribe("stats.broadcast")
+        logger.info("Subscribed to Redis stats.broadcast channel")
+
+        async for message in pubsub.listen():
+            if message["type"] == "message":
+                try:
+                    payload = json.loads(message["data"])
+                    # Only broadcast to local WS clients (stats_manager handles local connections)
+                    # This ensures pods that didn't generate the stats still forward them
+                    await stats_manager.broadcast(payload)
+                except Exception as e:
+                    logger.error(f"Error processing Redis pubsub message: {e}")
+    except Exception as e:
+        logger.error(f"Redis pubsub error: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global vote_consumer
+    global redis_client
+
+    # Initialize Redis
+    redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
     try:
-        grpc_host = os.getenv("GRPC_HOST", "db-crud-api")
-        grpc_port = int(os.getenv("GRPC_PORT", "50051"))
-        vote_consumer = VoteStreamConsumer(host=grpc_host, port=grpc_port)
-        await vote_consumer.connect()
-        logger.info("gRPC consumer initialized")
-        asyncio.create_task(_run_vote_ingestor())
-        logger.info("Vote ingestor background task started")
+        redis_client = aioredis.from_url(redis_url, decode_responses=True)
+        await redis_client.ping()
+        logger.info(f"Redis connected at {redis_url}")
     except Exception as e:
-        logger.error(f"Failed to initialize gRPC consumer: {e}")
+        logger.warning(f"Failed to connect to Redis: {e}. Running without Redis.")
+        redis_client = None
+
+    # Rebuild state from Redis
+    await _rebuild_state_from_redis()
+
+    # Start RabbitMQ vote consumer
+    rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
+    consumer = RabbitMQVoteConsumer(rabbitmq_url, _handle_vote_message)
+    consumer_task = asyncio.create_task(consumer.start())
+    logger.info("RabbitMQ vote consumer started")
+
+    # Start Redis Pub/Sub listener for cross-pod broadcast
+    pubsub_task = asyncio.create_task(_subscribe_redis_pubsub())
 
     yield
 
-    if vote_consumer:
-        await vote_consumer.disconnect()
-        logger.info("gRPC consumer disconnected")
+    consumer_task.cancel()
+    pubsub_task.cancel()
+    if redis_client:
+        await redis_client.close()
+    logger.info("EuroStats shutdown complete")
 
 
 app = FastAPI(lifespan=lifespan)
@@ -264,36 +294,12 @@ async def health_check():
 
 
 @app.get("/votes/subscribe")
-async def subscribe_to_votes(include_historical: bool = True):
-    """HTTP endpoint to subscribe to votes stream. Returns up to 100 votes."""
-    if not vote_consumer:
-        return JSONResponse(
-            status_code=503, content={"error": "gRPC consumer not initialized"}
-        )
+async def subscribe_to_votes():
+    """HTTP endpoint returning current accumulated votes."""
+    if _vote_df.empty:
+        return {"votes": [], "count": 0}
 
-    votes = []
-    try:
-        async for vote in vote_consumer.subscribe_to_votes(
-            include_historical=include_historical
-        ):
-            votes.append(
-                {
-                    "song_id": vote.song_id,
-                    "song_name": vote.song_name,
-                    "country_voted_for": vote.country_voted_for,
-                    "country_voted_for_name": vote.country_voted_for_name,
-                    "voter_country": vote.voter_country,
-                    "voter_country_name": vote.voter_country_name,
-                    "vote_count": vote.vote_count,
-                    "timestamp": vote.timestamp,
-                }
-            )
-            if len(votes) >= 100:
-                break
-    except Exception as e:
-        logger.error(f"Error subscribing to votes: {e}")
-        return JSONResponse(status_code=502, content={"error": str(e)})
-
+    votes = _vote_df.to_dict(orient="records")
     return {"votes": votes, "count": len(votes)}
 
 
@@ -327,7 +333,7 @@ async def websocket_stats_endpoint(websocket: WebSocket):
     try:
         # Send current accumulated state immediately to the newly connected client
         await _compute_and_broadcast()
-        # Keep connection alive; updates are pushed by handle_vote() → _compute_and_broadcast()
+        # Keep connection alive; updates are pushed by vote handler → _compute_and_broadcast()
         while True:
             await asyncio.sleep(30)
             await websocket.send_json({"type": "ping"})

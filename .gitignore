@@ -39,3 +39,6 @@ backend/EuroStats/src/proto/
 # Editor/IDE
 .idea/
 .vscode/
+
+# Kubernetes secrets (keep local-only real values)
+k8s/secrets.yaml

@@ -11,18 +11,13 @@ RUN groupadd --gid 1001 appgroup && \
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir aio-pika redis[hiredis]
 
-COPY proto ./proto
-COPY scripts/generate_proto.sh ./scripts/generate_proto.sh
-
-RUN mkdir -p src/proto && \
-    touch src/proto/__init__.py
-
-RUN chmod +x ./scripts/generate_proto.sh && \
-    ./scripts/generate_proto.sh
-
-COPY src ./src
+COPY src/main.py ./src/main.py
+COPY src/rabbitmq_consumer.py ./src/rabbitmq_consumer.py
+COPY src/telemetry.py ./src/telemetry.py
+COPY src/proto ./src/proto
 
 RUN chown -R appuser:appgroup /app
 

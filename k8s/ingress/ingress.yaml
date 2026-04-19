@@ -1,0 +1,100 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    email: ops@example.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: esc-voting-tls
+  namespace: esc-voting
+spec:
+  secretName: esc-voting-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  dnsNames:
+    - esc.example.com
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-crud-api-prefix
+  namespace: esc-voting
+spec:
+  stripPrefix:
+    prefixes:
+      - /crud-api
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-eurostats-prefix
+  namespace: esc-voting
+spec:
+  stripPrefix:
+    prefixes:
+      - /eurostats
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-esc-converter-prefix
+  namespace: esc-voting
+spec:
+  stripPrefix:
+    prefixes:
+      - /esc-converter
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: esc-voting
+  namespace: esc-voting
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`esc.example.com`) && PathPrefix(`/crud-api`)
+      kind: Rule
+      middlewares:
+        - name: strip-crud-api-prefix
+      services:
+        - name: crud-db-api
+          port: 8000
+    - match: Host(`esc.example.com`) && PathPrefix(`/eurostats`)
+      kind: Rule
+      middlewares:
+        - name: strip-eurostats-prefix
+      services:
+        - name: eurostats
+          port: 8880
+    - match: Host(`esc.example.com`) && PathPrefix(`/esc-converter`)
+      kind: Rule
+      middlewares:
+        - name: strip-esc-converter-prefix
+      services:
+        - name: public-vote-converter
+          port: 8090
+    - match: Host(`esc.example.com`) && PathPrefix(`/grafana`)
+      kind: Rule
+      services:
+        - name: grafana
+          port: 3000
+    - match: Host(`esc.example.com`) && PathPrefix(`/`)
+      kind: Rule
+      services:
+        - name: esc-frontend
+          port: 3001
+  tls:
+    secretName: esc-voting-tls

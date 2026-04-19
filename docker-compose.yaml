@@ -1,3 +1,5 @@
+# Local development/integration stack.
+# Production/go-live deployment is maintained in k8s/ for K3s clusters.
 services:
   db:
     build: ./backend/DB/

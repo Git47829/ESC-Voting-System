@@ -1,11 +1,15 @@
 fastapi==0.104.1
 uvicorn==0.24.0
-grpcio==1.68.0
-grpcio-tools==1.68.0
 python-dotenv==1.0.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 requests==2.31.0
+
+# RabbitMQ
+aio-pika==9.4.3
+
+# Redis
+redis[hiredis]==5.2.1
 
 # OpenTelemetry — pinned to a mutually compatible set
 opentelemetry-api==1.28.0
@@ -20,7 +24,7 @@ opentelemetry-exporter-otlp==1.28.0
 
 # Instrumentation packages — contrib tracks sdk with a 0.x offset (1.28 → 0.49b0)
 opentelemetry-instrumentation-fastapi==0.49b0
-opentelemetry-instrumentation-grpc==0.49b0
+# grpc instrumentor removed — using RabbitMQ now
 opentelemetry-instrumentation-asgi==0.49b0
 
 # Propagators / semantic conventions needed by the instrumentors

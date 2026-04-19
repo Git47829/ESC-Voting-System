@@ -3,10 +3,10 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"log/slog"
 	"net"
-	"sync"
 	"time"
 
 	pb "crud-db-api/proto"
@@ -18,44 +18,16 @@ import (
 
 type voteServer struct {
 	pb.UnimplementedVoteServiceServer
-	db          *sql.DB
-	subscribers []chan *pb.Vote
-	mu          sync.RWMutex
+	db *sql.DB
 }
 
 func newVoteServer(database *sql.DB) *voteServer {
-	return &voteServer{
-		db:          database,
-		subscribers: make([]chan *pb.Vote, 0),
-	}
+	return &voteServer{db: database}
 }
 
 func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteService_StreamVotesServer) error {
 	ctx := stream.Context()
 	Logger.Info("new client subscribed to vote stream", slog.Bool("include_historical", req.IncludeHistorical))
-
-	voteChan := make(chan *pb.Vote, 100)
-
-	s.mu.Lock()
-	s.subscribers = append(s.subscribers, voteChan)
-	subscriberCount := len(s.subscribers)
-	s.mu.Unlock()
-
-	Logger.Info("subscriber registered", slog.Int("total_subscribers", subscriberCount))
-
-	defer func() {
-		s.mu.Lock()
-		for i, ch := range s.subscribers {
-			if ch == voteChan {
-				s.subscribers = append(s.subscribers[:i], s.subscribers[i+1:]...)
-				break
-			}
-		}
-		remainingSubscribers := len(s.subscribers)
-		s.mu.Unlock()
-		close(voteChan)
-		Logger.Info("client disconnected from vote stream", slog.Int("remaining_subscribers", remainingSubscribers))
-	}()
 
 	if req.IncludeHistorical {
 		if err := s.sendCurrentVotes(ctx, stream); err != nil {
@@ -64,21 +36,46 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 		}
 	}
 
-	Logger.Info("streaming new votes in real-time")
+	// Consume from RabbitMQ fanout exchange — each StreamVotes call gets its own queue
+	msgs, queueName, err := ConsumeVotes()
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to consume votes from RabbitMQ", slog.Any("error", err))
+		return err
+	}
+	Logger.Info("streaming votes via RabbitMQ", slog.String("queue", queueName))
+
 	for {
 		select {
 		case <-ctx.Done():
 			Logger.Info("client context cancelled")
 			return ctx.Err()
-		case vote := <-voteChan:
+		case msg, ok := <-msgs:
+			if !ok {
+				Logger.Info("RabbitMQ channel closed")
+				return nil
+			}
+
+			var voteData map[string]any
+			if err := json.Unmarshal(msg.Body, &voteData); err != nil {
+				Logger.Error("failed to unmarshal vote from RabbitMQ", slog.Any("error", err))
+				continue
+			}
+
+			vote := &pb.Vote{
+				CountryVotedFor:     voteData["country_voted_for"].(string),
+				CountryVotedForName: voteData["country_voted_for_name"].(string),
+				VoteCount:           int32(voteData["vote_count"].(float64)),
+				VoterCountry:        voteData["voter_country"].(string),
+				VoterCountryName:    voteData["voter_country_name"].(string),
+				Timestamp:           int64(voteData["timestamp"].(float64)),
+				SongId:              int32(voteData["song_id"].(float64)),
+				SongName:            voteData["song_name"].(string),
+			}
+
 			if err := stream.Send(vote); err != nil {
 				Logger.ErrorContext(ctx, "failed to send vote", slog.Any("error", err))
 				return err
 			}
-			Logger.Debug("vote sent to subscriber",
-				slog.Int("song_id", int(vote.SongId)),
-				slog.String("country", vote.CountryVotedFor),
-			)
 		}
 	}
 }
@@ -144,34 +141,6 @@ func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService
 	return rows.Err()
 }
 
-func (s *voteServer) BroadcastVote(vote *pb.Vote) {
-	s.mu.RLock()
-	subscriberCount := len(s.subscribers)
-	subscribers := make([]chan *pb.Vote, len(s.subscribers))
-	copy(subscribers, s.subscribers)
-	s.mu.RUnlock()
-
-	if subscriberCount == 0 {
-		return
-	}
-
-	Logger.Info("broadcasting vote to subscribers",
-		slog.Int("subscriber_count", subscriberCount),
-		slog.Int("song_id", int(vote.SongId)),
-		slog.String("country", vote.CountryVotedFor),
-	)
-
-	for i, ch := range subscribers {
-		select {
-		case ch <- vote:
-
-		default:
-
-			Logger.Warn("subscriber channel full, skipping vote broadcast", slog.Int("subscriber_index", i))
-		}
-	}
-}
-
 func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequest) (*pb.GetSongsResponse, error) {
 	Logger.InfoContext(ctx, "GetSongsWithVotes called")
 
@@ -203,10 +172,10 @@ func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequ
 	return &pb.GetSongsResponse{Songs: songs}, nil
 }
 
-func StartGRPCServer(database *sql.DB, port string) (*voteServer, error) {
+func StartGRPCServer(database *sql.DB, port string) error {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	grpcServer := grpc.NewServer()
@@ -218,28 +187,17 @@ func StartGRPCServer(database *sql.DB, port string) (*voteServer, error) {
 	log.Printf("gRPC server listening on port %s", port)
 	Logger.Info("gRPC vote stream server starting", slog.String("port", port))
 
-	// Start server in goroutine
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			Logger.Error("gRPC server error", slog.Any("error", err))
 		}
 	}()
 
-	return voteService, nil
+	return nil
 }
 
-var globalVoteServer *voteServer
-
-func SetGlobalVoteServer(vs *voteServer) {
-	globalVoteServer = vs
-}
-
+// NotifyVote publishes a vote to RabbitMQ fanout exchange.
 func NotifyVote(songID int, voterCountry string, db *sql.DB) {
-	if globalVoteServer == nil {
-		Logger.Warn("vote server not initialized, skipping notification")
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -294,7 +252,6 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 			return nil
 		}
 		return nil
-
 	})
 
 	if err := g.Wait(); err != nil {
@@ -316,9 +273,15 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 		SongName:            songName,
 	}
 
-	globalVoteServer.BroadcastVote(vote)
+	if err := PublishVote(vote); err != nil {
+		Logger.Error("failed to publish vote to RabbitMQ",
+			slog.Any("error", err),
+			slog.Int("song_id", songID),
+		)
+		return
+	}
 
-	Logger.Info("vote notification complete",
+	Logger.Info("vote published to RabbitMQ",
 		slog.Int("song_id", songID),
 		slog.String("country_voted_for", countryID),
 		slog.Int("total_votes", totalVotes),

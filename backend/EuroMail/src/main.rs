@@ -1,6 +1,7 @@
 mod mail;
 mod metrics_middleware;
 mod models;
+mod rabbitmq;
 
 use axum::{extract::Json, http::StatusCode, routing::{get, post}, Extension, Router};
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -20,6 +21,13 @@ async fn main() {
         .init();
 
     let metrics_handle = metrics_middleware::setup_metrics();
+
+    // Spawn RabbitMQ consumer in background
+    tokio::spawn(async {
+        if let Err(e) = rabbitmq::consume_email_queue().await {
+            error!("RabbitMQ consumer failed: {}", e);
+        }
+    });
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let app = Router::new()

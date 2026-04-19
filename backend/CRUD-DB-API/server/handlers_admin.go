@@ -107,9 +107,10 @@ func DeleteVotes(w http.ResponseWriter, r *http.Request) {
 		Logger.ErrorContext(ctx, "failed to reset phone vote budgets", slog.Any("error", phoneErr))
 	}
 
-	mu.Lock()
-	usedTokens = make(map[string]bool)
-	mu.Unlock()
+	// Clear used tokens in Redis
+	if redisAvailable() {
+		RedisClient.Del(ctx, "used_tokens")
+	}
 
 	Logger.InfoContext(ctx, "all votes deleted and vote budgets reset")
 

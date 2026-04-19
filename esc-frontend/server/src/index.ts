@@ -2,10 +2,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import cookieParser from "cookie-parser";
+import { RedisStore } from "connect-redis";
 import cors from "cors";
 import express from "express";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
+import Redis from "ioredis";
 import lusca from "lusca";
 
 import { config, isMockMode } from "./config.js";
@@ -41,8 +43,15 @@ if (!isProduction) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Redis-backed session store for horizontal scaling
+const redisUrl = process.env.REDIS_URL ?? "redis://redis:6379";
+const redisClient = new Redis.default(redisUrl);
+redisClient.on("error", (err: Error) => console.error("Redis session error:", err));
+redisClient.on("connect", () => console.log("Redis session store connected"));
+
 app.use(
   session({
+    store: new RedisStore({ client: redisClient }),
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,

@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/nyaruka/phonenumbers"
-	"golang.org/x/crypto/bcrypt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/nyaruka/phonenumbers"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func extractToken(r *http.Request) string {
@@ -147,11 +149,18 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	email := extractEmail(r)
-	token, err := generateAndStoreToken()
+	token, err := generateToken()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+		return
+	}
+
+	if storeErr := StoreToken(ctx, token, 5*time.Minute); storeErr != nil {
+		Logger.ErrorContext(ctx, "Failed to store token in Redis", slog.Any("error", storeErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to store token"})
 		return
 	}
 
@@ -172,11 +181,18 @@ func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	email := extractEmail(r)
-	token, err := generateAndStoreToken()
+	token, err := generateToken()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+		return
+	}
+
+	if storeErr := StoreToken(ctx, token, 5*time.Minute); storeErr != nil {
+		Logger.ErrorContext(ctx, "Failed to store token in Redis", slog.Any("error", storeErr))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to store token"})
 		return
 	}
 

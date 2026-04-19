@@ -6,6 +6,8 @@ edition = "2021"
 [dependencies]
 axum = "0.8"
 dotenvy = "0.15.7"
+futures-lite = "2"
+lapin = "2.5"
 metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
 metrics-util = "0.19"

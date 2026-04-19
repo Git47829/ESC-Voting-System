@@ -2,6 +2,16 @@
 
 A distributed voting system for the Eurovision Song Contest, featuring a modern web frontend, a Go REST + gRPC backend, real-time vote streaming, a full observability stack with tracing, metrics, and log aggregation — all served through a Caddy HTTPS reverse proxy.
 
+## 🚦 Deployment Modes
+
+- **Local development/integration:** `docker-compose.yaml` (this README).
+- **Go-live on K3s:** manifests and runbook in [`k8s/README.md`](k8s/README.md).
+
+### Container publishing for K3s
+
+K3s deployments use private GHCR images (`ghcr.io/git47829/esc-voting-*`) that are published automatically by CI.
+Do not rely on manual image pushes for normal releases; use the CI workflow as the authoritative publish path and keep cluster pull credentials (`read:packages`) configured as described in `k8s/README.md`.
+
 ## 🏗️ System Architecture
 
 ```

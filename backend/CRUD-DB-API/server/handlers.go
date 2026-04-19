@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -23,20 +22,7 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
 )
-
-type Client struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-type RateLimitConfig struct {
-	RequestsPerSecond float64
-	BurstSize         int
-}
-
-var clients = make(map[string]*Client)
 
 type Countrys struct {
 	ID   string `json:"id"`
@@ -73,42 +59,37 @@ type CompleteESCEntryWithComposers struct {
 	VotingLastChange string `json:"votingLastChange"`
 }
 
-var (
-	rateLimitConfigs = map[string]RateLimitConfig{
-		"GET /health":          {RequestsPerSecond: 100, BurstSize: 100},
-		"GET /votes/":          {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /countries/":      {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /songs/":          {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /songByID/{ID}":   {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /contest/current": {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /auth/requestToken":        {RequestsPerSecond: 1, BurstSize: 1},
-		"GET /auth/verifyToken/{token}": {RequestsPerSecond: 1, BurstSize: 1},
-		"POST /auth/login":              {RequestsPerSecond: 1, BurstSize: 3},
-		"POST /auth/verify":             {RequestsPerSecond: 1, BurstSize: 5},
+type RateLimitConfig struct {
+	Limit  int
+	Window time.Duration
+}
 
-		"POST /vote/":             {RequestsPerSecond: 1, BurstSize: 1},
-		"POST /jury/vote":         {RequestsPerSecond: 5, BurstSize: 5},
-		"GET /jury/authenticate":  {RequestsPerSecond: 1, BurstSize: 1},
-		"GET /admin/authenticate": {RequestsPerSecond: 1, BurstSize: 1},
-
-		"POST /admin/open":           {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/close":          {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/addCountry":     {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addSong":        {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addArtist":      {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addInterpret":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/startContest":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/advanceContest": {RequestsPerSecond: 5, BurstSize: 5},
-		"DELETE /admin/deleteVotes":  {RequestsPerSecond: 1, BurstSize: 1},
-
-		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
-	}
-)
-
-var (
-	usedTokens = make(map[string]bool)
-	mu         sync.Mutex
-)
+var rateLimitConfigs = map[string]RateLimitConfig{
+	"GET /health":                      {Limit: 100, Window: time.Second},
+	"GET /votes/":                      {Limit: 20, Window: time.Second},
+	"GET /countries/":                  {Limit: 20, Window: time.Second},
+	"GET /songs/":                      {Limit: 20, Window: time.Second},
+	"GET /songByID/{ID}":              {Limit: 20, Window: time.Second},
+	"GET /contest/current":            {Limit: 20, Window: time.Second},
+	"GET /auth/requestToken":          {Limit: 1, Window: time.Second},
+	"GET /auth/verifyToken/{token}":   {Limit: 1, Window: time.Second},
+	"POST /auth/login":                {Limit: 3, Window: time.Second},
+	"POST /auth/verify":               {Limit: 5, Window: time.Second},
+	"POST /vote/":                     {Limit: 1, Window: time.Second},
+	"POST /jury/vote":                 {Limit: 5, Window: time.Second},
+	"GET /jury/authenticate":          {Limit: 1, Window: time.Second},
+	"GET /admin/authenticate":         {Limit: 1, Window: time.Second},
+	"POST /admin/open":                {Limit: 2, Window: time.Second},
+	"POST /admin/close":               {Limit: 2, Window: time.Second},
+	"POST /admin/addCountry":          {Limit: 5, Window: time.Second},
+	"POST /admin/addSong":             {Limit: 5, Window: time.Second},
+	"POST /admin/addArtist":           {Limit: 5, Window: time.Second},
+	"POST /admin/addInterpret":        {Limit: 5, Window: time.Second},
+	"POST /admin/startContest":        {Limit: 5, Window: time.Second},
+	"POST /admin/advanceContest":      {Limit: 5, Window: time.Second},
+	"DELETE /admin/deleteVotes":       {Limit: 1, Window: time.Second},
+	"GET /metrics/":                   {Limit: 10000, Window: time.Second},
+}
 
 const totalVotePoints = 20
 
@@ -118,19 +99,6 @@ type CookieVoteState struct {
 }
 
 var SignedCookieSecret []byte
-
-func cleanupClients() {
-	ticker := time.NewTicker(5 * time.Minute)
-	for range ticker.C {
-		mu.Lock()
-		for key, c := range clients {
-			if time.Since(c.lastSeen) > 10*time.Minute {
-				delete(clients, key)
-			}
-		}
-		mu.Unlock()
-	}
-}
 
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
@@ -157,25 +125,6 @@ func EncodeCookieValue(state CookieVoteState) (string, error) {
 	return hex.EncodeToString(payload), nil
 }
 
-func getCLientLimiter(ip string, endpoint string) *rate.Limiter {
-	mu.Lock()
-	defer mu.Unlock()
-
-	key := ip + "::" + endpoint
-	if client, exists := clients[key]; exists {
-		return client.limiter
-	}
-
-	config, exists := rateLimitConfigs[endpoint]
-	if !exists {
-		config = RateLimitConfig{RequestsPerSecond: 10, BurstSize: 20}
-	}
-
-	limiter := rate.NewLimiter(rate.Limit(config.RequestsPerSecond), config.BurstSize)
-	clients[key] = &Client{limiter: limiter}
-	return limiter
-}
-
 func getClientIP(r *http.Request) string {
 	ip := r.Header.Get("X-Forwarded-For")
 	if ip == "" {
@@ -192,9 +141,22 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 		endpoint := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
 		clientIP := getClientIP(r)
 
-		limiter := getCLientLimiter(clientIP, endpoint)
+		config, exists := rateLimitConfigs[endpoint]
+		if !exists {
+			config = RateLimitConfig{Limit: 20, Window: time.Second}
+		}
 
-		if !limiter.Allow() {
+		key := fmt.Sprintf("ratelimit:%s::%s", clientIP, endpoint)
+		allowed, err := CheckRateLimit(r.Context(), key, config.Limit, config.Window)
+		if err != nil {
+			Logger.WarnContext(r.Context(), "rate limit check failed, allowing request",
+				slog.Any("error", err),
+			)
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		if !allowed {
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -202,7 +164,7 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 				"error": "Rate limit exceeded",
 			})
 
-			Logger.WarnContext(r.Context(), "rate limit exeeded",
+			Logger.WarnContext(r.Context(), "rate limit exceeded",
 				slog.String("ip", clientIP),
 				slog.String("endpoint", endpoint),
 			)
@@ -268,7 +230,17 @@ func Run() {
 		}()
 	}
 
-	go cleanupClients()
+	// Initialize Redis
+	if err := InitRedis(); err != nil {
+		log.Printf("Warning: Failed to initialize Redis: %v. Some features may be degraded", err)
+	}
+
+	// Initialize RabbitMQ
+	if err := InitRabbitMQ(); err != nil {
+		log.Printf("Warning: Failed to initialize RabbitMQ: %v. Vote broadcasting and email will be degraded", err)
+	} else {
+		defer CloseRabbitMQ()
+	}
 
 	Logger = slog.New(newOtelSlogHandler(baseHandler))
 	slog.SetDefault(Logger)
@@ -352,12 +324,10 @@ func Run() {
 
 		Logger.Info("database connection established - service fully ready")
 
-		voteService, err := StartGRPCServer(DB, "50051")
-		if err != nil {
+		if err := StartGRPCServer(DB, "50051"); err != nil {
 			Logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		SetGlobalVoteServer(voteService)
 		Logger.Info("gRPC vote streaming service initialized")
 	}()
 
@@ -371,7 +341,7 @@ func Run() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	Logger.Info("shutdown singal recieved, draining connections...")
+	Logger.Info("shutdown signal received, draining connections...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

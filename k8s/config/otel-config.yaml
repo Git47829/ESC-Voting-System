@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: esc-voting
+data:
+  otel-collector.yml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+          http:
+
+    processors:
+      batch:
+
+      resource/loki_labels:
+        attributes:
+          - action: insert
+            key: loki.resource.labels
+            value: service.name
+
+      attributes/loki_labels:
+        actions:
+          - action: insert
+            key: loki.attribute.labels
+            value: traceID, spanID, level
+
+    exporters:
+      prometheus:
+        endpoint: "0.0.0.0:9464"
+        namespace: "esc"
+        send_timestamps: true
+        metric_expiration: 180m
+        resource_to_telemetry_conversion:
+          enabled: true
+
+      loki:
+        endpoint: http://loki:3100/loki/api/v1/push
+        default_labels_enabled:
+          exporter: false
+          job: true
+          instance: false
+          level: true
+
+      otlp:
+        endpoint: tempo:4417
+        tls:
+          insecure: true
+
+      logging: {}
+
+    extensions:
+      health_check:
+
+    service:
+      extensions: [health_check]
+      telemetry:
+        metrics:
+          level: detailed
+          address: 0.0.0.0:8888
+      pipelines:
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheus]
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp, logging]
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource/loki_labels, attributes/loki_labels]
+          exporters: [loki]
