@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 
@@ -44,6 +45,15 @@ func TestAuthLogin_SetsHttpOnlyCookies(t *testing.T) {
 	}
 	if !access.HttpOnly || !refresh.HttpOnly {
 		t.Fatal("expected auth cookies to be HttpOnly")
+	}
+	if access.SameSite != http.SameSiteLaxMode || refresh.SameSite != http.SameSiteLaxMode {
+		t.Fatal("expected auth cookies to use SameSite=Lax")
+	}
+	if access.Path != "/" || refresh.Path != "/" {
+		t.Fatal("expected auth cookies to have Path=/")
+	}
+	if access.Secure || refresh.Secure {
+		t.Fatal("expected auth cookies to be non-secure in test setup")
 	}
 }
 
@@ -104,6 +114,51 @@ func TestAuthRefresh_ReusesRefreshTokenSession(t *testing.T) {
 	}
 }
 
+func TestAuthRefresh_MissingCookieReturnsForbidden(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	rr := httptest.NewRecorder()
+	server.AuthRefresh(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAuthRefresh_RejectsAccessTokenAsRefreshToken(t *testing.T) {
+	rrLogin := loginRecorder(t, "test-admin@test.com", "test-admin-pw", "admin")
+	access := cookieByName(rrLogin, "esc_access_token")
+	if access == nil {
+		t.Fatal("missing access token cookie")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "esc_refresh_token", Value: access.Value})
+	rr := httptest.NewRecorder()
+	server.AuthRefresh(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestAuthRefresh_RejectsTamperedRefreshToken(t *testing.T) {
+	rrLogin := loginRecorder(t, "test-admin@test.com", "test-admin-pw", "admin")
+	refresh := cookieByName(rrLogin, "esc_refresh_token")
+	if refresh == nil {
+		t.Fatal("missing refresh token cookie")
+	}
+	if len(refresh.Value) < 2 {
+		t.Fatal("refresh token too short to tamper")
+	}
+	tampered := refresh.Value[:len(refresh.Value)-1] + "x"
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.AddCookie(&http.Cookie{Name: "esc_refresh_token", Value: tampered})
+	rr := httptest.NewRecorder()
+	server.AuthRefresh(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestAuthLogout_RevokesRefreshSession(t *testing.T) {
 	rrLogin := loginRecorder(t, "test-admin@test.com", "test-admin-pw", "admin")
 	refresh := cookieByName(rrLogin, "esc_refresh_token")
@@ -122,6 +177,27 @@ func TestAuthLogout_RevokesRefreshSession(t *testing.T) {
 	server.AuthRefresh(refreshRR, refreshReq)
 	if refreshRR.Code != http.StatusForbidden {
 		t.Fatalf("expected refresh after logout to fail with 403, got %d", refreshRR.Code)
+	}
+}
+
+func TestAuthLogout_WithoutRefreshCookieStillClearsCookies(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
+	rr := httptest.NewRecorder()
+	server.AuthLogout(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rr.Code, rr.Body.String())
+	}
+
+	access := cookieByName(rr, "esc_access_token")
+	refresh := cookieByName(rr, "esc_refresh_token")
+	if access == nil || refresh == nil {
+		t.Fatal("expected both auth cookies to be cleared")
+	}
+	if access.MaxAge >= 0 || refresh.MaxAge >= 0 {
+		t.Fatal("expected logout cookies to be expired")
+	}
+	if !access.Expires.Equal(time.Unix(0, 0)) || !refresh.Expires.Equal(time.Unix(0, 0)) {
+		t.Fatal("expected logout cookies to expire at unix epoch")
 	}
 }
 
