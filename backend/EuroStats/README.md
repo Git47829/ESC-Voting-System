@@ -1,161 +1,45 @@
-# EuroStats
+# EuroStats (`backend/EuroStats`)
 
-Real-time vote streaming microservice for the Eurovision Song Contest Voting System.
+FastAPI service (`:8880`) that consumes vote events from RabbitMQ and serves real-time vote/stat streams.
 
-## Overview
+## Startup
 
-EuroStats is a **FastAPI** service that connects to the CRUD API's gRPC server and consumes a live stream of vote events. It exposes both a REST endpoint and a WebSocket endpoint so downstream consumers can subscribe to vote updates in real-time or on-demand.
+This service expects RabbitMQ (and optionally Redis) to be reachable:
 
-## Tech Stack
-
-| Component | Version |
-|-----------|---------|
-| Python | 3.11 |
-| FastAPI | 0.104.1 |
-| Uvicorn | 0.24.0 |
-| grpcio | 1.68.0 |
-| OpenTelemetry SDK | latest |
-
-## Architecture
-
+```bash
+docker compose up -d eurostats
 ```
-┌─────────────────┐        gRPC StreamVotes        ┌──────────────────────┐
-│  CRUD DB API    │ ──────────────────────────────► │     EuroStats        │
-│  Port 8000      │        Port 50051               │     Port 8880        │
-│  (gRPC Server)  │                                 │  (FastAPI + Consumer)│
-└─────────────────┘                                 └──────────┬───────────┘
-                                                               │
-                                           ┌───────────────────┼──────────────────┐
-                                           │                   │                  │
-                                    GET /votes/         WS /ws/votes        OTel Collector
-                                     subscribe          (real-time)          Port 4317
-```
+
+## Data flow (current implementation)
+
+1. Consume vote messages from RabbitMQ fanout exchange `votes.fanout`
+2. Append messages to in-memory dataframe
+3. If Redis is configured, persist votes to `votes:all` and publish chart updates on `stats.broadcast`
+4. Broadcast updates to WebSocket clients
 
 ## Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/health` | Health check |
-| `GET` | `/votes/subscribe` | Poll current + historical vote snapshot (up to 100 entries) |
-| `WS` | `/ws/votes` | WebSocket stream — pushes each new vote to connected clients in real-time |
+- `GET /health`
+- `GET /votes/subscribe` → current accumulated votes (`{"votes":[...], "count": N}`)
+- `WS /ws/votes` → sends snapshot on connect (if available), then keepalive pings
+- `WS /ws/stats` → sends pie-chart payloads (`voters_by_country`, `votes_received_by_country`) as base64 PNG data URLs
 
-### `GET /votes/subscribe`
+## Environment variables
 
-| Query Parameter | Type | Default | Description |
-|-----------------|------|---------|-------------|
-| `include_historical` | `bool` | `true` | Whether to replay historical votes before streaming new ones |
-
-**Response**
-```json
-{
-  "votes": [
-    {
-      "song_id": 1,
-      "song_name": "Irgendwie, Irgendwo, Irgendwann",
-      "country_voted_for": "DE",
-      "country_voted_for_name": "Germany",
-      "voter_country": "SE",
-      "voter_country_name": "Sweden",
-      "vote_count": 225,
-      "timestamp": 1714000000
-    }
-  ],
-  "count": 1
-}
-```
-
-### `WS /ws/votes`
-
-Streams individual vote events as JSON objects:
-
-```json
-{
-  "type": "vote",
-  "data": {
-    "song_id": 1,
-    "song_name": "Irgendwie, Irgendwo, Irgendwann",
-    "country_voted_for": "DE",
-    "country_voted_for_name": "Germany",
-    "voter_country": "FR",
-    "voter_country_name": "France",
-    "vote_count": 226,
-    "timestamp": 1714000042
-  }
-}
-```
-
-## Accessing the Service
-
-EuroStats has **no port exposed directly to the host**. All external access goes through Caddy:
-
-| Access method | URL |
+| Variable | Default |
 |---|---|
-| Via Caddy (external) | `https://<host>/eurostats/votes/subscribe` |
-| Direct (internal Docker network only) | `http://eurostats:8880` |
+| `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` |
+| `REDIS_URL` | `redis://redis:6379` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` |
 
-## Project Structure
+## Docker/runtime notes
 
-```
-EuroStats/
-├── Dockerfile
-├── README.md
-├── requirements.txt          # Production dependencies
-├── requirements-test.txt     # Test dependencies
-├── .python-version
-├── conftest.py
-├── pytest.ini
-├── proto/                    # Protobuf source definition
-│   └── votes.proto
-├── scripts/
-│   └── generate_proto.sh     # Generates Python gRPC stubs from .proto files
-├── tests/                    # Integration tests
-│   ├── conftest.py
-│   ├── test_handle_vote.py
-│   ├── test_health.py
-│   ├── test_votes_subscribe.py
-│   └── test_websocket.py
-└── src/
-    ├── main.py               # FastAPI application, lifespan, endpoints
-    ├── grpc_consumer.py      # VoteStreamConsumer — gRPC client wrapper
-    ├── telemetry.py          # OpenTelemetry tracing + metrics setup
-    └── proto/                # Generated Python gRPC stubs
-        ├── votes_pb2.py
-        ├── votes_pb2_grpc.py
-        └── __init__.py
-```
-
-## Docker
-
-The image is built in a single stage from `python:3.11-slim`. A dedicated non-root user (`appuser`, UID 1001) is created at build time and all application files are owned by that user. The container runs entirely as `appuser` — it never has root access at runtime.
-
-Port `8880` is not published to the host. The container is reachable only from other services on the shared Docker networks (`backend`, `observability`).
-
-## gRPC Consumer
-
-`VoteStreamConsumer` manages the connection to the CRUD API's `VoteService` gRPC server:
-
-- **`connect()`** — opens an async gRPC channel to `crud-db-api:50051`
-- **`subscribe_to_votes(include_historical)`** — async generator that yields `Vote` messages from the `StreamVotes` RPC
-- **`process_votes(fn)`** — convenience wrapper to apply an async callback to each incoming vote
-- **`disconnect()`** — gracefully closes the channel on shutdown
-
-The consumer is initialised during the FastAPI application lifespan (`startup`) and torn down on `shutdown`.
+- Image: `python:3.11-slim`
+- Runs as non-root user `appuser` (uid `1001`)
+- Healthcheck: `GET http://localhost:8880/health`
+- Uvicorn command: `python -m uvicorn main:app --host 0.0.0.0 --port 8880`
 
 ## Observability
 
-Telemetry is configured in `telemetry.py` and initialised automatically on app startup:
-
-- **Distributed Tracing** — `TracerProvider` with `OTLPSpanExporter` (gRPC) → OTel Collector
-- **Metrics** — `MeterProvider` with `OTLPMetricExporter` (gRPC) → OTel Collector
-- **Auto-instrumentation** — `FastAPIInstrumentor` and `GrpcInstrumentorClient` wrap all inbound and outbound calls
-
-The service reports itself as `service.name = eurostats`.
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GRPC_HOST` | `crud-db-api` | Hostname of the CRUD API gRPC server |
-| `GRPC_PORT` | `50051` | Port of the CRUD API gRPC server |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://otel-collector:4317` | OTel Collector endpoint |
-| `LOG_LEVEL` | `INFO` | Python logging level |
+- FastAPI is instrumented with OpenTelemetry
+- Traces/metrics/logs exported via OTLP gRPC
