@@ -318,6 +318,40 @@ func TestRequireJWTAuth_MissingRequiredClaims_Returns401(t *testing.T) {
 	}
 }
 
+func TestRequireJWTAuth_MissingIatClaim_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "user@example.com", "user", true, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_InvalidSubjectClaim_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "not-an-email", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
 func TestRequireJWTAuth_BearerToken_AllowsProtectedPreview(t *testing.T) {
 	verifier := newVerifier(t, "test-secret")
 	client := &mockVoteClient{
@@ -338,6 +372,22 @@ func TestRequireJWTAuth_BearerToken_AllowsProtectedPreview(t *testing.T) {
 	}
 }
 
+func TestRequireJWTAuth_MalformedBearerToken_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer")
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
 func TestRequireJWTAuth_CookieToken_AllowsRequest(t *testing.T) {
 	verifier := newVerifier(t, "test-secret")
 	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -347,6 +397,49 @@ func TestRequireJWTAuth_CookieToken_AllowsRequest(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	req.AddCookie(&http.Cookie{Name: "auth_token", Value: token, HttpOnly: true})
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_HeaderTokenPreferredOverCookie(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	validCookieToken := makeJWT(t, "test-secret", "user@example.com", "user", true, true)
+	invalidHeaderToken := makeJWT(t, "different-secret", "user@example.com", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+invalidHeaderToken)
+	req.AddCookie(&http.Cookie{Name: "auth_token", Value: validCookieToken, HttpOnly: true})
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 because header token should be used, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_RoleNormalizedToLowercase(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := converter.AuthClaimsFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected claims in request context")
+		}
+		if claims.Role != "admin" {
+			t.Fatalf("expected normalized role admin, got %q", claims.Role)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "admin@example.com", "ADMIN", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
 	protected.ServeHTTP(rr, req)
 
