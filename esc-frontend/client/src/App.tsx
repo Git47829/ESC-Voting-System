@@ -16,7 +16,8 @@ import { VotePage } from "./pages/VotePage";
 
 export const App = () => {
   const { pathname } = useLocation();
-  const isImmersiveRoute = pathname === "/" || pathname === "/now" || pathname === "/stats";
+  const isImmersiveRoute =
+    pathname === "/" || pathname === "/now" || pathname === "/results" || pathname === "/stats";
 
   return (
     <div className="min-h-screen bg-esc-white text-esc-black">
