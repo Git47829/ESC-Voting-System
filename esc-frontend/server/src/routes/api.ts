@@ -366,14 +366,18 @@ apiRouter.get("/stats", async (_req, res) => {
     const songs = mockDataService.getSongs();
     const totalPublic = songs.reduce((sum, song) => sum + song.publicVotes, 0);
     const totalJury = songs.reduce((sum, song) => sum + song.juryVotes, 0);
-    res.json({
-      totalPublic,
-      totalJury,
-      byCountry: songs.map((song: Song) => ({
+    const byCountry = songs
+      .map((song: Song) => ({
         countryId: song.countryId,
         country: song.countryName,
         total: song.publicVotes + song.juryVotes
       }))
+      .sort((a, b) => b.total - a.total || a.country.localeCompare(b.country));
+
+    res.json({
+      totalPublic,
+      totalJury,
+      byCountry
     });
     return;
   }

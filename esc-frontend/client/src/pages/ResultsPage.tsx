@@ -67,7 +67,9 @@ const PodiumCard = ({
 
   return (
     <article
-      className={`relative overflow-hidden rounded-[2.1rem] border p-6 shadow-[0_26px_56px_rgba(17,17,17,0.09)] ${heightClass} ${
+      className={`podium-hover-card ${
+        rank === 1 ? "podium-hover-card-center" : rank === 2 ? "podium-hover-card-left" : "podium-hover-card-right"
+      } relative overflow-hidden rounded-[2.1rem] border p-6 shadow-[0_26px_56px_rgba(17,17,17,0.09)] ${heightClass} ${
         isLeader
           ? "border-esc-pink/35 bg-[linear-gradient(180deg,rgba(19,19,19,0.97),rgba(42,24,34,0.94))] text-white"
           : "border-black/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(244,238,243,0.92))] text-esc-black"
@@ -85,7 +87,7 @@ const PodiumCard = ({
           </p>
           <div className="mt-4 flex items-center gap-3">
             <div
-              className={`rounded-[1.15rem] border p-1.5 ${
+              className={`podium-flag-frame rounded-[1.15rem] border p-1.5 ${
                 isLeader ? "border-white/10 bg-white/10" : "border-white/80 bg-white/80"
               }`}
             >
@@ -109,7 +111,7 @@ const PodiumCard = ({
         </div>
 
         <div
-          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.15rem] text-lg font-semibold ${
+          className={`podium-rank-badge flex h-14 w-14 shrink-0 items-center justify-center rounded-[1.15rem] text-lg font-semibold ${
             isLeader ? "bg-white text-esc-black" : "bg-esc-black text-white"
           }`}
         >
@@ -222,11 +224,11 @@ export const ResultsPage = () => {
               </div>
 
               <h1 className="mt-6 text-left text-[clamp(4.8rem,12vw,9.8rem)] font-bold leading-[0.88] tracking-[-0.095em] text-esc-black">
-                <span className="block">Grand Final</span>
-                <span className="block text-esc-pink">Scoreboard</span>
+                <span className="results-title-line block">Grand Final</span>
+                <span className="results-title-highlight block">Scoreboard</span>
               </h1>
 
-              <div className="mt-6 h-1 w-32 rounded-full bg-esc-pink" />
+              <div className="results-title-divider mt-6 h-1 w-32 rounded-full bg-esc-pink" />
 
               <p className="mt-7 max-w-3xl text-base leading-8 text-esc-black-soft/80 sm:text-lg">
                 Follow the latest standings as public and jury points come together. See who is
@@ -365,7 +367,7 @@ export const ResultsPage = () => {
                     </p>
                   </div>
 
-                  <div className="mt-10 grid gap-4 lg:grid-cols-[0.9fr,1.08fr,0.9fr] lg:items-end">
+                  <div className="mt-10 grid gap-4 lg:[perspective:1400px] lg:grid-cols-[0.9fr,1.08fr,0.9fr] lg:items-end">
                     {podiumItems.map((item) => (
                       <PodiumCard key={item.id} item={item} leaderTotal={leaderTotal} />
                     ))}
