@@ -1,6 +1,28 @@
 # Local development/integration stack.
 # Production/go-live deployment is maintained in k8s/ for K3s clusters.
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   db:
     build: ./backend/DB/
     container_name: escmysql
@@ -67,6 +89,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
       euromail:
         condition: service_healthy
       otel-collector:
@@ -128,9 +154,12 @@ services:
       DB_USER: esc_user
       DB_PASS: esc_password
       PORT: 8090
+      CRUD_API_URL: http://api:8000
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
+      api:
+        condition: service_healthy
       db:
         condition: service_healthy
       otel-collector:
@@ -162,12 +191,14 @@ services:
       dockerfile: Dockerfile
     container_name: eurostats
     environment:
-      - GRPC_HOST=db-crud-api
-      - GRPC_PORT=50051
       - LOG_LEVEL=INFO
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started

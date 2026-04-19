@@ -8,8 +8,6 @@ import (
 	"os"
 	"time"
 
-	pb "crud-db-api/proto"
-
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -77,22 +75,13 @@ func rabbitAvailable() bool {
 	return amqpChan != nil
 }
 
-// PublishVote publishes a vote to the fanout exchange for all consumers.
-func PublishVote(vote *pb.Vote) error {
+// PublishVote publishes a vote event to the fanout exchange for all consumers.
+func PublishVote(vote VoteEvent) error {
 	if !rabbitAvailable() {
 		Logger.Warn("RabbitMQ not available, vote not published")
 		return nil
 	}
-	body, err := json.Marshal(map[string]interface{}{
-		"country_voted_for":      vote.CountryVotedFor,
-		"country_voted_for_name": vote.CountryVotedForName,
-		"vote_count":             vote.VoteCount,
-		"voter_country":          vote.VoterCountry,
-		"voter_country_name":     vote.VoterCountryName,
-		"timestamp":              vote.Timestamp,
-		"song_id":                vote.SongId,
-		"song_name":              vote.SongName,
-	})
+	body, err := json.Marshal(vote)
 	if err != nil {
 		return err
 	}
@@ -146,45 +135,6 @@ func PublishEmailJob(email, token string) error {
 	)
 }
 
-// ConsumeVotes creates an exclusive queue bound to the votes fanout exchange
-// and returns a channel of Vote messages. Used by gRPC StreamVotes.
-func ConsumeVotes() (<-chan amqp.Delivery, string, error) {
-	<-amqpReady
-
-	q, err := amqpChan.QueueDeclare(
-		"",    // auto-generated name
-		false, // durable
-		true,  // auto-delete
-		true,  // exclusive
-		false, // no-wait
-		nil,
-	)
-	if err != nil {
-		return nil, "", err
-	}
-
-	err = amqpChan.QueueBind(
-		q.Name,
-		"",
-		VoteFanoutExchange,
-		false,
-		nil,
-	)
-	if err != nil {
-		return nil, q.Name, err
-	}
-
-	msgs, err := amqpChan.Consume(
-		q.Name,
-		"",    // consumer tag
-		true,  // auto-ack
-		true,  // exclusive
-		false, // no-local
-		false, // no-wait
-		nil,
-	)
-	return msgs, q.Name, err
-}
 
 func CloseRabbitMQ() {
 	if amqpChan != nil {

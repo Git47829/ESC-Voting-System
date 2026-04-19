@@ -261,6 +261,7 @@ func Run() {
 	router := http.NewServeMux()
 	router.HandleFunc("GET /health", GetHealth)
 	router.HandleFunc("GET /votes/", GetVotes)
+	router.HandleFunc("GET /api/songs-with-votes", GetSongsWithPublicVotes)
 	router.HandleFunc("POST /vote/", Vote)
 	router.HandleFunc("GET /countries/", GetCountries)
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
@@ -338,11 +339,6 @@ func Run() {
 
 		Logger.Info("database connection established - service fully ready")
 
-		if err := StartGRPCServer(DB, "50051"); err != nil {
-			Logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
-			os.Exit(1)
-		}
-		Logger.Info("gRPC vote streaming service initialized")
 	}()
 
 	log.Println("Listening and Serving on Port 8000")

@@ -27,10 +27,8 @@ spec:
           env:
             - name: PORT
               value: "8090"
-            - name: GRPC_HOST
-              value: "crud-db-api"
-            - name: GRPC_PORT
-              value: "50051"
+            - name: CRUD_API_URL
+              value: "http://crud-db-api:8000"
             - name: OTEL_EXPORTER_OTLP_HTTP_ENDPOINT
               value: "http://otel-collector:4318"
           readinessProbe:

@@ -24,8 +24,6 @@ spec:
           ports:
             - containerPort: 8000
               name: http
-            - containerPort: 50051
-              name: grpc
           env:
             - name: DB_HOST
               value: "mysql"
@@ -128,9 +126,6 @@ spec:
     - name: http
       port: 8000
       targetPort: 8000
-    - name: grpc
-      port: 50051
-      targetPort: 50051
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
