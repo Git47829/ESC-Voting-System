@@ -74,7 +74,7 @@ func CheckPhoneNum(num string) (string, error) {
 }
 
 func HashPhoneNumber(phone string) string {
-	mac := hmac.New(sha256.New, SignedCookieSecret)
+	mac := hmac.New(sha256.New, SignedPhoneSecret)
 	mac.Write([]byte(phone))
 	return hex.EncodeToString(mac.Sum(nil))
 }
