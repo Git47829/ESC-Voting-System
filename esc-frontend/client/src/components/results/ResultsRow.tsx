@@ -14,13 +14,13 @@ export const ResultsRow = ({
 
   return (
     <article
-      className={`grid grid-cols-[4.5rem_minmax(0,1fr)_7rem] items-center gap-4 border-b border-black/8 px-5 py-4 transition-colors last:border-b-0 sm:grid-cols-[4.5rem_minmax(0,1fr)_9rem_9rem] ${
+      className={`results-row-card grid grid-cols-[4.5rem_minmax(0,1fr)_7rem] items-center gap-4 border-b border-black/8 px-5 py-4 transition-colors last:border-b-0 sm:grid-cols-[4.5rem_minmax(0,1fr)_9rem_9rem] ${
         isLeader ? "bg-esc-pink/[0.045]" : "bg-transparent hover:bg-black/[0.018]"
       }`}
     >
       <div className="flex items-center gap-3">
         <span
-          className={`inline-flex h-11 w-11 items-center justify-center rounded-[1rem] text-sm font-semibold ${
+          className={`results-row-rank inline-flex h-11 w-11 items-center justify-center rounded-[1rem] text-sm font-semibold ${
             isLeader ? "bg-esc-black text-white" : "bg-black/5 text-esc-black"
           }`}
         >
@@ -29,7 +29,7 @@ export const ResultsRow = ({
       </div>
 
       <div className="flex min-w-0 items-center gap-4">
-        <div className="rounded-[1rem] border border-black/8 bg-white/86 p-1.5 shadow-[0_8px_20px_rgba(17,17,17,0.04)]">
+        <div className="results-row-flag rounded-[1rem] border border-black/8 bg-white/86 p-1.5 shadow-[0_8px_20px_rgba(17,17,17,0.04)]">
           <img
             src={flagUrl(item.countryId)}
             alt={item.country}
@@ -62,7 +62,7 @@ export const ResultsRow = ({
 
       <div className="text-right">
         <p className="text-[11px] uppercase tracking-[0.16em] text-esc-muted">Total</p>
-        <p className={`mt-1 text-2xl font-semibold tracking-[-0.04em] ${isLeader ? "text-esc-pink" : "text-esc-black"}`}>
+        <p className={`results-row-total mt-1 text-2xl font-semibold tracking-[-0.04em] ${isLeader ? "text-esc-pink" : "text-esc-black"}`}>
           {item.totalPts}
         </p>
       </div>

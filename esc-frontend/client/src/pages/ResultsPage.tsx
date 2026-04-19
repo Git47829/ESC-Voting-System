@@ -22,7 +22,7 @@ const StatTile = ({
 }) => {
   return (
     <article
-      className={`rounded-[1.8rem] border px-5 py-5 shadow-[0_18px_40px_rgba(17,17,17,0.06)] ${
+      className={`results-stat-tile rounded-[1.8rem] border px-5 py-5 shadow-[0_18px_40px_rgba(17,17,17,0.06)] ${
         inverted
           ? "border-esc-pink/25 bg-[linear-gradient(180deg,rgba(20,20,20,0.96),rgba(37,25,32,0.94))] text-white"
           : "border-black/[0.08] bg-white/88 text-esc-black"
@@ -212,14 +212,17 @@ export const ResultsPage = () => {
 
         <div className="relative z-10 mx-auto max-w-7xl px-6 pb-16 pt-6 sm:px-10 lg:px-14 lg:pb-24 lg:pt-8">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/10 pb-4 text-[11px] uppercase tracking-[0.24em] text-esc-muted">
-            <div>Live results</div>
-            <div>{paused ? "Feed paused" : `Automatic sync in ${countdown}s`}</div>
+            <div className="results-status-line flex items-center gap-2">
+              <span className="results-live-dot h-2 w-2 rounded-full bg-esc-pink" />
+              Live results
+            </div>
+            <div className="results-sync-chip">{paused ? "Feed paused" : `Automatic sync in ${countdown}s`}</div>
           </div>
 
           <div className="mt-10 grid gap-8 xl:grid-cols-[minmax(0,1.14fr)_24rem] xl:items-start">
             <div className="w-full max-w-none pr-0 xl:pr-10">
-              <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/78 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-esc-black-soft shadow-[0_14px_34px_rgba(17,17,17,0.05)] backdrop-blur-sm">
-                <span className="h-2 w-2 rounded-full bg-esc-pink" />
+              <div className="results-live-pill inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/78 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-esc-black-soft shadow-[0_14px_34px_rgba(17,17,17,0.05)] backdrop-blur-sm">
+                <span className="results-live-dot h-2 w-2 rounded-full bg-esc-pink" />
                 Live ranking
               </div>
 
@@ -240,7 +243,7 @@ export const ResultsPage = () => {
                 {RESULTS_MARKERS.map((marker) => (
                   <div
                     key={marker}
-                    className="rounded-[1.15rem] border border-black/10 bg-white/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-esc-black-soft shadow-[0_14px_34px_rgba(17,17,17,0.05)]"
+                    className="results-marker-chip rounded-[1.15rem] border border-black/10 bg-white/80 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-esc-black-soft shadow-[0_14px_34px_rgba(17,17,17,0.05)]"
                   >
                     {marker}
                   </div>
@@ -248,7 +251,7 @@ export const ResultsPage = () => {
               </div>
             </div>
 
-            <aside className="relative overflow-hidden rounded-[2.2rem] border border-esc-pink/25 bg-[linear-gradient(180deg,rgba(18,18,18,0.97),rgba(34,24,29,0.95))] p-6 text-white shadow-[0_32px_70px_rgba(17,17,17,0.24)]">
+            <aside className="results-live-panel relative overflow-hidden rounded-[2.2rem] border border-esc-pink/25 bg-[linear-gradient(180deg,rgba(18,18,18,0.97),rgba(34,24,29,0.95))] p-6 text-white shadow-[0_32px_70px_rgba(17,17,17,0.24)]">
               <div className="pointer-events-none absolute right-[-3rem] top-[-3rem] h-40 w-40 rounded-full bg-esc-pink/20 blur-3xl" />
               <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Live leader</p>
 
@@ -388,7 +391,7 @@ export const ResultsPage = () => {
                   </p>
                 </div>
 
-                <div className="mt-6 overflow-hidden rounded-[2rem] border border-black/10 bg-white/82 shadow-[0_24px_56px_rgba(17,17,17,0.06)] backdrop-blur-sm">
+                <div className="results-table-shell mt-6 overflow-hidden rounded-[2rem] border border-black/10 bg-white/82 shadow-[0_24px_56px_rgba(17,17,17,0.06)] backdrop-blur-sm">
                   <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_7rem] items-center gap-4 border-b border-black/10 px-5 py-4 text-[11px] uppercase tracking-[0.18em] text-esc-muted sm:grid-cols-[4.5rem_minmax(0,1fr)_9rem_9rem]">
                     <span>Rank</span>
                     <span>Entry</span>
