@@ -8,7 +8,6 @@ RUN go mod download
 
 COPY main.go ./
 COPY server/ ./server/
-COPY proto/ ./proto/
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /crud-db-api .
 

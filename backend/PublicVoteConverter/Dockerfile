@@ -7,7 +7,6 @@ RUN go mod download
 
 COPY main.go ./
 COPY converter/ ./converter/
-COPY proto/ ./proto/
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /esc-points-converter .
 
