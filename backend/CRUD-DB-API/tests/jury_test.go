@@ -13,7 +13,7 @@ import (
 )
 
 func juryVoteURL(songID, points string) string {
-	return "/jury/vote/?Token=jury1&songID=" + songID + "&points=" + points
+	return "/jury/vote?songID=" + songID + "&points=" + points
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +89,7 @@ func TestJuryVote_InvalidSongID_Returns422(t *testing.T) {
 	server.DB = mockDB
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/jury/vote/?Token=jury1&songID=notanumber&points=8", nil)
+		"/jury/vote?songID=notanumber&points=8", nil)
 	rr := httptest.NewRecorder()
 	server.JuryVote(rr, req)
 
@@ -107,7 +107,7 @@ func TestJuryVote_InvalidPointsNotInteger_Returns422(t *testing.T) {
 	server.DB = mockDB
 
 	req := httptest.NewRequest(http.MethodPost,
-		"/jury/vote/?Token=jury1&songID=1&points=notanumber", nil)
+		"/jury/vote?songID=1&points=notanumber", nil)
 	rr := httptest.NewRecorder()
 	server.JuryVote(rr, req)
 
@@ -121,19 +121,18 @@ func TestJuryVote_InvalidPointsNotInteger_Returns422(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestJuryVote_WrongToken_Returns403(t *testing.T) {
-	mockDB, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatalf("sqlmock.New: %v", err)
+	req := juryAuthRequest(http.MethodPost, "/jury/vote?songID=1&points=8", "wrongtoken", "jury1@test.com")
+	rr := httptest.NewRecorder()
+	server.RequireJury(http.HandlerFunc(server.JuryVote)).ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
 	}
-	defer mockDB.Close()
-	server.DB = mockDB
-	mock.MatchExpectationsInOrder(false)
+}
 
-	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
-		WillReturnRows(sqlmock.NewRows([]string{"isOpen"}).AddRow(true))
-
-	req := httptest.NewRequest(http.MethodPost,
-		"/jury/vote/?Token=wrongtoken&songID=1&points=8", nil)
+func TestJuryVote_MissingEmailHeader_Returns403(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/jury/vote?songID=1&points=8", nil)
+	req.Header.Set("Authorization", "Bearer jury1")
 	rr := httptest.NewRecorder()
 	server.RequireJury(http.HandlerFunc(server.JuryVote)).ServeHTTP(rr, req)
 
@@ -225,10 +224,18 @@ func TestJuryVote_DBError_Returns500(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestJuryVote_AnyJuryTokenAuthorizes(t *testing.T) {
-	tokens := []string{"jury1", "jury2", "jury3"}
+	type juryCred struct {
+		token string
+		email string
+	}
+	tokens := []juryCred{
+		{token: "jury1", email: "jury1@test.com"},
+		{token: "jury2", email: "jury2@test.com"},
+		{token: "jury3", email: "jury3@test.com"},
+	}
 
 	for _, tok := range tokens {
-		t.Run("token="+tok, func(t *testing.T) {
+		t.Run("token="+tok.token, func(t *testing.T) {
 			mockDB, mock, err := sqlmock.New()
 			if err != nil {
 				t.Fatalf("sqlmock.New: %v", err)
@@ -242,13 +249,12 @@ func TestJuryVote_AnyJuryTokenAuthorizes(t *testing.T) {
 			mock.ExpectExec("UPDATE Song").
 				WillReturnResult(sqlmock.NewResult(0, 1))
 
-			req := httptest.NewRequest(http.MethodPost,
-				"/jury/vote/?Token="+tok+"&songID=1&points=8", nil)
+			req := juryAuthRequest(http.MethodPost, "/jury/vote?songID=1&points=8", tok.token, tok.email)
 			rr := httptest.NewRecorder()
-			server.JuryVote(rr, req)
+			server.RequireJury(http.HandlerFunc(server.JuryVote)).ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusAccepted {
-				t.Errorf("token=%s: expected 202, got %d — body: %s", tok, rr.Code, rr.Body.String())
+				t.Errorf("token=%s: expected 202, got %d — body: %s", tok.token, rr.Code, rr.Body.String())
 			}
 		})
 	}

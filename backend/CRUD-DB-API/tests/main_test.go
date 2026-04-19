@@ -29,6 +29,8 @@ func TestMain(m *testing.M) {
 	os.Setenv("juryPassword2", jury2Hash)
 	os.Setenv("juryPassword3", jury3Hash)
 	os.Setenv("juryMail1", "jury1@test.com")
+	os.Setenv("juryMail2", "jury2@test.com")
+	os.Setenv("juryMail3", "jury3@test.com")
 	os.Setenv("TESTADMINPW", "test-admin-pw")
 	server.InitCookieSecret()
 
@@ -45,12 +47,23 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// adminURL appends the test admin token as a query parameter.
-func adminURL(path string) string {
-	return path + "?Token=" + os.Getenv("TESTADMINPW")
+func adminAuthRequest(method, path string) *http.Request {
+	req := httptest.NewRequest(method, path, nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("TESTADMINPW"))
+	req.Header.Set("X-Email", os.Getenv("adminMail"))
+	return req
 }
 
-// badTokenURL appends an invalid token as a query parameter.
-func badTokenURL(path string) string {
-	return path + "?Token=invalid-token"
+func badAdminAuthRequest(method, path string) *http.Request {
+	req := httptest.NewRequest(method, path, nil)
+	req.Header.Set("Authorization", "Bearer invalid-token")
+	req.Header.Set("X-Email", os.Getenv("adminMail"))
+	return req
+}
+
+func juryAuthRequest(method, path, token, email string) *http.Request {
+	req := httptest.NewRequest(method, path, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Email", email)
+	return req
 }
