@@ -16,7 +16,7 @@ docker compose up -d api public-vote-converter
 
 - `GET /health`
 - `GET /metrics`
-- `GET /api/esc-points`
+- `GET /api/esc-points` (JWT required)
 
 `/api/esc-points` response includes:
 
@@ -24,6 +24,18 @@ docker compose up -d api public-vote-converter
 - `rawPublicVotes`
 - `escPoints`
 - `rank`
+
+`/api/esc-points` requires a valid JWT from CRUD-DB-API via either:
+
+- `Authorization: Bearer <token>`
+- HttpOnly auth cookie (`AUTH_COOKIE_NAME`, default `auth_token`)
+
+Required claims:
+
+- `sub` (email)
+- `role` (`admin`, `jury`, `user`)
+- `exp`
+- `iat`
 
 ## Ranking logic
 
@@ -45,6 +57,8 @@ On startup, the service connects to CRUD API gRPC (`GetSongsWithVotes`) with ret
 | `GRPC_PORT` | `50051` |
 | `PORT` | `8090` |
 | `NUM_JURY_MEMBERS` | `3` |
+| `JWT_SECRET` | _(required)_ |
+| `AUTH_COOKIE_NAME` | `auth_token` |
 | `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` | `http://otel-collector:4318` |
 | `ENVIRONMENT` | `production` (telemetry resource attribute) |
 

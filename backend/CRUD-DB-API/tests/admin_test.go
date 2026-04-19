@@ -12,18 +12,17 @@ import (
 	"crud-db-api/server"
 )
 
-// adminReq builds a request with the admin token and email in the headers.
+// adminReq builds a request with a valid admin access token cookie.
 func adminReq(method, path string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("Authorization", "Bearer test-admin-pw")
-	req.Header.Set("X-Email", "test-admin@test.com")
+	req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: adminAccessToken})
 	return req
 }
 
-// badTokenReq builds a request with an invalid token in the Authorization header.
+// badTokenReq builds a request with an invalid access token cookie.
 func badTokenReq(method, path string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("Authorization", "Bearer wrongtoken")
+	req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: "wrongtoken"})
 	return req
 }
 
@@ -397,14 +396,8 @@ func TestAddInterpret_InvalidID_Returns400(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
-	h, err := server.HashPassword("jury1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("juryPassword1", h)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
-	req.Header.Set("Authorization", "Bearer jury1")
-	req.Header.Set("X-Email", "jury1@test.com")
+	req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: juryAccessTokens["jury1@test.com"]})
 	rr := httptest.NewRecorder()
 	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
 

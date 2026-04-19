@@ -1,6 +1,6 @@
 # ESC Voting System
 
-A distributed Eurovision-style voting platform with a React frontend, an Express BFF, Go/Python/Rust backend services, and full observability behind a Traefik HTTPS reverse proxy.
+A distributed Eurovision-style voting platform with a React frontend, Go/Python/Rust backend services, and full observability behind a Traefik HTTPS reverse proxy.
 
 ## 🚦 Deployment Modes
 
@@ -18,8 +18,7 @@ Internet
   |
   v
 Traefik (80/443, TLS with local default cert)
-  |-- /, /api/* ------------------> ESC Frontend server (Express, :3001)
-  |                                  \-> serves React SPA assets
+  |-- / -------------------------> ESC Frontend static app (:3001)
   |
   |-- /crud-api/* -----------------> CRUD DB API (Go, :8000 + gRPC :50051)
   |                                    |-> MySQL (:3306)
@@ -38,7 +37,7 @@ Traefik (80/443, TLS with local default cert)
 
 ## ✨ Key Behavior
 
-- **Frontend runtime:** `esc-frontend/` is the active UI (`docker-compose` builds this), including React client + Express `/api` BFF.
+- **Frontend runtime:** `esc-frontend/` is the active UI (`docker-compose` builds this), serving the React client as static assets.
 - **Auth flow:** two-step login (`/auth/login` + `/auth/verify`) for admin/jury, with legacy token auth still supported.
 - **Contest mode:** admin can start/advance a contest run; `/now` auto-refreshes when song index changes.
 - **Voting controls:** admin open/close toggle, per-session vote budget for public voting, jury single-use point values (1–8,10,12).
@@ -50,7 +49,7 @@ Traefik (80/443, TLS with local default cert)
 | Service | Technology | Internal Port(s) | README |
 |---|---|---|---|
 | Traefik | `traefik:v3.1` | 80, 443 | [backend/Traefik/README.md](backend/Traefik/README.md) |
-| ESC Frontend (active) | React 18 + Vite + Express (TypeScript) | 3001 | [esc-frontend/README.md](esc-frontend/README.md) |
+| ESC Frontend (active) | React 18 + Vite (static via Nginx) | 3001 | [esc-frontend/README.md](esc-frontend/README.md) |
 | CRUD DB API | Go, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
 | PublicVoteConverter | Go HTTP + gRPC client | 8090 | [backend/PublicVoteConverter/README.md](backend/PublicVoteConverter/README.md) |
 | EuroStats | FastAPI + WebSockets + RabbitMQ consumer | 8880 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
@@ -69,7 +68,6 @@ Replace `<host>` with your Docker host/IP.
 | Service | URL |
 |---|---|
 | App (React UI) | `https://<host>/` |
-| App API (BFF) | `https://<host>/api/...` |
 | CRUD API | `https://<host>/crud-api/` |
 | PublicVoteConverter | `https://<host>/esc-converter/` |
 | EuroStats | `https://<host>/eurostats/` |
@@ -94,7 +92,6 @@ Replace `<host>` with your Docker host/IP.
 MYSQL_ROOT_PASSWORD=secretroot
 
 # Auth + app secrets
-SESSION_SECRET=change-me
 adminMail=admin@example.com
 adminPassword=<bcrypt hash>
 juryMail1=jury1@example.com
@@ -133,15 +130,6 @@ docker compose down -v
 
 ## 📡 API / Service Overview
 
-### Frontend BFF (`/api` on esc-frontend)
-
-Key routes exposed by Express server:
-
-- Auth/session: `POST /api/auth/login`, `POST /api/auth/verify`, `POST /api/logout`, `GET /api/session`
-- Public data/actions: `GET /api/songs`, `GET /api/votes`, `GET /api/countries`, `GET /api/contest/current`, `POST /api/vote`
-- Jury/admin actions: `POST /api/jury/vote`, `POST /api/admin/open`, `POST /api/admin/close`, `POST /api/admin/startContest`, `POST /api/admin/advanceContest`, etc.
-- Aggregated views: `GET /api/results` (joins converter + CRUD votes), `GET /api/stats` (EuroStats)
-
 ### CRUD API (behind `/crud-api` externally)
 
 Public endpoints:
@@ -175,11 +163,11 @@ Protected endpoints use `Authorization: Bearer <token-or-password>` and `X-Email
 
 - `GET /health`
 - `GET /metrics`
-- `GET /api/esc-points`
+- `GET /api/esc-points` (JWT: `sub`, `role`, `exp`, `iat`; bearer or HttpOnly auth cookie)
 
 ## 🔭 Integration Notes
 
-- `esc-frontend` BFF orchestrates CRUD API, PublicVoteConverter, and EuroStats.
+- React frontend calls CRUD API and EuroStats directly through Traefik routes.
 - CRUD API is source-of-truth for songs/countries/votes and also exposes gRPC for converter consumption.
 - EuroMail handles email token delivery for auth verification; API degrades gracefully if optional infra (Redis/RabbitMQ) is unavailable.
 - EuroStats currently ingests votes from RabbitMQ and can persist/broadcast state with Redis when configured.

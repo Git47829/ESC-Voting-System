@@ -1,12 +1,10 @@
-# ESC Frontend Monorepo (`esc-frontend/`)
+# ESC Frontend (`esc-frontend/`)
 
-Current frontend implementation: React SPA (`client/`) + Express BFF (`server/`) in a pnpm workspace.
+Frontend workspace for the React SPA (`client/`).
 
 ## Workspace layout
 
 - `client/` — React 18 + TypeScript + Vite
-- `server/` — Express + TypeScript API/BFF + session/auth handling
-- `pnpm-workspace.yaml` links both packages
 
 ## Prerequisites
 
@@ -24,24 +22,21 @@ pnpm dev
 Development endpoints:
 
 - Client: `http://localhost:5173`
-- Server API: `http://localhost:3001`
+- CRUD API (direct): `http://localhost:8000`
 
 ## Scripts
 
 Root scripts:
 
-- `pnpm dev` — run `client` and `server` in parallel
-- `pnpm build` — build both workspaces
-- `pnpm lint` — TypeScript no-emit checks in both workspaces
+- `pnpm dev` — run the React client in dev mode
+- `pnpm build` — build the client
+- `pnpm lint` — TypeScript no-emit check for the client
 
 Package scripts:
 
 - `client`: `dev`, `build`, `preview`, `lint`
-- `server`: `dev`, `build`, `start`, `lint`
 
-## Runtime architecture
-
-### Client
+## Client runtime architecture
 
 - Routes: `/`, `/now`, `/results`, `/stats`, `/cookies`, `/login`, `/admin`, `/jury`
 - `ProtectedRoute` enforces role access for `/admin` and `/jury`
@@ -51,55 +46,35 @@ Package scripts:
   - voting status every 5s (`useVotingStatus`)
 - Cookie consent is stored client-side (`esc_cookie_consent`)
 
-### Server (BFF)
+## Client API integration (direct Go services)
 
-- Exposes app health at `GET /health`
-- Exposes frontend API under `GET/POST /api/*`
-- Uses Redis-backed `express-session`
-- In development, enables CORS for `http://localhost:5173` and CSRF middleware (`/api/csrf-token`)
-- Role checks via `requireRole("admin" | "jury")`
+The React client talks directly to backend services:
 
-## Auth behavior
+- CRUD-DB-API (`/crud-api` by default): auth, songs, votes, countries, contest, admin, jury, results
+- EuroStats WebSocket (`/eurostats/ws/stats` by default): live stats
 
-Implemented API supports both flows:
+Auth uses HttpOnly JWT cookies (`credentials: include`) with:
 
-1. Token auth (`POST /api/login`)
-2. Two-step auth (`POST /api/auth/login` then `POST /api/auth/verify`)
+- `POST /auth/login`
+- `POST /auth/verify`
+- `GET /auth/me`
+- `POST /auth/refresh`
+- `POST /auth/logout`
 
-Current UI uses the two-step email/code flow from `LoginPage`.
+## Client environment variables
 
-## Mock vs real backend
+Create `client/.env` (see `client/.env.example`):
 
-`USE_MOCK` controls data source:
+- `VITE_CRUD_API_BASE_URL` (default `/crud-api`)
+- `VITE_EUROSTATS_WS_URL` (optional explicit WS URL)
 
-- Mock mode: in-memory data (`server/src/mock/*`)
-- Real mode: proxies to backend services
+## Vite dev proxy
 
-Default behavior: if `USE_MOCK` is unset, mock mode is on in `NODE_ENV=development`.
+`client/vite.config.ts` proxies:
 
-## Environment variables (server)
-
-- `NODE_ENV` (default `development`)
-- `USE_MOCK`
-- `API_BASE_URL` (default `http://db-crud-api:8000`)
-- `API_TIMEOUT` (ms, default `10000`)
-- `ESC_CONVERTER_URL` (default `http://public-vote-converter:8090`)
-- `EUROSTATS_URL` (default `http://eurostats:8880`)
-- `REDIS_URL` (default `redis://redis:6379`)
-- `PORT` (default `3001`)
-- `SESSION_SECRET`
-- `TOTAL_VOTE_POINTS` (default `20`)
-
-## Integration points
-
-Server routes integrate with:
-
-- CRUD API (`API_BASE_URL`) for songs, auth, voting, admin, jury
-- Public Vote Converter (`ESC_CONVERTER_URL`) for combined results (`/api/results`)
-- EuroStats (`EUROSTATS_URL`) for stats endpoint (`/api/stats`)
-
-The Stats page opens WebSocket `ws(s)://<host>/eurostats/ws/stats` directly from the browser.
+- `/crud-api` → `http://localhost:8000`
+- `/eurostats` (WS enabled) → `http://localhost:8880`
 
 ## Docker
 
-`esc-frontend/Dockerfile` builds both workspaces, serves compiled client via Express in production, and starts `node server/dist/index.js` on port `3001`.
+`esc-frontend/Dockerfile` builds the client and serves static assets via Nginx on port `3001`.

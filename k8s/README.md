@@ -60,7 +60,6 @@ cp k8s/secrets.example.yaml k8s/secrets.yaml
   - `RESEND_API_KEY`
   - `COOKIESIGNINGKEY`
   - `PHONESIGNINGKEY`
-  - `SESSION_SECRET`
   - `adminMail`, `adminPassword`
   - `juryMail1`, `juryPassword1`
   - `juryMail2`, `juryPassword2`

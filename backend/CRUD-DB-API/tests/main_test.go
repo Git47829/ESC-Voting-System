@@ -1,16 +1,24 @@
 package server_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"go.opentelemetry.io/otel"
 
 	"crud-db-api/server"
+)
+
+var (
+	adminAccessToken string
+	juryAccessTokens = map[string]string{}
 )
 
 func TestMain(m *testing.M) {
@@ -32,6 +40,8 @@ func TestMain(m *testing.M) {
 	os.Setenv("juryMail2", "jury2@test.com")
 	os.Setenv("juryMail3", "jury3@test.com")
 	os.Setenv("TESTADMINPW", "test-admin-pw")
+	os.Setenv("JWT_SECRET", "test-jwt-secret")
+	os.Setenv("AUTH_COOKIE_SECURE", "false")
 	server.InitCookieSecret()
 
 	// Mock EuroMail server so AdminLogin/JuryLogin can send verification emails in tests.
@@ -40,17 +50,56 @@ func TestMain(m *testing.M) {
 	}))
 	os.Setenv("EuroMailURL", mockEuroMail.URL)
 
-	// globalVoteServer stays nil — NotifyVote() is a safe no-op when nil.
+	var err error
+	adminAccessToken, _, err = loginAndExtractCookies("test-admin@test.com", "test-admin-pw", "admin")
+	if err != nil {
+		panic(err)
+	}
+	if juryAccessTokens["jury1@test.com"], _, err = loginAndExtractCookies("jury1@test.com", "jury1", "jury"); err != nil {
+		panic(err)
+	}
+	if juryAccessTokens["jury2@test.com"], _, err = loginAndExtractCookies("jury2@test.com", "jury2", "jury"); err != nil {
+		panic(err)
+	}
+	if juryAccessTokens["jury3@test.com"], _, err = loginAndExtractCookies("jury3@test.com", "jury3", "jury"); err != nil {
+		panic(err)
+	}
 
 	code := m.Run()
 	mockEuroMail.Close()
 	os.Exit(code)
 }
 
+func loginAndExtractCookies(email, password, role string) (string, string, error) {
+	body, err := json.Marshal(map[string]string{"email": email, "password": password, "role": role})
+	if err != nil {
+		return "", "", err
+	}
+	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	server.AuthLogin(rr, req)
+	if rr.Code != http.StatusOK {
+		return "", "", io.EOF
+	}
+
+	var accessToken, refreshToken string
+	for _, cookie := range rr.Result().Cookies() {
+		switch cookie.Name {
+		case "esc_access_token":
+			accessToken = cookie.Value
+		case "esc_refresh_token":
+			refreshToken = cookie.Value
+		}
+	}
+	if accessToken == "" || refreshToken == "" {
+		return "", "", io.EOF
+	}
+	return accessToken, refreshToken, nil
+}
+
 func adminAuthRequest(method, path string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("TESTADMINPW"))
-	req.Header.Set("X-Email", os.Getenv("adminMail"))
+	req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: adminAccessToken})
 	return req
 }
 
@@ -63,7 +112,12 @@ func badAdminAuthRequest(method, path string) *http.Request {
 
 func juryAuthRequest(method, path, token, email string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-Email", email)
+	if strings.Contains(strings.ToLower(token), "wrong") || strings.Contains(strings.ToLower(token), "invalid") {
+		req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: token})
+		return req
+	}
+	if accessToken, ok := juryAccessTokens[email]; ok {
+		req.AddCookie(&http.Cookie{Name: "esc_access_token", Value: accessToken})
+	}
 	return req
 }

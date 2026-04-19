@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,52 +11,77 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func extractToken(r *http.Request) string {
-	h := r.Header.Get("Authorization")
-	if strings.HasPrefix(h, "Bearer ") {
-		return strings.TrimPrefix(h, "Bearer ")
+type authContextKey string
+
+const authClaimsContextKey authContextKey = "auth_claims"
+
+func extractAccessToken(r *http.Request) string {
+	if cookie, err := r.Cookie(accessTokenCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
+		return strings.TrimSpace(cookie.Value)
+	}
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		return strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
 	}
 	return ""
 }
 
-func extractEmail(r *http.Request) string {
-	return strings.TrimSpace(r.Header.Get("X-Email"))
+func claimsFromContext(ctx context.Context) (*authClaims, bool) {
+	claims, ok := ctx.Value(authClaimsContextKey).(*authClaims)
+	return claims, ok
+}
+
+func RequireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		token := extractAccessToken(r)
+		if token == "" {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+
+		claims, err := parseJWTToken(token, tokenTypeAccess)
+		if err != nil {
+			Logger.WarnContext(r.Context(), "access token rejected", slog.Any("error", err))
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Invalid access token"})
+			return
+		}
+
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authClaimsContextKey, claims)))
+	})
+}
+
+func RequireRole(role string, next http.Handler) http.Handler {
+	return RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		claims, ok := claimsFromContext(r.Context())
+		if !ok {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
+		}
+		if claims.Role != role {
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Insufficient permissions"})
+			return
+		}
+		next.ServeHTTP(w, r)
+	}))
 }
 
 func RequireJury(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := extractToken(r)
-		email := extractEmail(r)
-		if ok, msg := CheckAccessJury(token, email); !ok {
-			Logger.Warn("Invalid Jury Login Attempt", slog.String("message", "Invalid Login Attempt"))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": msg})
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return RequireRole("jury", next)
 }
 
 func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := extractToken(r)
-		email := extractEmail(r)
-		if ok, msg := CheckAccessAdmin(token, email); !ok {
-			Logger.Warn("Invalid Login Attempt", slog.String("message", "Invalid Login Attempt"))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{"error": msg})
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
+	return RequireRole("admin", next)
 }
 
 func CheckPhoneNum(num string) (string, error) {
@@ -81,11 +107,9 @@ func HashPhoneNumber(phone string) string {
 
 func HashPassword(password string) (string, error) {
 	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
 	if err != nil {
 		return "", err
 	}
-
 	return string(sum), nil
 }
 
@@ -143,67 +167,47 @@ func CheckAccessJury(input, email string) (bool, string) {
 	return false, "Invalid email"
 }
 
+func CheckAccessUser(input, email string) (bool, string) {
+	if input == "" {
+		return false, "Token has to be provided"
+	}
+	if email == "" {
+		return false, "Email has to be provided"
+	}
+	configuredEmail := strings.TrimSpace(os.Getenv("userMail"))
+	configuredPassword := os.Getenv("userPassword")
+	if configuredEmail == "" || configuredPassword == "" {
+		return false, "User login is not configured"
+	}
+	if !strings.EqualFold(email, configuredEmail) {
+		return false, "Invalid email"
+	}
+	if CheckPassword(input, configuredPassword) {
+		return true, "Authorized"
+	}
+	return false, "Wrong Token Provided"
+}
 
 func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	ctx := r.Context()
-
-	email := extractEmail(r)
-	token, err := generateToken()
-	if err != nil {
-		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
 		return
 	}
-
-	if storeErr := StoreToken(ctx, token, 5*time.Minute); storeErr != nil {
-		Logger.ErrorContext(ctx, "Failed to store token in Redis", slog.Any("error", storeErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to store token"})
-		return
-	}
-
-	if err := requestVerificationMail(email, token); err != nil {
-		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
-		return
-	}
-
-	Logger.InfoContext(ctx, "Admin login: verification email sent", slog.String("email", email))
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"message": "verification email sent"})
+	json.NewEncoder(w).Encode(map[string]any{"message": "authorized", "email": claims.Subject, "role": claims.Role})
 }
 
 func JuryLogin(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	ctx := r.Context()
-
-	email := extractEmail(r)
-	token, err := generateToken()
-	if err != nil {
-		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate token"})
+	claims, ok := claimsFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
 		return
 	}
-
-	if storeErr := StoreToken(ctx, token, 5*time.Minute); storeErr != nil {
-		Logger.ErrorContext(ctx, "Failed to store token in Redis", slog.Any("error", storeErr))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to store token"})
-		return
-	}
-
-	if err := requestVerificationMail(email, token); err != nil {
-		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
-		return
-	}
-
-	Logger.InfoContext(ctx, "Jury login: verification email sent", slog.String("email", email))
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{"message": "verification email sent"})
+	json.NewEncoder(w).Encode(map[string]any{"message": "authorized", "email": claims.Subject, "role": claims.Role})
 }

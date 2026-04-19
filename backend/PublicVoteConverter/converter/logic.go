@@ -222,13 +222,18 @@ func Run() {
 	grpcClient := pb.NewVoteServiceClient(conn)
 
 	port := getEnv("PORT", "8090")
+	jwtVerifier, err := NewJWTVerifierFromEnv()
+	if err != nil {
+		Logger.Error("failed to configure JWT auth", "error", err)
+		os.Exit(1)
+	}
 
 	// juryScale equalises the 50/50 jury vs televote weighting.
 	juryScale := GetEnvInt("NUM_JURY_MEMBERS", 3)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", HandleHealth)
-	mux.HandleFunc("GET /api/esc-points", HandlePreview(grpcClient, juryScale))
+	mux.Handle("GET /api/esc-points", RequireJWTAuth(jwtVerifier, "admin", "jury", "user")(HandlePreview(grpcClient, juryScale)))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	Logger.Info("ESC points converter starting",

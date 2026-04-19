@@ -28,8 +28,9 @@ export const StatsPage = () => {
   const connect = useCallback(() => {
     if (unmountedRef.current) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/eurostats/ws/stats`);
+    const defaultWsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/eurostats/ws/stats`;
+    const wsUrl = import.meta.env.VITE_EUROSTATS_WS_URL?.trim() || defaultWsUrl;
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {

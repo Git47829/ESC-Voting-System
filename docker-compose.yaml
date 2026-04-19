@@ -90,16 +90,6 @@ services:
     build: ./esc-frontend/
     container_name: esc-frontend
     restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      USE_MOCK: "false"
-      API_BASE_URL: http://db-crud-api:8000
-      API_TIMEOUT: 10000
-      ESC_CONVERTER_URL: http://public-vote-converter:8090
-      EUROSTATS_URL: http://eurostats:8880
-      PORT: 3001
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
-      TOTAL_VOTE_POINTS: 20
     depends_on:
       api:
         condition: service_healthy

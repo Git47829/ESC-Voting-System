@@ -65,30 +65,33 @@ type RateLimitConfig struct {
 }
 
 var rateLimitConfigs = map[string]RateLimitConfig{
-	"GET /health":                      {Limit: 100, Window: time.Second},
-	"GET /votes/":                      {Limit: 20, Window: time.Second},
-	"GET /countries/":                  {Limit: 20, Window: time.Second},
-	"GET /songs/":                      {Limit: 20, Window: time.Second},
-	"GET /songByID/{ID}":              {Limit: 20, Window: time.Second},
-	"GET /contest/current":            {Limit: 20, Window: time.Second},
-	"GET /auth/requestToken":          {Limit: 1, Window: time.Second},
-	"GET /auth/verifyToken/{token}":   {Limit: 1, Window: time.Second},
-	"POST /auth/login":                {Limit: 3, Window: time.Second},
-	"POST /auth/verify":               {Limit: 5, Window: time.Second},
-	"POST /vote/":                     {Limit: 1, Window: time.Second},
-	"POST /jury/vote":                 {Limit: 5, Window: time.Second},
-	"GET /jury/authenticate":          {Limit: 1, Window: time.Second},
-	"GET /admin/authenticate":         {Limit: 1, Window: time.Second},
-	"POST /admin/open":                {Limit: 2, Window: time.Second},
-	"POST /admin/close":               {Limit: 2, Window: time.Second},
-	"POST /admin/addCountry":          {Limit: 5, Window: time.Second},
-	"POST /admin/addSong":             {Limit: 5, Window: time.Second},
-	"POST /admin/addArtist":           {Limit: 5, Window: time.Second},
-	"POST /admin/addInterpret":        {Limit: 5, Window: time.Second},
-	"POST /admin/startContest":        {Limit: 5, Window: time.Second},
-	"POST /admin/advanceContest":      {Limit: 5, Window: time.Second},
-	"DELETE /admin/deleteVotes":       {Limit: 1, Window: time.Second},
-	"GET /metrics/":                   {Limit: 10000, Window: time.Second},
+	"GET /health":                {Limit: 100, Window: time.Second},
+	"GET /votes/":                {Limit: 20, Window: time.Second},
+	"GET /countries/":            {Limit: 20, Window: time.Second},
+	"GET /songs/":                {Limit: 20, Window: time.Second},
+	"GET /songByID/{ID}":         {Limit: 20, Window: time.Second},
+	"GET /contest/current":       {Limit: 20, Window: time.Second},
+	"POST /auth/login":           {Limit: 3, Window: time.Second},
+	"GET /auth/verify":           {Limit: 10, Window: time.Second},
+	"POST /auth/verify":          {Limit: 10, Window: time.Second},
+	"GET /auth/me":               {Limit: 10, Window: time.Second},
+	"POST /auth/refresh":         {Limit: 10, Window: time.Second},
+	"POST /auth/logout":          {Limit: 10, Window: time.Second},
+	"POST /vote/":                {Limit: 1, Window: time.Second},
+	"POST /jury/vote":            {Limit: 5, Window: time.Second},
+	"GET /jury/authenticate":     {Limit: 1, Window: time.Second},
+	"GET /admin/authenticate":    {Limit: 1, Window: time.Second},
+	"POST /admin/open":           {Limit: 2, Window: time.Second},
+	"POST /admin/close":          {Limit: 2, Window: time.Second},
+	"POST /admin/addCountry":     {Limit: 5, Window: time.Second},
+	"POST /admin/addSong":        {Limit: 5, Window: time.Second},
+	"POST /admin/addArtist":      {Limit: 5, Window: time.Second},
+	"POST /admin/addInterpret":   {Limit: 5, Window: time.Second},
+	"POST /admin/startContest":   {Limit: 5, Window: time.Second},
+	"POST /admin/advanceContest": {Limit: 5, Window: time.Second},
+	"DELETE /admin/deleteVotes":  {Limit: 1, Window: time.Second},
+	"GET /results":               {Limit: 20, Window: time.Second},
+	"GET /metrics/":              {Limit: 10000, Window: time.Second},
 }
 
 const totalVotePoints = 20
@@ -255,10 +258,12 @@ func Run() {
 	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
 	router.HandleFunc("GET /songs/", HTTPGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
-	router.HandleFunc("GET /auth/requestToken", RequestToken)
-	router.HandleFunc("GET /auth/verifyToken/{token}", VerifiyWithToken)
 	router.HandleFunc("POST /auth/login", AuthLogin)
-	router.HandleFunc("POST /auth/verify", AuthVerify)
+	router.Handle("GET /auth/verify", RequireAuth(http.HandlerFunc(AuthVerify)))
+	router.Handle("POST /auth/verify", RequireAuth(http.HandlerFunc(AuthVerify)))
+	router.Handle("GET /auth/me", RequireAuth(http.HandlerFunc(AuthMe)))
+	router.HandleFunc("POST /auth/refresh", AuthRefresh)
+	router.HandleFunc("POST /auth/logout", AuthLogout)
 	router.Handle("POST /admin/open", RequireAdmin(http.HandlerFunc(OpenVote)))
 	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
 	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))
@@ -272,6 +277,7 @@ func Run() {
 	router.Handle("POST /admin/startContest", RequireAdmin(http.HandlerFunc(StartContest)))
 	router.Handle("POST /admin/advanceContest", RequireAdmin(http.HandlerFunc(AdvanceContest)))
 	router.HandleFunc("GET /contest/current", GetCurrentSong)
+	router.HandleFunc("GET /results", GetResults)
 
 	router.Handle("GET /metrics/", promhttp.Handler())
 

@@ -1,4 +1,4 @@
-export type Role = "admin" | "jury";
+export type Role = "admin" | "jury" | "user";
 
 export interface Song {
   songId: number;
@@ -37,12 +37,6 @@ export interface VoteResult {
   juryPts: number;
   totalPts: number;
   rank?: number;
-}
-
-export interface SessionState {
-  authenticated: boolean;
-  role: Role | null;
-  token: string | null;
 }
 
 export interface FlashMessage {

@@ -20,27 +20,25 @@ docker compose up -d db euromail api
 - **Required:** MySQL (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`)
 - **Optional but used when available:** Redis (rate limits, auth/session/cache), RabbitMQ (vote fanout + email jobs)
 
-## Auth model (current code)
+## Auth model
 
-Protected routes use headers, not `?Token=`:
+CRUD-DB-API now issues JWT access/refresh tokens and stores them in HttpOnly cookies:
 
-- `Authorization: Bearer <password-or-code>`
-- `X-Email: <user email>`
+- access cookie: `esc_access_token`
+- refresh cookie: `esc_refresh_token`
+- claims: `sub=email`, `role`, `iat`, `exp`
 
-Credential checks:
+Roles: `admin`, `jury`, `user`.
 
-- admin: `adminMail` + bcrypt-hashed `adminPassword`
-- jury: `juryMail1..3` + bcrypt-hashed `juryPassword1..3`
+Auth endpoints:
 
-2FA flow endpoints:
+- `POST /auth/login` with JSON `{email,password,role}`
+- `GET|POST /auth/verify` (requires valid access token)
+- `GET /auth/me` (requires valid access token)
+- `POST /auth/refresh` (requires valid refresh cookie)
+- `POST /auth/logout` (revokes refresh session + clears cookies)
 
-- `POST /auth/login` with JSON `{email,password,role}` (`role`: `admin` or `jury`)
-- `POST /auth/verify` with JSON `{email,code}`
-
-Legacy token endpoints still exist:
-
-- `GET /auth/requestToken`
-- `GET /auth/verifyToken/{token}`
+Refresh-token sessions are validated server-side (Redis when available, in-memory fallback).
 
 ## REST endpoints
 
@@ -53,6 +51,7 @@ Legacy token endpoints still exist:
 - `GET /songs/`
 - `GET /songByID/{ID}`
 - `GET /contest/current`
+- `GET /results`
 - `GET /metrics/`
 - `POST /vote/` (query params: `ownCountry`, `phoneNum`, `songID`, `points`)
 
@@ -92,6 +91,13 @@ Legacy token endpoints still exist:
 | `adminPassword` | bcrypt hash |
 | `juryMail1..3` | jury emails |
 | `juryPassword1..3` | bcrypt hashes |
+| `userMail` | optional user email (for `role=user`) |
+| `userPassword` | optional bcrypt hash (for `role=user`) |
+| `JWT_SECRET` | preferred signing secret for JWTs |
+| `ACCESS_TOKEN_TTL_MINUTES` | default `15` |
+| `REFRESH_TOKEN_TTL_HOURS` | default `168` |
+| `AUTH_COOKIE_SECURE` | `true` unless set to `false` |
+| `NUM_JURY_MEMBERS` | default `3` (for `/results` public-point scaling) |
 | `COOKIESIGNINGKEY` | optional; random secret generated if missing |
 | `REDIS_URL` | `redis:6379` |
 | `RABBITMQ_URL` | `amqp://guest:guest@rabbitmq:5672/` |
