@@ -2,5 +2,7 @@
 .env
 *.tfvars
 *.hcl
+*.tfstate
+*.tfstate.backup
 *.backup
 *.info
