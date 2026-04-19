@@ -19,6 +19,12 @@ jobs:
         with:
           go-version-file: backend/CRUD-DB-API/go.mod
 
+      - name: Create .env file
+        run: |
+          cat <<EOF > .env
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          EOF
+
       - name: Run CRUD-DB-API unit tests
         working-directory: backend/CRUD-DB-API
         run: go test ./...
@@ -60,10 +66,7 @@ jobs:
       - name: Create .env file
         run: |
           cat <<EOF > .env
-          # Add your secrets in: Settings → Secrets and variables → Actions
-          # Then reference them here like the examples below:
-          # DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          # API_KEY=${{ secrets.API_KEY }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
           EOF
 
       - name: Build images

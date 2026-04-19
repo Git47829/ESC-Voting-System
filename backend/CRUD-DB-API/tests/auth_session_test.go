@@ -145,10 +145,17 @@ func TestAuthRefresh_RejectsTamperedRefreshToken(t *testing.T) {
 	if refresh == nil {
 		t.Fatal("missing refresh token cookie")
 	}
-	if len(refresh.Value) < 2 {
+	if len(refresh.Value) < 10 {
 		t.Fatal("refresh token too short to tamper")
 	}
-	tampered := refresh.Value[:len(refresh.Value)-1] + "x"
+	// Flip a character in the middle of the token to avoid base64 padding-bit
+	// coincidences that can occur when only the last character is changed.
+	mid := len(refresh.Value) / 2
+	flipChar := byte('A')
+	if refresh.Value[mid] == 'A' {
+		flipChar = 'B'
+	}
+	tampered := refresh.Value[:mid] + string(flipChar) + refresh.Value[mid+1:]
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	req.AddCookie(&http.Cookie{Name: "esc_refresh_token", Value: tampered})
