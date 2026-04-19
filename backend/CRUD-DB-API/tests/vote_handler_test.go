@@ -34,16 +34,18 @@ func setupVoteSuccessMock(t *testing.T, songLandID string, remaining int) (*sqlm
 	mock.ExpectQuery("SELECT Land_ID FROM Song WHERE ID").
 		WillReturnRows(sqlmock.NewRows([]string{"Land_ID"}).AddRow(songLandID))
 
-	// Sequential: upsert phone, deduct points
+	// Transaction: upsert phone, deduct points, update song
+	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO Phone_Nums").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec("UPDATE Phone_Nums").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE Song SET PublikumsPunkte").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
 
-	// Second concurrent errgroup (readback + song update):
+	// Post-commit readback:
 	mock.ExpectQuery("SELECT votes_remaining").
 		WillReturnRows(sqlmock.NewRows([]string{"votes_remaining", "votes_cast"}).
 			AddRow(remaining, `{"1":5}`))
-	mock.ExpectExec("UPDATE Song SET PublikumsPunkte").
-		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	return &mock, func() { mockDB.Close() }
 }
@@ -329,14 +331,16 @@ func TestVote_InsufficientBudget_Returns403(t *testing.T) {
 	mock.ExpectQuery("SELECT Land_ID FROM Song WHERE ID").
 		WillReturnRows(sqlmock.NewRows([]string{"Land_ID"}).AddRow("FR"))
 
+	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO Phone_Nums").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	// Deduct returns 0 rows affected (insufficient budget).
 	mock.ExpectExec("UPDATE Phone_Nums").WillReturnResult(sqlmock.NewResult(0, 0))
 
-	// Handler queries remaining votes to report back.
+	// Handler queries remaining votes to report back (inside tx).
 	mock.ExpectQuery("SELECT votes_remaining FROM Phone_Nums").
 		WillReturnRows(sqlmock.NewRows([]string{"votes_remaining"}).AddRow(2))
+	mock.ExpectRollback()
 
 	req := voteRequest("+4915123456789", "1", "10")
 	rr := httptest.NewRecorder()
