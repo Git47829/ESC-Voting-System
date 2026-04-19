@@ -36,20 +36,6 @@ jobs:
         working-directory: backend/EuroStats
         run: pip install -r requirements.txt -r requirements-test.txt
 
-      - name: Generate EuroStats proto files
-        working-directory: backend/EuroStats
-        run: |
-          mkdir -p src/proto
-          touch src/proto/__init__.py
-          python -m grpc_tools.protoc \
-            -I proto \
-            --python_out=src/proto \
-            --grpc_python_out=src/proto \
-            proto/votes.proto
-          sed -i \
-            's/^import votes_pb2 as votes__pb2$/from . import votes_pb2 as votes__pb2/' \
-            src/proto/votes_pb2_grpc.py
-
       - name: Run EuroStats unit tests
         working-directory: backend/EuroStats
         run: python -m pytest

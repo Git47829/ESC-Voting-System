@@ -17,7 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY src/main.py ./src/main.py
 COPY src/rabbitmq_consumer.py ./src/rabbitmq_consumer.py
 COPY src/telemetry.py ./src/telemetry.py
-COPY src/proto ./src/proto
 
 RUN chown -R appuser:appgroup /app
 

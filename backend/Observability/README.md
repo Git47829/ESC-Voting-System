@@ -17,7 +17,7 @@ Observability stack used by ESC Voting:
 
 ## Collector pipelines (current config)
 
-- **Receivers:** `otlp` (gRPC + HTTP), `filelog` (tails `/var/log/caddy/access.log`)
+- **Receivers:** `otlp` (gRPC + HTTP), `filelog` (tails `/var/log/traefik/access.log`)
 - **Metrics pipeline:** `otlp -> batch -> prometheus` (`:9464`)
 - **Traces pipeline:** `otlp -> batch -> otlp(tempo:4417) + logging`
 - **Logs pipeline:** `otlp + filelog -> batch + loki label processors -> loki`
@@ -31,11 +31,11 @@ Observability stack used by ESC Voting:
 - `db-crud-api:8000/metrics/`
 - `public-vote-converter:8090/metrics`
 - `euromail:3000/metrics`
-- `caddy:2019/metrics`
+- `traefik:8082/metrics`
 - `loki:3100/metrics`
 - `tempo:3200/metrics`
 
-## Access paths behind Caddy (root `docker-compose.yaml`)
+## Access paths behind Traefik (root `docker-compose.yaml`)
 
 - `/grafana`
 - `/prometheus`

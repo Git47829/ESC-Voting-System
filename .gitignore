@@ -33,8 +33,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 
-# EuroStats generated proto output (regenerated at build time by generate_proto.sh)
-backend/EuroStats/src/proto/
 
 # Editor/IDE
 .idea/

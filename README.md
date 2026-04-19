@@ -1,6 +1,6 @@
 # ESC Voting System
 
-A distributed Eurovision-style voting platform with a React frontend, an Express BFF, Go/Python/Rust backend services, and full observability behind a Caddy HTTPS reverse proxy.
+A distributed Eurovision-style voting platform with a React frontend, an Express BFF, Go/Python/Rust backend services, and full observability behind a Traefik HTTPS reverse proxy.
 
 ## 🚦 Deployment Modes
 
@@ -17,7 +17,7 @@ K3s uses private GHCR images (`ghcr.io/git47829/esc-voting-*`) published by CI. 
 Internet
   |
   v
-Caddy (80/443, TLS internal)
+Traefik (80/443, TLS with local default cert)
   |-- /, /api/* ------------------> ESC Frontend server (Express, :3001)
   |                                  \-> serves React SPA assets
   |
@@ -49,7 +49,7 @@ Caddy (80/443, TLS internal)
 
 | Service | Technology | Internal Port(s) | README |
 |---|---|---|---|
-| Caddy | `caddy:2.8-alpine` | 80, 443 | [backend/Caddy/README.md](backend/Caddy/README.md) |
+| Traefik | `traefik:v3.1` | 80, 443 | [backend/Traefik/README.md](backend/Traefik/README.md) |
 | ESC Frontend (active) | React 18 + Vite + Express (TypeScript) | 3001 | [esc-frontend/README.md](esc-frontend/README.md) |
 | CRUD DB API | Go, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
 | PublicVoteConverter | Go HTTP + gRPC client | 8090 | [backend/PublicVoteConverter/README.md](backend/PublicVoteConverter/README.md) |
@@ -62,7 +62,7 @@ Caddy (80/443, TLS internal)
 
 The old Flask frontend still exists in [`frontend/`](frontend/) and is documented in [`frontend/README.md`](frontend/README.md), but it is **not** the frontend service used by `docker-compose.yaml`.
 
-## 🌐 Service URLs (via Caddy)
+## 🌐 Service URLs (via Traefik)
 
 Replace `<host>` with your Docker host/IP.
 
