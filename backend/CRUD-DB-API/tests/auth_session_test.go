@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -24,13 +23,9 @@ func cookieByName(rr *httptest.ResponseRecorder, name string) *http.Cookie {
 
 func loginRecorder(t *testing.T, email, password, role string) *httptest.ResponseRecorder {
 	t.Helper()
-	body := strings.NewReader(`{"email":"` + email + `","password":"` + password + `","role":"` + role + `"}`)
-	req := httptest.NewRequest(http.MethodPost, "/auth/login", body)
-	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
-	server.AuthLogin(rr, req)
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected login 200, got %d body=%s", rr.Code, rr.Body.String())
+	rr, err := setupLoginSession(email, password, role)
+	if err != nil {
+		t.Fatal(err)
 	}
 	return rr
 }
