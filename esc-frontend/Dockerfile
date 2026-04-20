@@ -19,6 +19,8 @@ RUN pnpm --filter @esc/client build
 # ── Production stage ─────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine
 
+RUN apk add --no-cache curl
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/client/dist /usr/share/nginx/html
 
