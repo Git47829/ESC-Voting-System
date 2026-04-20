@@ -2,7 +2,7 @@
 
 A distributed voting system for the Eurovision Song Contest, featuring a modern web frontend, a Go REST + gRPC backend, real-time vote streaming, a full observability stack with tracing, metrics, and log aggregation — all served through a Caddy HTTPS reverse proxy.
 
-## 🏗️ System Architecture
+### 🏗️ System Architecture
 
 ```
                          ┌─────────────────────────────┐
