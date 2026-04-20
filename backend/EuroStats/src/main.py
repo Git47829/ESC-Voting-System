@@ -143,9 +143,32 @@ async def _compute_and_broadcast() -> None:
 
     if _vote_df.empty:
         await stats_manager.broadcast(
-            {"type": "stats", "charts": None, "vote_count": 0}
+            {
+                "type": "stats",
+                "charts": None,
+                "vote_count": 0,
+                "totalPublic": 0,
+                "totalJury": 0,
+                "byCountry": [],
+            }
         )
         return
+
+    total_public = int(_vote_df["vote_count"].sum())
+
+    by_country = (
+        _vote_df.groupby(["country_voted_for", "country_voted_for_name"])["vote_count"]
+        .sum()
+        .reset_index()
+    )
+    by_country_list = [
+        {
+            "countryId": row["country_voted_for"],
+            "country": row["country_voted_for_name"],
+            "total": int(row["vote_count"]),
+        }
+        for _, row in by_country.sort_values("vote_count", ascending=False).iterrows()
+    ]
 
     voter_counts = (
         _vote_df.groupby("voter_country_name")["vote_count"]
@@ -171,7 +194,10 @@ async def _compute_and_broadcast() -> None:
 
     payload = {
         "type": "stats",
-        "vote_count": int(_vote_df["vote_count"].sum()),
+        "vote_count": total_public,
+        "totalPublic": total_public,
+        "totalJury": 0,
+        "byCountry": by_country_list,
         "charts": {
             "voters_by_country": chart1,
             "votes_received_by_country": chart2,
