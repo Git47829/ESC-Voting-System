@@ -7,16 +7,48 @@ import type { Role } from "../types";
 
 const accessHighlights = [
   "Admin and jury access",
-  "Secure token-based sign-in",
+  "Secure email verification",
   "Direct route into the right workspace"
 ];
 
 export const LoginPage = () => {
+  const [step, setStep] = useState<"credentials" | "verify">("credentials");
   const [role, setRole] = useState<Role>("admin");
-  const [token, setToken] = useState("");
-  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const { authLogin, authVerify } = useAuth();
   const navigate = useNavigate();
   const { addFlash } = useFlash();
+
+  const handleCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await authLogin(email, password, role);
+      addFlash("Verification code sent to your email", "success");
+      setStep("verify");
+    } catch (error: unknown) {
+      addFlash(error instanceof Error ? error.message : "Login failed", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await authVerify(email, code, role);
+      addFlash("Login successful", "success");
+      navigate(role === "admin" ? "/admin" : "/jury");
+    } catch (error: unknown) {
+      addFlash(error instanceof Error ? error.message : "Verification failed", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">
@@ -44,8 +76,8 @@ export const LoginPage = () => {
               </h1>
 
               <p className="mt-7 max-w-3xl text-base leading-8 text-esc-black-soft/80 sm:text-lg">
-                Choose your role, enter your token and continue straight into the correct control
-                area. This page is intentionally simple, focused and built for quick access.
+                Choose your role, enter your credentials and verify your identity via email to
+                continue into the correct control area.
               </p>
 
               <div className="mt-8 grid gap-3 sm:grid-cols-3 xl:max-w-4xl">
@@ -62,65 +94,120 @@ export const LoginPage = () => {
 
             <aside className="overflow-hidden rounded-[2.1rem] border border-esc-pink/22 bg-[linear-gradient(180deg,rgba(18,18,18,0.98),rgba(34,24,29,0.95))] p-6 text-white shadow-[0_32px_70px_rgba(17,17,17,0.24)]">
               <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Sign in</p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em]">Account access</h2>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em]">
+                {step === "credentials" ? "Account access" : "Email verification"}
+              </h2>
               <p className="mt-3 text-sm leading-7 text-white/72">
-                Use your assigned role and token to continue to the right workspace.
+                {step === "credentials"
+                  ? "Enter your credentials to receive a verification code."
+                  : `Enter the 6-digit code sent to ${email}.`}
               </p>
 
-              <form
-                className="mt-7 space-y-5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void login(role, token)
-                    .then(() => {
-                      addFlash("Login successful", "success");
-                      navigate(role === "admin" ? "/admin" : "/jury");
-                    })
-                    .catch((error: unknown) => {
-                      addFlash(error instanceof Error ? error.message : "Login failed", "error");
-                    });
-                }}
-              >
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Role</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    {(["admin", "jury"] as Role[]).map((option) => {
-                      const active = role === option;
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => setRole(option)}
-                          className={`rounded-[1.15rem] border px-4 py-3 text-sm font-semibold capitalize transition-all ${
-                            active
-                              ? "border-esc-pink/40 bg-esc-pink text-white shadow-[0_18px_38px_rgba(255,4,144,0.22)]"
-                              : "border-white/10 bg-white/[0.04] text-white/82 hover:border-white/18 hover:bg-white/[0.08]"
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      );
-                    })}
+              {step === "credentials" ? (
+                <form
+                  className="mt-7 space-y-5"
+                  onSubmit={(e) => void handleCredentials(e)}
+                >
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-white/50">Role</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {(["admin", "jury"] as Role[]).map((option) => {
+                        const active = role === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => setRole(option)}
+                            className={`rounded-[1.15rem] border px-4 py-3 text-sm font-semibold capitalize transition-all ${
+                              active
+                                ? "border-esc-pink/40 bg-esc-pink text-white shadow-[0_18px_38px_rgba(255,4,144,0.22)]"
+                                : "border-white/10 bg-white/[0.04] text-white/82 hover:border-white/18 hover:bg-white/[0.08]"
+                            }`}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                <label className="block space-y-2">
-                  <span className="text-[11px] uppercase tracking-[0.18em] text-white/50">Token</span>
-                  <input
-                    className="w-full rounded-[1.2rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-white placeholder:text-white/36 focus:border-esc-pink focus:outline-none"
-                    placeholder="Enter your token"
-                    value={token}
-                    onChange={(e) => setToken(e.target.value)}
-                  />
-                </label>
+                  <label className="block space-y-2">
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-white/50">Email</span>
+                    <input
+                      type="email"
+                      className="w-full rounded-[1.2rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-white placeholder:text-white/36 focus:border-esc-pink focus:outline-none"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </label>
 
-                <button className="w-full rounded-full bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim">
-                  Continue
-                </button>
-              </form>
+                  <label className="block space-y-2">
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-white/50">Password</span>
+                    <input
+                      type="password"
+                      className="w-full rounded-[1.2rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-white placeholder:text-white/36 focus:border-esc-pink focus:outline-none"
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full rounded-full bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim disabled:opacity-50"
+                  >
+                    {submitting ? "Sending..." : "Send verification code"}
+                  </button>
+                </form>
+              ) : (
+                <form
+                  className="mt-7 space-y-5"
+                  onSubmit={(e) => void handleVerify(e)}
+                >
+                  <label className="block space-y-2">
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-white/50">
+                      Verification code
+                    </span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      className="w-full rounded-[1.2rem] border border-white/10 bg-white/[0.05] px-4 py-3 text-center text-2xl tracking-[0.3em] text-white placeholder:text-white/36 focus:border-esc-pink focus:outline-none"
+                      placeholder="000000"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      autoFocus
+                      required
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={submitting || code.length !== 6}
+                    className="w-full rounded-full bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim disabled:opacity-50"
+                  >
+                    {submitting ? "Verifying..." : "Verify & login"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="w-full text-sm text-white/55 transition-colors hover:text-white"
+                    onClick={() => {
+                      setStep("credentials");
+                      setCode("");
+                    }}
+                  >
+                    Back to credentials
+                  </button>
+                </form>
+              )}
 
               <div className="mt-6 rounded-[1.2rem] border border-white/10 bg-white/[0.05] px-4 py-4 text-sm leading-7 text-white/68">
-                Access permissions depend on the selected role and a valid token.
+                A 6-digit verification code will be sent to your registered email via EuroMail. The code expires after 5 minutes.
               </div>
             </aside>
           </div>

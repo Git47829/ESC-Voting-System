@@ -35,6 +35,12 @@ export const NowPlayingPage = () => {
     return `${normalized}${normalized.includes("?") ? "&" : "?"}rel=0&modestbranding=1&playsinline=1`;
   }, [currentSong]);
 
+  useEffect(() => {
+    setPoints(1);
+    setPhoneNum("");
+    setOwnCountry("");
+  }, [contest?.runId, contest?.currentIndex]);
+
   const performerName = currentSong
     ? `${currentSong.artistFirstName} ${currentSong.artistLastName}`.trim()
     : "";
@@ -59,9 +65,16 @@ export const NowPlayingPage = () => {
                 No performance is currently on stage
               </h1>
               <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/68 sm:text-base">
-                As soon as the next contest entry starts, this page will switch to the live stage,
-                show the performance video and open the quick voting panel.
+                {error ?? "As soon as the next contest entry starts, this page will switch to the live stage, show the performance video and open the quick voting panel."}
               </p>
+              {contestEnded ? (
+                <a
+                  href="/results"
+                  className="mt-6 inline-flex items-center rounded-full border border-esc-pink/40 bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim"
+                >
+                  View live results
+                </a>
+              ) : null}
             </div>
           </div>
         </div>
