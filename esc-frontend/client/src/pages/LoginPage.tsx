@@ -12,43 +12,11 @@ const accessHighlights = [
 ];
 
 export const LoginPage = () => {
-  const [step, setStep] = useState<"credentials" | "verify">("credentials");
   const [role, setRole] = useState<Role>("admin");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [code, setCode] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const { authLogin, authVerify } = useAuth();
+  const [token, setToken] = useState("");
+  const { login } = useAuth();
   const navigate = useNavigate();
   const { addFlash } = useFlash();
-
-  const handleCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await authLogin(email, password, role);
-      addFlash("Verification code sent to your email", "success");
-      setStep("verify");
-    } catch (error: unknown) {
-      addFlash(error instanceof Error ? error.message : "Login failed", "error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await authVerify(email, code, role);
-      addFlash("Login successful", "success");
-      navigate(role === "admin" ? "/admin" : "/jury");
-    } catch (error: unknown) {
-      addFlash(error instanceof Error ? error.message : "Verification failed", "error");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">

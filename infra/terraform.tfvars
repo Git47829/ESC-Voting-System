@@ -1,0 +1,6 @@
+proxmox_url       = "https://192.168.178.50:8006"
+proxmox_api_token = "root@pam!terraform=9271fb6c-b9a2-4cd2-b53b-8cd3bb9cc561"
+proxmox_node      = "Pve"
+proxmox_host      = "192.168.178.50"
+ssh_public_key    = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDlAUl50/xTUaHB5c1mCTEKvGPJ5AK8LM41kfJMcVCz7 "
+k3s_token         = "esc-voting-k3s-secret-token"
