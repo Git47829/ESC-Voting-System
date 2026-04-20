@@ -613,23 +613,6 @@ apiRouter.get("/stats", async (_req, res) => {
     });
     return;
   }
-  const response = await upstream.get("/votes/");
-  if (response.status !== 200) {
-    res.status(response.status).json(response.data);
-    return;
-  }
-  const votes = ((response.data?.payload ?? []) as Array<{
-    songId: number; countryId: string; countryName: string;
-    publicVotes: number; juryVotes: number;
-  }>);
-  const totalPublic = votes.reduce((sum, v) => sum + (v.publicVotes ?? 0), 0);
-  const totalJury = votes.reduce((sum, v) => sum + (v.juryVotes ?? 0), 0);
-  const byCountry = votes
-    .map((v) => ({
-      countryId: v.countryId,
-      country: v.countryName,
-      total: (v.publicVotes ?? 0) + (v.juryVotes ?? 0)
-    }))
-    .sort((a, b) => b.total - a.total || a.country.localeCompare(b.country));
-  res.json({ totalPublic, totalJury, byCountry });
+  // Stats are delivered via WebSocket from EuroStats; this endpoint is not used in production
+  res.json({ totalPublic: 0, totalJury: 0, byCountry: [] });
 });

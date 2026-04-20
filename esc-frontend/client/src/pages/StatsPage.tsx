@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../api/client";
 import { flagUrl } from "../utils/flagUrl";
 
-type Stats = Awaited<ReturnType<typeof api.getStats>>;
+interface Charts {
+  voters_by_country: string;
+  votes_received_by_country: string;
+}
+
+interface Stats {
+  totalPublic: number;
+  totalJury: number;
+  byCountry: Array<{ countryId: string; country: string; total: number }>;
+  charts: Charts | null;
+}
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en-US").format(value);
 
 export const StatsPage = () => {
   const [stats, setStats] = useState<Stats | null>(null);
-
-  useEffect(() => {
-    api.getStats().then(setStats).catch(() => {});
-  }, []);
 
   useEffect(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -34,8 +39,13 @@ export const StatsPage = () => {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === "ping") return;
-          if (msg.type === "stats") {
-            api.getStats().then(setStats).catch(() => {});
+          if (msg.type === "stats" && "totalPublic" in msg) {
+            setStats({
+              totalPublic: msg.totalPublic,
+              totalJury: msg.totalJury,
+              byCountry: msg.byCountry,
+              charts: msg.charts ?? null,
+            });
           }
         } catch {
           // ignore malformed messages
@@ -164,6 +174,33 @@ export const StatsPage = () => {
               </div>
             </div>
           </section>
+
+          {stats.charts ? (
+            <section className="mt-12">
+              <div className="border-b border-black/10 pb-4">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-esc-muted">Charts</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-esc-black">
+                  Vote distribution
+                </h2>
+              </div>
+              <div className="mt-6 grid gap-8 md:grid-cols-2">
+                <div className="overflow-hidden rounded-2xl border border-black/8 bg-[#0a0a0a]">
+                  <img
+                    src={stats.charts.voters_by_country}
+                    alt="Voters by Country"
+                    className="h-auto w-full"
+                  />
+                </div>
+                <div className="overflow-hidden rounded-2xl border border-black/8 bg-[#0a0a0a]">
+                  <img
+                    src={stats.charts.votes_received_by_country}
+                    alt="Votes Received by Country"
+                    className="h-auto w-full"
+                  />
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="mt-12">
             <div className="flex flex-wrap items-end justify-between gap-4 border-b border-black/10 pb-4">
