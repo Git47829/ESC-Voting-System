@@ -317,6 +317,15 @@ func writeAuthSuccess(w http.ResponseWriter, claims *authClaims) {
 	})
 }
 
+func generate2FACode() (string, error) {
+	b := make([]byte, 3)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	code := int(b[0])<<16 | int(b[1])<<8 | int(b[2])
+	return strconv.Itoa(100000 + code%900000), nil
+}
+
 func AuthLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
@@ -350,6 +359,87 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 		Logger.WarnContext(ctx, "login failed", slog.String("email", req.Email), slog.String("role", req.Role), slog.String("reason", msg))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{"error": msg})
+		return
+	}
+
+	code, err := generate2FACode()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate verification code"})
+		return
+	}
+
+	if err := StorePendingVerification(ctx, req.Email, code, req.Role); err != nil {
+		Logger.ErrorContext(ctx, "failed to store pending verification", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to store verification"})
+		return
+	}
+
+	if err := PublishEmailJob(req.Email, code); err != nil {
+		Logger.ErrorContext(ctx, "failed to publish email job", slog.Any("error", err))
+		// Don't fail the login — code is in Redis, user can retry
+	}
+
+	Logger.InfoContext(ctx, "2FA code sent", slog.String("email", req.Email), slog.String("role", req.Role))
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Verification code sent to your email"})
+}
+
+type AuthVerifyCodeRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+	Role  string `json:"role"`
+}
+
+func AuthVerifyCode(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	w.Header().Set("Content-Type", "application/json")
+
+	var req AuthVerifyCodeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid request body"})
+		return
+	}
+
+	req.Email = strings.TrimSpace(req.Email)
+	req.Code = strings.TrimSpace(req.Code)
+	req.Role = strings.TrimSpace(req.Role)
+	if req.Email == "" || req.Code == "" || !isSupportedRole(req.Role) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Email, code, and valid role are required"})
+		return
+	}
+
+	storedCode, storedRole, createdAt, exists, err := GetAndDeletePendingVerification(ctx, req.Email)
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to retrieve pending verification", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Verification lookup failed"})
+		return
+	}
+	if !exists {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "No pending verification found. Please login again."})
+		return
+	}
+
+	if time.Since(time.Unix(createdAt, 0)) > 5*time.Minute {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Verification code expired"})
+		return
+	}
+
+	if subtle.ConstantTimeCompare([]byte(storedCode), []byte(req.Code)) != 1 {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid verification code"})
+		return
+	}
+
+	if storedRole != req.Role {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Role mismatch"})
 		return
 	}
 

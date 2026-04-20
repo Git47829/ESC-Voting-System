@@ -72,6 +72,7 @@ var rateLimitConfigs = map[string]RateLimitConfig{
 	"GET /songByID/{ID}":         {Limit: 20, Window: time.Second},
 	"GET /contest/current":       {Limit: 20, Window: time.Second},
 	"POST /auth/login":           {Limit: 3, Window: time.Second},
+	"POST /auth/verify-code":     {Limit: 5, Window: time.Second},
 	"GET /auth/verify":           {Limit: 10, Window: time.Second},
 	"POST /auth/verify":          {Limit: 10, Window: time.Second},
 	"GET /auth/me":               {Limit: 10, Window: time.Second},
@@ -268,6 +269,7 @@ func Run() {
 	router.HandleFunc("GET /songs/", HTTPGetSongs)
 	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
 	router.HandleFunc("POST /auth/login", AuthLogin)
+	router.HandleFunc("POST /auth/verify-code", AuthVerifyCode)
 	router.Handle("GET /auth/verify", RequireAuth(http.HandlerFunc(AuthVerify)))
 	router.Handle("POST /auth/verify", RequireAuth(http.HandlerFunc(AuthVerify)))
 	router.Handle("GET /auth/me", RequireAuth(http.HandlerFunc(AuthMe)))
