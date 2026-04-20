@@ -18,7 +18,6 @@ const formatNumber = (value: number) => new Intl.NumberFormat("en-US").format(va
 
 export const StatsPage = () => {
   const [stats, setStats] = useState<Stats | null>(null);
-
   useEffect(() => {
     const defaultWsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/eurostats/ws/stats`;
     const wsUrl = import.meta.env.VITE_EUROSTATS_WS_URL?.trim() || defaultWsUrl;
@@ -34,7 +33,6 @@ export const StatsPage = () => {
       ws.onopen = () => {
         reconnectDelay = 1000;
       };
-
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
