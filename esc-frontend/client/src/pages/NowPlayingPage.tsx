@@ -3,7 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { useFlash } from "../context/FlashContext";
 import { useContestPoll } from "../hooks/useContestPoll";
+import { flagUrl } from "../utils/flagUrl";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
+
+const fieldClass =
+  "mt-2 w-full border-b border-white/14 bg-transparent pb-3 text-base text-white placeholder:text-white/28 focus:border-esc-pink focus:outline-none";
+
+const stepButtonClass =
+  "inline-flex h-11 w-11 items-center justify-center rounded-full border text-lg font-semibold transition-colors";
 
 export const NowPlayingPage = () => {
   const { contest, error, contestEnded } = useContestPoll();
@@ -12,47 +19,50 @@ export const NowPlayingPage = () => {
   const [ownCountry, setOwnCountry] = useState("");
   const { addFlash } = useFlash();
 
+  const currentSong = contest?.currentSong ?? null;
+  const currentPosition = contest ? contest.currentIndex + 1 : 0;
+  const totalSongs = contest?.totalSongs ?? 0;
+  const contestActive = contest?.contestActive ?? false;
+
   const progress = useMemo(() => {
-    if (!contest || contest.totalSongs === 0) return 0;
-    return ((contest.currentIndex + 1) / contest.totalSongs) * 100;
-  }, [contest]);
+    if (!contest || totalSongs === 0) return 0;
+    return ((contest.currentIndex + 1) / totalSongs) * 100;
+  }, [contest, totalSongs]);
 
   const currentSongEmbedUrl = useMemo(() => {
-    if (!contest?.currentSong?.youtubeUrl) return "";
-    const normalized = normalizeYoutubeUrl(contest.currentSong.youtubeUrl);
+    if (!currentSong?.youtubeUrl) return "";
+    const normalized = normalizeYoutubeUrl(currentSong.youtubeUrl);
     return `${normalized}${normalized.includes("?") ? "&" : "?"}rel=0&modestbranding=1&playsinline=1`;
-  }, [contest]);
+  }, [currentSong]);
 
-  useEffect(() => {
-    setPoints(1);
-    setPhoneNum("");
-    setOwnCountry("");
-  }, [contest?.runId, contest?.currentIndex]);
+  const performerName = currentSong
+    ? `${currentSong.artistFirstName} ${currentSong.artistLastName}`.trim()
+    : "";
 
-  if (!contest?.currentSong) {
+  if (!currentSong) {
     return (
       <section className="-mx-4 sm:-mx-6 lg:-mx-8">
-        <div className="relative isolate overflow-hidden px-4 pb-10 pt-8 sm:px-6 sm:pb-12 lg:px-8">
-          <div className="pointer-events-none absolute inset-0 vote-section-wash" />
-          <div className="pointer-events-none absolute inset-0 vote-grid-lines" />
-          <div className="pointer-events-none absolute inset-0 vote-noise opacity-60 mix-blend-soft-light" />
-          <div className="pointer-events-none absolute left-[-24%] top-[2%] h-[56rem] w-[96rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.42)_0%,_rgba(255,4,144,0.24)_28%,_rgba(255,4,144,0.1)_50%,_rgba(255,4,144,0)_78%)] blur-[200px] opacity-96" />
-          <div className="pointer-events-none absolute right-[-22%] top-[16%] h-[50rem] w-[84rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.3)_0%,_rgba(255,4,144,0.16)_32%,_rgba(255,4,144,0.06)_54%,_rgba(255,4,144,0)_80%)] blur-[190px] opacity-88" />
+        <div className="relative isolate overflow-hidden bg-[#070707] px-4 pb-16 pt-8 text-white sm:px-6 sm:pb-20 lg:px-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,4,144,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(255,4,144,0.12),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0)_38%)]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:8.5rem_8.5rem]" />
+          <div className="pointer-events-none absolute left-[-8rem] top-16 h-72 w-72 rounded-full bg-esc-pink/20 blur-[140px]" />
+          <div className="pointer-events-none absolute right-[-8rem] top-8 h-80 w-80 rounded-full bg-esc-pink/16 blur-[160px]" />
+
           <div className="relative z-10 mx-auto max-w-7xl">
-            <section className="px-2 py-10 text-center sm:px-4">
-              <h1 className="text-3xl font-bold text-white">Running Now</h1>
-              <p className="mt-3 text-sm text-white/70">
-                {error ?? "No active contest song."}
+            <div className="border-b border-white/10 pb-4 text-[11px] uppercase tracking-[0.24em] text-white/48">
+              Stage feed standby
+            </div>
+
+            <div className="mt-14 rounded-[2.3rem] border border-white/10 bg-white/[0.03] px-6 py-14 text-center shadow-[0_30px_70px_rgba(0,0,0,0.28)] backdrop-blur-sm sm:px-10">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-white/50">Running now</p>
+              <h1 className="mt-4 text-4xl font-semibold tracking-[-0.05em] sm:text-6xl">
+                No performance is currently on stage
+              </h1>
+              <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-white/68 sm:text-base">
+                As soon as the next contest entry starts, this page will switch to the live stage,
+                show the performance video and open the quick voting panel.
               </p>
-              {contestEnded ? (
-                <a
-                  href="/results"
-                  className="mt-5 inline-flex items-center rounded-xl border border-esc-pink/60 bg-esc-pink px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-esc-pink-dim"
-                >
-                  View live results
-                </a>
-              ) : null}
-            </section>
+            </div>
           </div>
         </div>
       </section>
@@ -61,70 +71,121 @@ export const NowPlayingPage = () => {
 
   return (
     <section className="-mx-4 sm:-mx-6 lg:-mx-8">
-      <div className="relative isolate overflow-hidden px-4 pb-16 pt-8 sm:px-6 sm:pb-20 lg:px-8">
-        {/* Background layers */}
-        <div className="pointer-events-none absolute inset-0 vote-section-wash" />
-        <div className="pointer-events-none absolute inset-0 vote-grid-lines" />
-        <div className="pointer-events-none absolute inset-0 vote-noise opacity-60 mix-blend-soft-light" />
-        <div className="pointer-events-none absolute left-[-24%] top-[2%] h-[56rem] w-[96rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.42)_0%,_rgba(255,4,144,0.24)_28%,_rgba(255,4,144,0.1)_50%,_rgba(255,4,144,0)_78%)] blur-[200px] opacity-96" />
-        <div className="pointer-events-none absolute right-[-22%] top-[16%] h-[50rem] w-[84rem] rounded-full bg-[radial-gradient(ellipse_at_center,_rgba(255,4,144,0.3)_0%,_rgba(255,4,144,0.16)_32%,_rgba(255,4,144,0.06)_54%,_rgba(255,4,144,0)_80%)] blur-[190px] opacity-88" />
+      <div className="relative isolate overflow-hidden bg-[#070707] px-4 pb-16 pt-8 text-white sm:px-6 sm:pb-20 lg:px-8">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,4,144,0.18),transparent_34%),radial-gradient(circle_at_top_right,rgba(255,4,144,0.14),transparent_30%),radial-gradient(circle_at_50%_42%,rgba(255,255,255,0.035),transparent_48%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] [background-size:8.5rem_8.5rem]" />
+        <div className="pointer-events-none absolute left-[-9rem] top-10 h-[28rem] w-[28rem] rounded-full bg-esc-pink/20 blur-[160px]" />
+        <div className="pointer-events-none absolute right-[-10rem] top-8 h-[30rem] w-[30rem] rounded-full bg-esc-pink/14 blur-[180px]" />
+        <div className="pointer-events-none absolute bottom-[-10rem] left-1/3 h-[24rem] w-[24rem] rounded-full bg-white/[0.035] blur-[150px]" />
 
-        <div className="relative z-10 mx-auto max-w-7xl space-y-0">
-
-          {/* ── HEADER ── */}
-          <header className="px-2 pt-2 pb-8 sm:px-4 sm:pt-4">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.16em] text-white/50">Live contest</p>
-                <h1 className="now-running-reveal mt-2 text-4xl font-bold sm:text-7xl">
-                  <span className="now-running-reveal-bar" aria-hidden="true" />
-                  <span className="now-running-reveal-text">Running Now</span>
-                </h1>
-              </div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-esc-pink/35 bg-black/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-esc-pink backdrop-blur-sm">
-                <span className="h-2 w-2 rounded-full bg-esc-pink animate-stage-glow motion-reduce:animate-none" />
-                Live
-              </span>
+        <div className="relative z-10 mx-auto max-w-7xl">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4 text-[11px] uppercase tracking-[0.24em] text-white/48">
+            <div className="flex items-center gap-2 text-white/62">
+              <span className="stage-glow h-2 w-2 rounded-full bg-esc-pink" />
+              Live stage feed
             </div>
-          </header>
-
-          {/* ── NEON DIVIDER + PROGRESS ── */}
-          <div
-            className="px-2 pt-4 pb-8 sm:px-4"
-          >
-            <div className="flex items-center justify-between text-xs uppercase tracking-[0.14em] text-white/50 mb-2">
-              <span>Song progress</span>
-              <span style={{ color: "rgba(255,4,144,0.9)" }}>
-                {contest.currentIndex + 1} / {contest.totalSongs}
-              </span>
-            </div>
-            <div className="h-[3px] w-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
-              <div
-                className="progress-shine h-full"
-                style={{
-                  width: `${progress}%`,
-                  background: "linear-gradient(90deg, rgba(255,4,144,0.6), rgba(255,4,144,1), rgba(255,4,144,0.6))",
-                  boxShadow: "0 0 10px rgba(255,4,144,0.8)",
-                  transition: "width 0.6s ease",
-                }}
-              />
+            <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-white/62">
+              Song {currentPosition} of {totalSongs}
             </div>
           </div>
 
-          {/* ── MAIN STAGE LAYOUT ── */}
-          <div className="grid gap-0 pt-0 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <div className="mt-10 grid gap-10 xl:grid-cols-[minmax(0,1.08fr)_22rem] xl:items-start">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/68 backdrop-blur-sm">
+                <span className="stage-glow h-2 w-2 rounded-full bg-esc-pink" />
+                Running now
+              </div>
 
-            {/* LEFT: Video + Song info stacked flat */}
-            <div
-              style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}
-              className="pr-0 xl:pr-8 space-y-0"
-            >
-              {/* Video — full bleed, no container */}
-              {contest.currentSong.youtubeUrl ? (
-                <div className="overflow-hidden" style={{ borderRadius: "0.5rem" }}>
+              <h1 className="mt-6 text-[clamp(4.6rem,12vw,9.2rem)] font-bold leading-[0.88] tracking-[-0.095em] text-white">
+                <span className="now-stage-title-line block">Live</span>
+                <span className="now-stage-title-highlight block text-esc-pink">Stage</span>
+              </h1>
+
+              <p className="mt-7 max-w-3xl text-base leading-8 text-white/70 sm:text-lg">
+                Follow the current performance, keep an eye on where the show is in the running
+                order and cast your points while the song is live on stage.
+              </p>
+
+              <div className="mt-8 flex flex-wrap gap-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2">
+                  {currentSong.countryName}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2">
+                  {contestActive ? "Voting open" : "Voting paused"}
+                </span>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2">
+                  Refresh every 5s
+                </span>
+              </div>
+            </div>
+
+            <aside className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-[0_28px_68px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">On stage now</p>
+              <div className="mt-5 flex items-center gap-4">
+                <div className="rounded-[1.15rem] border border-white/10 bg-white/[0.08] p-1.5">
+                  <img
+                    src={flagUrl(currentSong.countryId)}
+                    alt={currentSong.countryName}
+                    className="h-12 w-16 rounded-xl object-cover"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-2xl font-semibold tracking-[-0.04em] text-white">
+                    {currentSong.countryName}
+                  </p>
+                  <p className="mt-1 truncate text-sm text-white/68">{currentSong.songName}</p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-[1.25rem] border border-white/10 bg-black/25 px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Artist</p>
+                  <p className="mt-2 text-sm font-medium text-white">{performerName}</p>
+                </div>
+                <div className="rounded-[1.25rem] border border-white/10 bg-black/25 px-4 py-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/45">Running order</p>
+                  <p className="mt-2 text-sm font-medium text-white">
+                    {currentPosition} / {totalSongs}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.18em] text-white/50">
+                  <span>Show progress</span>
+                  <span>{Math.round(progress)}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full bg-esc-pink transition-all duration-700"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <div className="mt-12 grid gap-6 xl:grid-cols-[minmax(0,1.16fr)_minmax(320px,0.84fr)] xl:items-start">
+            <section className="overflow-hidden rounded-[2.1rem] border border-white/10 bg-white/[0.035] shadow-[0_30px_70px_rgba(0,0,0,0.28)] backdrop-blur-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-6 py-5">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Current performance</p>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">
+                    {currentSong.countryName}
+                    <span className="text-esc-pink"> / </span>
+                    {currentSong.songName}
+                  </h2>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/64">
+                  {currentSong.youtubeUrl ? "Live video" : "Audio only"}
+                </span>
+              </div>
+
+              {currentSong.youtubeUrl ? (
+                <div className="bg-black">
                   <iframe
                     title="Current performance"
-                    className="aspect-video w-full block"
+                    className="aspect-video w-full"
                     src={currentSongEmbedUrl}
                     loading="eager"
                     referrerPolicy="strict-origin-when-cross-origin"
@@ -132,212 +193,115 @@ export const NowPlayingPage = () => {
                     allowFullScreen
                   />
                 </div>
-              ) : null}
+              ) : (
+                <div className="flex aspect-video items-center justify-center bg-black/45 px-6 text-center text-sm text-white/60">
+                  A live video is not available for this performance right now.
+                </div>
+              )}
 
-              {/* Song info — flat text block below video */}
-              <div
-                className="pt-6 pb-8"
-                style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
-              >
-                <p
-                  className="text-xs uppercase tracking-[0.18em] mb-2"
-                  style={{ color: "rgba(255,4,144,0.8)" }}
-                >
-                  Current performance
-                </p>
-                <h2 className="text-3xl font-bold text-white leading-tight">
-                  {contest.currentSong.countryName}
-                  <span style={{ color: "rgba(255,4,144,0.9)" }}> — </span>
-                  {contest.currentSong.songName}
-                </h2>
-                <p
-                  className="mt-2 text-base tracking-wide"
-                  style={{ color: "rgba(255,255,255,0.5)" }}
-                >
-                  {contest.currentSong.artistFirstName} {contest.currentSong.artistLastName}
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-4 border-t border-white/10 px-6 py-5">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">Performed by</p>
+                  <p className="mt-2 text-base font-medium text-white">{performerName}</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-white/64">
+                    Keep this page open while the current act performs. The voting panel on the right
+                    stays ready so points can be submitted without leaving the live stage.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/65">
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2">
+                    Stage feed
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2">
+                    Quick vote ready
+                  </span>
+                </div>
               </div>
-            </div>
+            </section>
 
-            {/* RIGHT: Vote section — no card, pure layout */}
-            <div className="xl:pl-8 pt-8 xl:pt-6 flex flex-col justify-start">
-              <p
-                className="text-xs uppercase tracking-[0.18em] mb-1"
-                style={{ color: "rgba(255,4,144,0.8)" }}
-              >
-                Quick vote
+            <aside className="rounded-[2.1rem] border border-esc-pink/20 bg-[linear-gradient(180deg,rgba(20,20,20,0.98),rgba(34,24,29,0.95))] p-6 shadow-[0_30px_70px_rgba(0,0,0,0.32)]">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">Quick vote</p>
+              <h3 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">
+                Cast points now
+              </h3>
+              <p className="mt-3 text-sm leading-7 text-white/68">
+                Enter your phone number, add your own country code and choose how many points you
+                want to assign to this performance.
               </p>
-              <h3 className="text-3xl font-bold text-white mb-8">Cast points now</h3>
 
               <form
-                className="space-y-4"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  try {
-                    await api.submitVote({
-                      songID: contest.currentSong!.songId,
-                      phoneNum,
-                      ownCountry,
-                      points
-                    });
-                    addFlash("Vote submitted", "success");
-                    setPoints(1);
-                  } catch (error: unknown) {
-                    addFlash(error instanceof Error ? error.message : "Vote failed", "error");
-                  }
+                className="mt-7 space-y-5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void api.submitVote({
+                    songID: currentSong.songId,
+                    phoneNum,
+                    ownCountry,
+                    points
+                  });
                 }}
               >
-                {/* Phone input */}
                 <div>
-                  <label
-                    className="block text-xs uppercase tracking-[0.12em] mb-2"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
-                  >
-                    Phone
-                  </label>
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/48">Phone number</label>
                   <input
-                    style={{
-                      width: "100%",
-                      background: "transparent",
-                      border: "none",
-                      borderBottom: "1px solid rgba(255,255,255,0.2)",
-                      color: "white",
-                      padding: "0.5rem 0",
-                      fontSize: "1rem",
-                      outline: "none",
-                    }}
-                    placeholder="—"
+                    type="tel"
+                    className={fieldClass}
+                    placeholder="Enter your phone number"
                     value={phoneNum}
-                    onChange={(e) => setPhoneNum(e.target.value)}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "rgba(255,4,144,0.9)")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "rgba(255,255,255,0.2)")}
+                    onChange={(event) => setPhoneNum(event.target.value)}
                   />
                 </div>
 
-                {/* Country input */}
                 <div>
-                  <label
-                    className="block text-xs uppercase tracking-[0.12em] mb-2"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
-                  >
-                    Own Country
-                  </label>
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/48">Own country</label>
                   <input
-                    style={{
-                      width: "100%",
-                      background: "transparent",
-                      border: "none",
-                      borderBottom: "1px solid rgba(255,255,255,0.2)",
-                      color: "white",
-                      padding: "0.5rem 0",
-                      fontSize: "1rem",
-                      outline: "none",
-                    }}
-                    placeholder="—"
+                    className={fieldClass}
+                    placeholder="For example DEU"
                     value={ownCountry}
-                    onChange={(e) => setOwnCountry(e.target.value.toUpperCase())}
-                    onFocus={(e) => (e.currentTarget.style.borderBottomColor = "rgba(255,4,144,0.9)")}
-                    onBlur={(e) => (e.currentTarget.style.borderBottomColor = "rgba(255,255,255,0.2)")}
+                    maxLength={3}
+                    onChange={(event) => setOwnCountry(event.target.value.toUpperCase().slice(0, 3))}
                   />
                 </div>
 
-                {/* Points — big display number */}
-                <div>
-                  <label
-                    className="block text-xs uppercase tracking-[0.12em] mb-2"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
-                  >
-                    Points
-                  </label>
-                  <div className="flex items-center gap-4">
-                    <span
-                      style={{
-                        fontSize: "3.5rem",
-                        fontWeight: 700,
-                        lineHeight: 1,
-                        color: "rgba(255,4,144,1)",
-                        textShadow: "0 0 20px rgba(255,4,144,0.5)",
-                        minWidth: "3rem",
-                        display: "inline-block",
-                      }}
-                    >
-                      {points}
-                    </span>
-                    <div className="flex flex-col gap-2">
+                <div className="rounded-[1.7rem] border border-white/10 bg-black/20 px-5 py-5">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-white/45">Points</p>
+                      <p className="mt-3 text-6xl font-semibold tracking-[-0.06em] text-esc-pink">
+                        {points}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => setPoints((p) => Math.min(20, p + 1))}
-                        style={{
-                          background: "rgba(255,4,144,0.15)",
-                          border: "1px solid rgba(255,4,144,0.4)",
-                          color: "rgba(255,4,144,1)",
-                          borderRadius: "0.25rem",
-                          width: "2rem",
-                          height: "1.75rem",
-                          cursor: "pointer",
-                          fontSize: "1rem",
-                          lineHeight: 1,
-                        }}
+                        className={`${stepButtonClass} border-esc-pink/40 bg-esc-pink/12 text-esc-pink hover:bg-esc-pink hover:text-white`}
+                        onClick={() => setPoints((value) => Math.min(20, value + 1))}
                       >
                         +
                       </button>
                       <button
                         type="button"
-                        onClick={() => setPoints((p) => Math.max(1, p - 1))}
-                        style={{
-                          background: "rgba(255,255,255,0.06)",
-                          border: "1px solid rgba(255,255,255,0.15)",
-                          color: "rgba(255,255,255,0.6)",
-                          borderRadius: "0.25rem",
-                          width: "2rem",
-                          height: "1.75rem",
-                          cursor: "pointer",
-                          fontSize: "1rem",
-                          lineHeight: 1,
-                        }}
+                        className={`${stepButtonClass} border-white/12 bg-white/[0.05] text-white/76 hover:border-white/24 hover:bg-white/[0.1]`}
+                        onClick={() => setPoints((value) => Math.max(1, value - 1))}
                       >
-                        −
+                        -
                       </button>
                     </div>
-                    <span
-                      style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.3)", alignSelf: "flex-end", paddingBottom: "0.25rem" }}
-                    >
-                      max 20
-                    </span>
                   </div>
+
+                  <p className="mt-4 text-sm text-white/62">Choose a value between 1 and 20 points.</p>
                 </div>
 
-                {/* Vote button — full neon */}
-                <div className="pt-4">
-                  <button
-                    type="submit"
-                    style={{
-                      width: "100%",
-                      padding: "0.85rem 1.5rem",
-                      background: "rgba(255,4,144,1)",
-                      border: "none",
-                      color: "white",
-                      fontWeight: 700,
-                      fontSize: "0.875rem",
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      cursor: "pointer",
-                      borderRadius: "0.25rem",
-                      boxShadow: "0 0 24px rgba(255,4,144,0.5), 0 0 4px rgba(255,4,144,0.8)",
-                      transition: "box-shadow 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = "0 0 40px rgba(255,4,144,0.8), 0 0 8px rgba(255,4,144,1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = "0 0 24px rgba(255,4,144,0.5), 0 0 4px rgba(255,4,144,0.8)";
-                    }}
-                  >
-                    Vote now
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-full bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim"
+                >
+                  Submit vote
+                </button>
               </form>
-            </div>
+            </aside>
           </div>
         </div>
       </div>
