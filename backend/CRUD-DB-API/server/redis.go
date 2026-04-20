@@ -5,12 +5,24 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 var RedisClient *redis.Client
+
+type pendingVerificationEntry struct {
+	code      string
+	role      string
+	createdAt int64
+}
+
+var (
+	pendingVerificationMu       sync.Mutex
+	pendingVerificationFallback = map[string]pendingVerificationEntry{}
+)
 
 func InitRedis() error {
 	addr := os.Getenv("REDIS_URL")
@@ -100,6 +112,13 @@ func CheckAndEvictToken(ctx context.Context, token string) (bool, error) {
 // StorePendingVerification stores a 2FA pending verification in Redis.
 func StorePendingVerification(ctx context.Context, email, code, role string) error {
 	if !redisAvailable() {
+		pendingVerificationMu.Lock()
+		pendingVerificationFallback[email] = pendingVerificationEntry{
+			code:      code,
+			role:      role,
+			createdAt: time.Now().Unix(),
+		}
+		pendingVerificationMu.Unlock()
 		return nil
 	}
 	key := "pending_2fa:" + email
@@ -118,7 +137,19 @@ func StorePendingVerification(ctx context.Context, email, code, role string) err
 // Returns code, role, createdAt, exists.
 func GetAndDeletePendingVerification(ctx context.Context, email string) (string, string, int64, bool, error) {
 	if !redisAvailable() {
-		return "", "", 0, false, nil
+		pendingVerificationMu.Lock()
+		entry, ok := pendingVerificationFallback[email]
+		if ok {
+			delete(pendingVerificationFallback, email)
+		}
+		pendingVerificationMu.Unlock()
+		if !ok {
+			return "", "", 0, false, nil
+		}
+		if time.Since(time.Unix(entry.createdAt, 0)) > 5*time.Minute {
+			return "", "", 0, false, nil
+		}
+		return entry.code, entry.role, entry.createdAt, true, nil
 	}
 	key := "pending_2fa:" + email
 	result, err := RedisClient.HGetAll(ctx, key).Result()

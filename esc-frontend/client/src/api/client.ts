@@ -226,6 +226,12 @@ export const api = {
       body: JSON.stringify({ email, password, role })
     });
   },
+  authVerifyCode: async (email: string, code: string, role: Role): Promise<AuthResponse> => {
+    return fetchJson<AuthResponse>("/auth/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, code, role })
+    });
+  },
   authVerify: async (): Promise<{ ok: boolean; role: Role | null }> => {
     const data = await fetchJsonWithRefresh<AuthResponse>("/auth/verify", { method: "POST" });
     return {

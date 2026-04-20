@@ -8,6 +8,7 @@ interface AuthContextValue {
   authenticated: boolean;
   loading: boolean;
   authLogin: (email: string, password: string, role: Role) => Promise<void>;
+  authVerifyCode: (email: string, code: string, role: Role) => Promise<void>;
   authVerify: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -39,6 +40,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       authenticated: Boolean(role),
       authLogin: async (email, password, requestedRole) => {
         await api.authLogin(email, password, requestedRole);
+      },
+      authVerifyCode: async (email, code, requestedRole) => {
+        await api.authVerifyCode(email, code, requestedRole);
         const verified = await api.authVerify();
         if (!verified.ok || !verified.role) {
           throw new Error("Authentication verification failed");
