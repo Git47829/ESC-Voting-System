@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { api } from "../api/client";
-import { useFlash } from "../context/FlashContext";
+import { NowPlayingSubmitModal } from "../components/now-playing/NowPlayingSubmitModal";
 import { useContestPoll } from "../hooks/useContestPoll";
 import { flagUrl } from "../utils/flagUrl";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
-
-const fieldClass =
-  "mt-2 w-full border-b border-white/14 bg-transparent pb-3 text-base text-white placeholder:text-white/28 focus:border-esc-pink focus:outline-none";
 
 const stepButtonClass =
   "inline-flex h-11 w-11 items-center justify-center rounded-full border text-lg font-semibold transition-colors";
@@ -15,9 +11,7 @@ const stepButtonClass =
 export const NowPlayingPage = () => {
   const { contest, error, contestEnded } = useContestPoll();
   const [points, setPoints] = useState(1);
-  const [phoneNum, setPhoneNum] = useState("");
-  const [ownCountry, setOwnCountry] = useState("");
-  const { addFlash } = useFlash();
+  const [modalOpen, setModalOpen] = useState(false);
 
   const currentSong = contest?.currentSong ?? null;
   const currentPosition = contest ? contest.currentIndex + 1 : 0;
@@ -37,8 +31,7 @@ export const NowPlayingPage = () => {
 
   useEffect(() => {
     setPoints(1);
-    setPhoneNum("");
-    setOwnCountry("");
+    setModalOpen(false);
   }, [contest?.runId, contest?.currentIndex]);
 
   const performerName = currentSong
@@ -239,44 +232,11 @@ export const NowPlayingPage = () => {
                 Cast points now
               </h3>
               <p className="mt-3 text-sm leading-7 text-white/68">
-                Enter your phone number, add your own country code and choose how many points you
-                want to assign to this performance.
+                Choose how many points you want to assign to this performance, then confirm your
+                vote with your phone number and country.
               </p>
 
-              <form
-                className="mt-7 space-y-5"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void api.submitVote({
-                    songID: currentSong.songId,
-                    phoneNum,
-                    ownCountry,
-                    points
-                  });
-                }}
-              >
-                <div>
-                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/48">Phone number</label>
-                  <input
-                    type="tel"
-                    className={fieldClass}
-                    placeholder="Enter your phone number"
-                    value={phoneNum}
-                    onChange={(event) => setPhoneNum(event.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] uppercase tracking-[0.18em] text-white/48">Own country</label>
-                  <input
-                    className={fieldClass}
-                    placeholder="For example DEU"
-                    value={ownCountry}
-                    maxLength={3}
-                    onChange={(event) => setOwnCountry(event.target.value.toUpperCase().slice(0, 3))}
-                  />
-                </div>
-
+              <div className="mt-7 space-y-5">
                 <div className="rounded-[1.7rem] border border-white/10 bg-black/20 px-5 py-5">
                   <div className="flex items-end justify-between gap-4">
                     <div>
@@ -308,12 +268,20 @@ export const NowPlayingPage = () => {
                 </div>
 
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => setModalOpen(true)}
                   className="w-full rounded-full bg-esc-pink px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white transition-transform duration-300 hover:-translate-y-0.5 hover:bg-esc-pink-dim"
                 >
                   Submit vote
                 </button>
-              </form>
+              </div>
+
+              <NowPlayingSubmitModal
+                open={modalOpen}
+                points={points}
+                songId={currentSong.songId}
+                onClose={() => setModalOpen(false)}
+              />
             </aside>
           </div>
         </div>
