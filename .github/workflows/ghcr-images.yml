@@ -1,6 +1,7 @@
 name: Build and Push GHCR Images
 
 on:
+  push:
   workflow_run:
     workflows:
       - "CI"
@@ -15,7 +16,7 @@ permissions:
 jobs:
   build-and-push:
     name: Build & push (${{ matrix.image }})
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name != github.event.repository.default_branch) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
