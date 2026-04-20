@@ -1,7 +1,11 @@
 package server
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"github.com/nyaruka/phonenumbers"
 	"golang.org/x/crypto/bcrypt"
 	"log/slog"
@@ -55,16 +59,22 @@ func RequireAdmin(next http.Handler) http.Handler {
 func CheckPhoneNum(num string) (string, error) {
 	parsed, err := phonenumbers.Parse(num, "")
 	if err != nil {
-		return "", nil
+		return "", fmt.Errorf("could not parse phone number: %w", err)
 	}
 
 	if !phonenumbers.IsValidNumber(parsed) {
-		return "", nil
+		return "", fmt.Errorf("invalid phone number")
 	}
 
 	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
 
 	return numRegion, nil
+}
+
+func HashPhoneNumber(phone string) string {
+	mac := hmac.New(sha256.New, SignedPhoneSecret)
+	mac.Write([]byte(phone))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func HashPassword(password string) (string, error) {

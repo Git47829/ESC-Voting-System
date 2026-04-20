@@ -301,20 +301,36 @@ func TestGetCurrentSong_ActiveContest_Returns200WithAllFields(t *testing.T) {
 	}
 
 	for _, key := range []string{
-		"runId", "currentIndex", "totalSongs",
-		"songId", "songName", "youtubeUrl",
-		"countryId", "countryName",
-		"artistId", "artistFirstName", "artistLastName", "artistType",
-		"publicVotes", "juryVotes", "totalVotes", "votingIsOpen",
+		"runId", "currentIndex", "totalSongs", "contestActive", "currentSong",
 	} {
 		if _, ok := payload[key]; !ok {
 			t.Errorf("expected key %q in payload", key)
 		}
 	}
 
+	if payload["contestActive"] != true {
+		t.Errorf("expected contestActive=true, got %v", payload["contestActive"])
+	}
+
+	currentSong, ok := payload["currentSong"].(map[string]any)
+	if !ok {
+		t.Fatal("expected currentSong to be an object")
+	}
+
+	for _, key := range []string{
+		"songId", "songName", "youtubeUrl",
+		"countryId", "countryName",
+		"artistId", "artistFirstName", "artistLastName", "artistType",
+		"publicVotes", "juryVotes", "totalVotes", "votingIsOpen",
+	} {
+		if _, ok := currentSong[key]; !ok {
+			t.Errorf("expected key %q in currentSong", key)
+		}
+	}
+
 	// currentIndex=1, ids=[5,3,1] → current song ID = 3
-	if payload["songId"].(float64) != 3 {
-		t.Errorf("expected songId=3, got %v", payload["songId"])
+	if currentSong["songId"].(float64) != 3 {
+		t.Errorf("expected songId=3, got %v", currentSong["songId"])
 	}
 }
 

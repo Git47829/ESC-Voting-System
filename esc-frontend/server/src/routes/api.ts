@@ -1,4 +1,6 @@
+import axios from "axios";
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 
 import { config, isMockMode } from "../config.js";
 import { requireRole } from "../middleware/auth.js";
@@ -6,11 +8,62 @@ import { mockDataService } from "../mock/index.js";
 import { parseConsentCookie, upstream } from "../upstream.js";
 import type { Song } from "../types.js";
 
+const authHeaders = (session: { token?: string; email?: string }) => ({
+  authorization: `Bearer ${session.token ?? ""}`,
+  "X-Email": session.email ?? ""
+});
+
 export const apiRouter = Router();
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts, please try again later" }
+});
+
+const authorizedLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later" }
+});
+
+const decodeVoteStateCookie = (
+  cookieValue: string
+): { votes_remaining: number; votes_cast: Record<string, number> } | null => {
+  try {
+    const raw = Buffer.from(cookieValue, "hex");
+    const sep = raw.lastIndexOf(0x2e); // '.'
+    if (sep === -1) return null;
+    const payload = raw.subarray(0, sep).toString("utf-8");
+    return JSON.parse(payload) as { votes_remaining: number; votes_cast: Record<string, number> };
+  } catch {
+    return null;
+  }
+};
 
 const toInt = (value: unknown, fallback = 0): number => {
   const parsed = Number.parseInt(String(value ?? ""), 10);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const juryPointValues = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12] as const;
+
+const getJuryVoteState = (session: {
+  token?: string;
+  juryVoteState?: { token: string; votesCast: Record<number, number> };
+}) => {
+  const token = session.token ?? "";
+  if (!session.juryVoteState || session.juryVoteState.token !== token) {
+    session.juryVoteState = {
+      token,
+      votesCast: {}
+    };
+  }
+  return session.juryVoteState;
 };
 
 const normalizeYoutubeUrl = (url: string): string => {
@@ -32,7 +85,7 @@ apiRouter.get("/session", (req, res) => {
   });
 });
 
-apiRouter.post("/login", async (req, res) => {
+apiRouter.post("/login", authLimiter, async (req, res) => {
   const role = String(req.body?.role ?? "") as "admin" | "jury";
   const token = String(req.body?.token ?? "").trim();
   if (!token || (role !== "admin" && role !== "jury")) {
@@ -63,6 +116,77 @@ apiRouter.post("/login", async (req, res) => {
   res.json({ ok: true, role });
 });
 
+apiRouter.post("/auth/login", authLimiter, async (req, res) => {
+  const email = String(req.body?.email ?? "").trim();
+  const password = String(req.body?.password ?? "").trim();
+  const role = String(req.body?.role ?? "") as "admin" | "jury";
+  if (!email || !password || (role !== "admin" && role !== "jury")) {
+    res.status(422).json({ error: "Email, password, and valid role are required" });
+    return;
+  }
+
+  if (isMockMode()) {
+    const isValid =
+      (role === "admin" && password === "admin-token") ||
+      (role === "jury" && password === "jury-token");
+    if (!isValid) {
+      res.status(403).json({ error: "Invalid mock credentials" });
+      return;
+    }
+    req.session.pendingEmail = email;
+    req.session.pendingRole = role;
+    req.session.pendingPassword = password;
+    res.json({ message: "Verification code sent" });
+    return;
+  }
+
+  const response = await upstream.post("/auth/login", { email, password, role });
+  if (response.status === 202) {
+    req.session.pendingEmail = email;
+    req.session.pendingRole = role;
+    req.session.pendingPassword = password;
+  }
+  res.status(response.status).json(response.data);
+});
+
+apiRouter.post("/auth/verify", authLimiter, async (req, res) => {
+  const email = String(req.body?.email ?? "").trim();
+  const code = String(req.body?.code ?? "").trim();
+  const role = String(req.body?.role ?? "") as "admin" | "jury";
+  if (!email || !code) {
+    res.status(422).json({ error: "Email and code are required" });
+    return;
+  }
+
+  if (isMockMode()) {
+    if (req.session.pendingEmail === email) {
+      req.session.role = req.session.pendingRole as "admin" | "jury";
+      req.session.token = req.session.pendingPassword ?? "mock-2fa-token";
+      req.session.email = email;
+      delete req.session.pendingEmail;
+      delete req.session.pendingRole;
+      delete req.session.pendingPassword;
+      res.json({ ok: true, role: req.session.role });
+      return;
+    }
+    res.status(401).json({ error: "Invalid or expired verification code" });
+    return;
+  }
+
+  const response = await upstream.post("/auth/verify", { email, code });
+  if (response.status === 202) {
+    req.session.role = role;
+    req.session.token = req.session.pendingPassword ?? "";
+    req.session.email = email;
+    delete req.session.pendingEmail;
+    delete req.session.pendingRole;
+    delete req.session.pendingPassword;
+    res.json({ ok: true, role });
+    return;
+  }
+  res.status(response.status).json(response.data);
+});
+
 apiRouter.post("/logout", (req, res) => {
   req.session.destroy(() => {
     res.json({ ok: true });
@@ -75,6 +199,17 @@ apiRouter.get("/songs", async (_req, res) => {
     return;
   }
   const response = await upstream.get("/songs/");
+  if (response.status === 200 && Array.isArray((response.data as Record<string, unknown>)?.payload)) {
+    const raw = (response.data as { payload: Song[] }).payload;
+    const seen = new Map<number, Song>();
+    for (const song of raw) {
+      if (!seen.has(song.songId)) {
+        seen.set(song.songId, song);
+      }
+    }
+    res.json({ message: "Success", payload: [...seen.values()] });
+    return;
+  }
   res.status(response.status).json(response.data);
 });
 
@@ -101,8 +236,62 @@ apiRouter.get("/contest/current", async (_req, res) => {
     res.json({ payload: mockDataService.getContestCurrent() });
     return;
   }
-  const response = await upstream.get("/contest/current/");
-  res.status(response.status).json(response.data);
+  const response = await upstream.get("/contest/current");
+  if (response.status !== 200) {
+    res.status(response.status).json(response.data);
+    return;
+  }
+
+  const raw = response.data?.payload ?? response.data;
+
+  // Backend already sends nested currentSong — pass through, coerce runId to string
+  if (raw && typeof raw === "object" && "currentSong" in raw) {
+    const payload = raw as Record<string, unknown>;
+    payload.runId = String(payload.runId ?? "");
+    res.json({ payload });
+    return;
+  }
+
+  // Legacy flat shape — reshape into { currentSong: Song, ... }
+  if (raw && typeof raw === "object" && "songId" in raw) {
+    const { runId, currentIndex, totalSongs, songId, songName, youtubeUrl,
+      countryId, countryName, artistId, artistFirstName, artistLastName,
+      artistType, publicVotes, juryVotes, totalVotes, votingIsOpen,
+      ...rest } = raw as Record<string, unknown>;
+    res.json({
+      payload: {
+        runId: String(runId ?? ""), currentIndex, totalSongs,
+        contestActive: true,
+        currentSong: {
+          songId, songName, youtubeUrl, countryId, countryName,
+          artistFirstName, artistLastName,
+          publicVotes, juryVotes, totalVotes, votingIsOpen
+        },
+        ...rest
+      }
+    });
+    return;
+  }
+
+  res.json(response.data);
+});
+
+apiRouter.get("/vote/state", (req, res) => {
+  let state = req.session.voteState;
+  if (!state) {
+    const raw = req.cookies?.vote_state as string | undefined;
+    if (raw) {
+      const decoded = decodeVoteStateCookie(raw);
+      if (decoded) {
+        state = {
+          votesRemaining: decoded.votes_remaining,
+          votesCast: decoded.votes_cast
+        };
+        req.session.voteState = state;
+      }
+    }
+  }
+  res.json(state ?? { votesRemaining: config.totalVotePoints, votesCast: {} });
 });
 
 apiRouter.post("/vote", async (req, res) => {
@@ -122,11 +311,6 @@ apiRouter.post("/vote", async (req, res) => {
       };
       const { voteState } = mockDataService.castPublicVote(songID, points, state);
       req.session.voteState = voteState;
-      res.cookie("vote_state", JSON.stringify(voteState), {
-        maxAge: 365 * 24 * 60 * 60 * 1000,
-        httpOnly: true,
-        sameSite: "strict"
-      });
       res.json({
         message: "Vote submitted",
         payload: voteState
@@ -134,6 +318,21 @@ apiRouter.post("/vote", async (req, res) => {
     } catch (error) {
       res.status(422).json({ error: error instanceof Error ? error.message : "Vote failed" });
     }
+    return;
+  }
+
+  const songID = toInt(req.body?.songID);
+  const points = toInt(req.body?.points, 1);
+  const state = req.session.voteState ?? {
+    votesRemaining: config.totalVotePoints,
+    votesCast: {}
+  };
+
+  if (points > state.votesRemaining) {
+    res.status(403).json({
+      error: `Not enough vote points remaining (have ${state.votesRemaining}, requested ${points})`,
+      votes_remaining: state.votesRemaining
+    });
     return;
   }
 
@@ -152,26 +351,45 @@ apiRouter.post("/vote", async (req, res) => {
   if (setCookie) {
     res.setHeader("set-cookie", setCookie);
   }
-  res.status(response.status).json(response.data);
+
+  if (response.status === 201) {
+    state.votesRemaining -= points;
+    state.votesCast[songID] = (state.votesCast[songID] ?? 0) + points;
+    req.session.voteState = state;
+  }
+
+  res.status(response.status).json(
+    response.status === 201
+      ? { ...response.data, payload: state }
+      : response.data
+  );
 });
 
-apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
+apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), async (req, res) => {
+  const songID = toInt(req.body?.songID);
+  const points = toInt(req.body?.points);
+  const juryVoteState = getJuryVoteState(req.session);
+
+  if (!songID || !juryPointValues.includes(points as (typeof juryPointValues)[number])) {
+    res.status(422).json({ error: "Invalid jury vote payload" });
+    return;
+  }
+
+  if (juryVoteState.votesCast[songID] !== undefined) {
+    res.status(409).json({ error: "This song already has a jury vote from this session." });
+    return;
+  }
+
+  if (Object.values(juryVoteState.votesCast).includes(points)) {
+    res.status(409).json({ error: `${points} points were already used for another song in this session.` });
+    return;
+  }
+
   if (isMockMode()) {
-    const token = req.session.token ?? "jury-token";
-    const songID = toInt(req.body?.songID);
-    const points = toInt(req.body?.points, 12);
-    const cookieKey = `jury_votes_${token}`;
-    const already = req.session.juryVotes?.[`${cookieKey}_${songID}`];
-    if (already) {
-      res.status(409).json({ error: "Duplicate jury vote detected" });
-      return;
-    }
     try {
       mockDataService.castJuryVote(songID, points);
-      req.session.juryVotes = {
-        ...(req.session.juryVotes ?? {}),
-        [`${cookieKey}_${songID}`]: true
-      };
+      juryVoteState.votesCast[songID] = points;
+      req.session.juryVoteState = juryVoteState;
       res.json({ message: "Jury vote submitted" });
     } catch (error) {
       res.status(422).json({ error: error instanceof Error ? error.message : "Vote failed" });
@@ -181,17 +399,24 @@ apiRouter.post("/jury/vote", requireRole("jury"), async (req, res) => {
 
   const response = await upstream.post("/jury/vote/", null, {
     params: {
-      songID: req.body?.songID,
-      points: req.body?.points
+      songID,
+      points
     },
-    headers: {
-      authorization: `Bearer ${req.session.token ?? ""}`
-    }
+    headers: authHeaders(req.session)
   });
+  if (response.status >= 200 && response.status < 300) {
+    juryVoteState.votesCast[songID] = points;
+    req.session.juryVoteState = juryVoteState;
+  }
   res.status(response.status).json(response.data);
 });
 
-apiRouter.get("/admin/authenticate", async (req, res) => {
+apiRouter.get("/jury/vote/state", authorizedLimiter, requireRole("jury"), (req, res) => {
+  const state = getJuryVoteState(req.session);
+  res.json({ payload: { votesCast: state.votesCast } });
+});
+
+apiRouter.get("/admin/authenticate", authLimiter, async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "admin-token" ? 202 : 403).json(
@@ -203,7 +428,7 @@ apiRouter.get("/admin/authenticate", async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.get("/jury/authenticate", async (req, res) => {
+apiRouter.get("/jury/authenticate", authLimiter, async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "jury-token" ? 202 : 403).json(
@@ -215,54 +440,56 @@ apiRouter.get("/jury/authenticate", async (req, res) => {
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/open", requireRole("admin"), async (_req, res) => {
+apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), async (_req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(true);
     res.json({ message: "Voting opened" });
     return;
   }
-  const response = await upstream.post("/admin/open/", null, { params: { Token: _req.session.token } });
+  const response = await upstream.post("/admin/open", null, { headers: authHeaders(_req.session) });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/close", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(false);
     res.json({ message: "Voting closed" });
     return;
   }
-  const response = await upstream.post("/admin/close", null, { params: { Token: req.session.token } });
+  const response = await upstream.post("/admin/close", null, { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.delete("/admin/deleteVotes", requireRole("admin"), async (req, res) => {
+apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.resetVotes();
     req.session.voteState = { votesRemaining: config.totalVotePoints, votesCast: {} };
     res.json({ message: "Votes reset" });
     return;
   }
-  const response = await upstream.delete("/admin/deleteVotes/", { params: { Token: req.session.token } });
+  const response = await upstream.delete("/admin/deleteVotes/", { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addCountry", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), async (req, res) => {
+  const pot = toInt(req.body?.pot, 1);
   if (isMockMode()) {
-    mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""));
+    mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""), pot);
     res.json({ message: "Country added" });
     return;
   }
   const response = await upstream.post("/admin/addCountry/", null, {
     params: {
-      Token: req.session.token,
       ID: req.body?.countryId,
-      Name: req.body?.countryName
-    }
+      Name: req.body?.countryName,
+      Pot: pot
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     mockDataService.addArtist();
     res.json({ message: "Artist added" });
@@ -270,25 +497,27 @@ apiRouter.post("/admin/addArtist", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addArtist/", null, {
     params: {
-      Token: req.session.token,
-      FirstName: req.body?.firstName,
-      LastName: req.body?.lastName,
-      CountryID: req.body?.countryId
-    }
+      vorName: req.body?.firstName,
+      Name: req.body?.lastName,
+      typ: "solo",
+      Land: req.body?.countryId
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     const songs = mockDataService.getSongs();
     const country = songs.find((entry) => entry.countryId === String(req.body?.countryId)) ?? songs[0];
+    const artistId = String(req.body?.artistId ?? "").trim();
     const song = mockDataService.addSong({
       countryId: String(req.body?.countryId),
       countryName: country?.countryName ?? String(req.body?.countryId),
       songName: String(req.body?.songName),
-      artistFirstName: String(req.body?.artistFirstName),
-      artistLastName: String(req.body?.artistLastName),
+      artistFirstName: "Artist",
+      artistLastName: artistId !== "" ? `#${artistId}` : "Unknown",
       youtubeUrl: normalizeYoutubeUrl(String(req.body?.youtubeUrl ?? ""))
     });
     res.json({ message: "Song added", payload: song });
@@ -296,34 +525,34 @@ apiRouter.post("/admin/addSong", requireRole("admin"), async (req, res) => {
   }
   const response = await upstream.post("/admin/addSong/", null, {
     params: {
-      Token: req.session.token,
       SongName: req.body?.songName,
       CountryID: req.body?.countryId,
       KuenstlerID: req.body?.artistId,
       YoutubeURL: req.body?.youtubeUrl
-    }
+    },
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/startContest", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.startContest() });
     return;
   }
-  const response = await upstream.post("/admin/startContest/", null, {
-    params: { Token: req.session.token }
+  const response = await upstream.post("/admin/startContest", null, {
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
 
-apiRouter.post("/admin/advanceContest", requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.advanceContest() });
     return;
   }
-  const response = await upstream.post("/admin/advanceContest/", null, {
-    params: { Token: req.session.token }
+  const response = await upstream.post("/admin/advanceContest", null, {
+    headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
 });
@@ -334,7 +563,10 @@ apiRouter.get("/results", async (_req, res) => {
     return;
   }
 
-  const escResponse = await upstream.get(`${config.escConverterUrl}/api/esc-points`);
+  const escResponse = await axios.get(`${config.escConverterUrl}/api/esc-points`, {
+    timeout: config.apiTimeout,
+    validateStatus: () => true
+  });
   if (escResponse.status >= 400) {
     res.status(escResponse.status).json({ error: "ESC converter unavailable" });
     return;
@@ -381,7 +613,9 @@ apiRouter.get("/stats", async (_req, res) => {
     });
     return;
   }
-  const response = await upstream.get(`${config.eurostatsUrl}/votes/subscribe`);
+  const response = await axios.get(`${config.eurostatsUrl}/votes/subscribe`, {
+    timeout: config.apiTimeout,
+    validateStatus: () => true
+  });
   res.status(response.status).json(response.data);
 });
-

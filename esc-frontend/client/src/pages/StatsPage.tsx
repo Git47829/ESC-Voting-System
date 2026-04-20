@@ -3,19 +3,64 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
 import { flagUrl } from "../utils/flagUrl";
 
-interface StatsData {
-  totalPublic: number;
-  totalJury: number;
-  byCountry: Array<{ countryId: string; country: string; total: number }>;
+interface StatsMessage {
+  type: "stats";
+  vote_count: number;
+  charts: {
+    voters_by_country: string;
+    votes_received_by_country: string;
+  } | null;
 }
 
 const formatNumber = (value: number) => new Intl.NumberFormat("en-US").format(value);
 
 export const StatsPage = () => {
-  const [stats, setStats] = useState<StatsData | null>(null);
+  const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const [voteCount, setVoteCount] = useState(0);
+  const [charts, setCharts] = useState<StatsMessage["charts"]>(null);
+  const [hasData, setHasData] = useState(false);
 
-  useEffect(() => {
-    void api.getStats().then(setStats);
+  const wsRef = useRef<WebSocket | null>(null);
+  const delayRef = useRef(1000);
+  const unmountedRef = useRef(false);
+
+  const connect = useCallback(() => {
+    if (unmountedRef.current) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/eurostats/ws/stats`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      delayRef.current = 1000;
+      setStatus("live");
+    };
+
+    ws.onmessage = (event) => {
+      let msg: { type: string; vote_count?: number; charts?: StatsMessage["charts"] };
+      try {
+        msg = JSON.parse(event.data as string) as typeof msg;
+      } catch {
+        return;
+      }
+      if (msg.type === "ping") return;
+      if (msg.type === "stats") {
+        setVoteCount(Number.isFinite(msg.vote_count) ? msg.vote_count! : 0);
+        setCharts(msg.charts ?? null);
+        setHasData(true);
+      }
+    };
+
+    ws.onclose = () => {
+      if (unmountedRef.current) return;
+      setStatus("reconnecting");
+      setTimeout(connect, delayRef.current);
+      delayRef.current = Math.min(delayRef.current * 2, 30_000);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
   }, []);
 
   const summary = useMemo(() => {

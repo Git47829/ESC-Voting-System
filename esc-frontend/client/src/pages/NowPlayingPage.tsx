@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api/client";
+import { useFlash } from "../context/FlashContext";
 import { useContestPoll } from "../hooks/useContestPoll";
 import { flagUrl } from "../utils/flagUrl";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
@@ -12,10 +13,11 @@ const stepButtonClass =
   "inline-flex h-11 w-11 items-center justify-center rounded-full border text-lg font-semibold transition-colors";
 
 export const NowPlayingPage = () => {
-  const contest = useContestPoll();
+  const { contest, error, contestEnded } = useContestPoll();
   const [points, setPoints] = useState(1);
   const [phoneNum, setPhoneNum] = useState("");
   const [ownCountry, setOwnCountry] = useState("");
+  const { addFlash } = useFlash();
 
   const currentSong = contest?.currentSong ?? null;
   const currentPosition = contest ? contest.currentIndex + 1 : 0;

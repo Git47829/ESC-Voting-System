@@ -5,9 +5,10 @@ interface CountryCardProps {
   song: Song;
   points: number;
   onChange: (songId: number, delta: number) => void;
+  disabled?: boolean;
 }
 
-export const CountryCard = ({ song, points, onChange }: CountryCardProps) => {
+export const CountryCard = ({ song, points, onChange, disabled = false }: CountryCardProps) => {
   const isActive = points > 0;
 
   return (
@@ -43,15 +44,17 @@ export const CountryCard = ({ song, points, onChange }: CountryCardProps) => {
       <div className="flex items-center gap-2.5">
         <button
           aria-label={`decrease points for ${song.countryName}`}
-          className="rounded-xl border border-esc-pink/12 px-3.5 py-1.5 text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink"
+          className="rounded-xl border border-esc-pink/12 px-3.5 py-1.5 text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => onChange(song.songId, -1)}
+          disabled={disabled}
         >
           -
         </button>
         <button
           aria-label={`increase points for ${song.countryName}`}
-          className="rounded-xl border border-esc-pink/12 px-3.5 py-1.5 text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink"
+          className="rounded-xl border border-esc-pink/12 px-3.5 py-1.5 text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => onChange(song.songId, 1)}
+          disabled={disabled}
         >
           +
         </button>

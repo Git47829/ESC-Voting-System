@@ -178,10 +178,20 @@ Returns `404` when no contest is active, `410 Gone` when the contest has finishe
 | Parameter | Required | Description |
 |---|---|---|
 | `Token` | Yes | Admin token |
-| `Name` | Yes | Song title |
-| `Land` | Yes | Country ID (alpha-2, e.g. `DE`) |
-| `ID` | Yes | Artist (`Kuenstler`) ID |
+| `SongName` | Yes | Song title |
+| `CountryID` | Yes | Country ID (`CHAR(2)`, e.g. `DE`) |
+| `KuenstlerID` | Yes | Artist (`Kuenstler`) ID (`INT`) |
 | `YoutubeURL` | No | YouTube embed URL — any YouTube URL format is accepted; the frontend normalizes it to `youtube.com/embed/VIDEO_ID` before submission |
+
+### `POST /admin/addArtist/` Parameters
+
+| Parameter | Required | Description |
+|---|---|---|
+| `Token` | Yes | Admin token |
+| `FirstName` | No | Artist first name (`Vorname`) |
+| `LastName` | Yes | Artist/stage name (`Name`) |
+| `Type` | No | Artist type (`solo`, `duo`, `gruppe`); defaults to `solo` |
+| `CountryID` | Yes | Country ID (`CHAR(2)`, e.g. `DE`) |
 
 ## Rate Limits
 

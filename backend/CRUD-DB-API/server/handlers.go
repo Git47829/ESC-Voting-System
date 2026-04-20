@@ -118,6 +118,7 @@ type CookieVoteState struct {
 }
 
 var SignedCookieSecret []byte
+var SignedPhoneSecret []byte
 
 func cleanupClients() {
 	ticker := time.NewTicker(5 * time.Minute)
@@ -141,6 +142,13 @@ func InitCookieSecret() {
 	SignedCookieSecret = make([]byte, 32)
 	if _, err := rand.Read(SignedCookieSecret); err != nil {
 		panic("cannot generate cookie secret: " + err.Error())
+	}
+}
+
+func InitPhoneSecret() {
+	if key := os.Getenv("PHONESIGNINGSECRET"); key != "" {
+		sum := sha256.Sum256([]byte("phone-secret:" + key))
+		SignedPhoneSecret = sum[:]
 	}
 }
 

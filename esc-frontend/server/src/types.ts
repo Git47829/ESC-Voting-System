@@ -17,6 +17,7 @@ export interface Song {
 export interface Country {
   id: string;
   name: string;
+  pot?: number;
 }
 
 export interface ContestState {
@@ -42,4 +43,3 @@ export interface ApiEnvelope<T> {
   payload: T;
   error?: string;
 }
-
