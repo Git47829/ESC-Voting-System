@@ -86,7 +86,7 @@ services:
       ESC_CONVERTER_URL: http://public-vote-converter:8090
       EUROSTATS_URL: http://eurostats:8880
       PORT: 3001
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      SESSION_SECRET: ${SESSION_SECRET}
       TOTAL_VOTE_POINTS: 20
     depends_on:
       api:
