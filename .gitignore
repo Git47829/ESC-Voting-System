@@ -26,6 +26,13 @@ go.work.sum
 
 # env file
 .env
+*.tfvars
+values.yaml
+*.hcl
+*.backup
+*.tfstate
+
+
 
 tools/
 
