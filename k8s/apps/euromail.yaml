@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: euromail
+  namespace: esc-voting
+  labels:
+    app: euromail
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: euromail
+  template:
+    metadata:
+      labels:
+        app: euromail
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: euromail
+          image: ghcr.io/git47829/esc-voting-euromail:sha-8a85722bb93171dae850617cd12174e7bb4f09ca
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: PORT
+              value: "3000"
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: RESEND_API_KEY
+            - name: RABBITMQ_URL
+              value: "amqp://guest:guest@rabbitmq:5672/%2f"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: euromail
+  namespace: esc-voting
+spec:
+  selector:
+    app: euromail
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: euromail
+  namespace: esc-voting
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: euromail
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

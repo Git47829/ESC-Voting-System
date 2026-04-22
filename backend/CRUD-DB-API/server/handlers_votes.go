@@ -335,6 +335,7 @@ func Vote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	NotifyVote(songID, ownCountry, DB)
+	CacheInvalidate(ctx, "songs:*", "votes:*")
 
 	Logger.InfoContext(ctx, "vote cast",
 		slog.String("phone_hash", phoneHash),

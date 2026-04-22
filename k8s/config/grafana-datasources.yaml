@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: esc-voting
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: PBFA97CFB590B2093
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        jsonData:
+          timeInterval: "15s"
+
+      - name: Loki
+        type: loki
+        uid: P8E80F9AEF21F6940
+        access: proxy
+        url: http://loki:3100
+
+      - name: Tempo
+        type: tempo
+        uid: P214B5B846CF3925F
+        access: proxy
+        url: http://tempo:3200
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: P8E80F9AEF21F6940
+            spanStartTimeShift: "-1m"
+            spanEndTimeShift: "1m"
+            filterByTraceID: true
+            filterBySpanID: false
+            customQuery: true
+            query: '{service_name="${__span.tags.service.name}"} | json | traceID="${__trace.traceId}"'
+          tracesToMetrics:
+            datasourceUid: PBFA97CFB590B2093
+            spanStartTimeShift: "-1m"
+            spanEndTimeShift: "1m"
+          serviceMap:
+            datasourceUid: PBFA97CFB590B2093
+          nodeGraph:
+            enabled: true
+          lokiSearch:
+            datasourceUid: P8E80F9AEF21F6940

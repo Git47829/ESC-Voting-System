@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: esc-voting
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: "otel-collector"
+        static_configs:
+          - targets: ["otel-collector:9464"]
+
+      - job_name: "otel-collector-internal"
+        static_configs:
+          - targets: ["otel-collector:8888"]
+
+      - job_name: "esc-crud-api"
+        static_configs:
+          - targets: ["crud-db-api:8000"]
+        metrics_path: /metrics/
+        scrape_interval: 15s
+
+      - job_name: "esc-euromail"
+        static_configs:
+          - targets: ["euromail:3000"]
+        metrics_path: /metrics
+        scrape_interval: 15s
+
+      - job_name: "esc-points-converter"
+        static_configs:
+          - targets: ["public-vote-converter:8090"]
+        metrics_path: /metrics
+        scrape_interval: 15s
+
+      - job_name: "loki"
+        static_configs:
+          - targets: ["loki:3100"]
+        metrics_path: /metrics
+        scrape_interval: 15s
+
+      - job_name: "tempo"
+        static_configs:
+          - targets: ["tempo:3200"]
+        metrics_path: /metrics
+        scrape_interval: 15s
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: prometheus
+  namespace: esc-voting
+spec:
+  serviceName: prometheus
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.1
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--web.enable-remote-write-receiver"
+            - "--web.route-prefix=/"
+            - "--storage.tsdb.path=/prometheus"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+            - name: prometheus-data
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+  volumeClaimTemplates:
+    - metadata:
+        name: prometheus-data
+      spec:
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: esc-voting
+spec:
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090

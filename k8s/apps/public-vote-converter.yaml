@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: public-vote-converter
+  namespace: esc-voting
+  labels:
+    app: public-vote-converter
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: public-vote-converter
+  template:
+    metadata:
+      labels:
+        app: public-vote-converter
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: public-vote-converter
+          image: ghcr.io/git47829/esc-voting-public-vote-converter:sha-8a85722bb93171dae850617cd12174e7bb4f09ca
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+              name: http
+          env:
+            - name: PORT
+              value: "8090"
+            - name: CRUD_API_URL
+              value: "http://crud-db-api:8000"
+            - name: OTEL_EXPORTER_OTLP_HTTP_ENDPOINT
+              value: "http://otel-collector:4318"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-vote-converter
+  namespace: esc-voting
+spec:
+  selector:
+    app: public-vote-converter
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: public-vote-converter
+  namespace: esc-voting
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: public-vote-converter
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

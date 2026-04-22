@@ -4,12 +4,8 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.10.0",
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint"
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.2"
+    "dev": "pnpm --filter @esc/client dev",
+    "build": "pnpm --filter @esc/client build",
+    "lint": "pnpm --filter @esc/client lint"
   }
 }
-

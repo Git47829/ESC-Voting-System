@@ -1,21 +1,20 @@
 package converter_test
 
 import (
-	"context"
+	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"esc-points-converter/converter"
-	pb "esc-points-converter/proto"
 
+	"github.com/golang-jwt/jwt/v5"
 	"go.opentelemetry.io/otel"
-	"google.golang.org/grpc"
 )
 
 // ---------------------------------------------------------------------------
@@ -29,31 +28,43 @@ func TestMain(m *testing.M) {
 }
 
 // ---------------------------------------------------------------------------
-// Mock gRPC client
+// Mock CRUD-DB-API server
 // ---------------------------------------------------------------------------
 
-type mockVoteClient struct {
-	songs []*pb.SongVoteData
-	err   error
+type songData struct {
+	SongID      int    `json:"songId"`
+	SongName    string `json:"songName"`
+	CountryID   string `json:"countryId"`
+	CountryName string `json:"countryName"`
+	PublicVotes int    `json:"publicVotes"`
 }
 
-func (m *mockVoteClient) StreamVotes(_ context.Context, _ *pb.VoteStreamRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[pb.Vote], error) {
-	return nil, errors.New("not implemented in mock")
+func mockAPIServer(songs []songData, statusCode int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if statusCode != 0 && statusCode != http.StatusOK {
+			w.WriteHeader(statusCode)
+			json.NewEncoder(w).Encode(map[string]string{"error": "mock error"})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]any{
+			"message": "Success",
+			"payload": songs,
+		})
+	}))
 }
 
-func (m *mockVoteClient) GetSongsWithVotes(_ context.Context, _ *pb.GetSongsRequest, _ ...grpc.CallOption) (*pb.GetSongsResponse, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return &pb.GetSongsResponse{Songs: m.songs}, nil
-}
-
-func makeSong(id int32, name, country, countryID string, votes int32) *pb.SongVoteData {
-	return &pb.SongVoteData{
-		SongId:      id,
+func makeSong(id int, name, country, countryID string, votes int) songData {
+	return songData{
+		SongID:      id,
 		SongName:    name,
 		CountryName: country,
-		CountryId:   countryID,
+		CountryID:   countryID,
 		PublicVotes: votes,
 	}
 }
@@ -77,13 +88,13 @@ func TestHandleHealth_Returns200(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestHandlePreview_WithSongs_Returns200(t *testing.T) {
-	client := &mockVoteClient{
-		songs: []*pb.SongVoteData{
-			makeSong(1, "Satellite Reprise", "Germany", "DE", 100),
-			makeSong(2, "Northern Lights", "Sweden", "SE", 80),
-		},
-	}
-	handler := converter.HandlePreview(client, 1)
+	srv := mockAPIServer([]songData{
+		makeSong(1, "Satellite Reprise", "Germany", "DE", 100),
+		makeSong(2, "Northern Lights", "Sweden", "SE", 80),
+	}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -95,12 +106,12 @@ func TestHandlePreview_WithSongs_Returns200(t *testing.T) {
 }
 
 func TestHandlePreview_ResponseShape(t *testing.T) {
-	client := &mockVoteClient{
-		songs: []*pb.SongVoteData{
-			makeSong(1, "Satellite Reprise", "Germany", "DE", 100),
-		},
-	}
-	handler := converter.HandlePreview(client, 1)
+	srv := mockAPIServer([]songData{
+		makeSong(1, "Satellite Reprise", "Germany", "DE", 100),
+	}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -130,12 +141,12 @@ func TestHandlePreview_ResponseShape(t *testing.T) {
 
 func TestHandlePreview_ESCPointsScaledByJuryMembers(t *testing.T) {
 	// juryScale=3: 1st place should get 12 * 3 = 36
-	client := &mockVoteClient{
-		songs: []*pb.SongVoteData{
-			makeSong(1, "Test", "Germany", "DE", 100),
-		},
-	}
-	handler := converter.HandlePreview(client, 3)
+	srv := mockAPIServer([]songData{
+		makeSong(1, "Test", "Germany", "DE", 100),
+	}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 3)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -151,9 +162,11 @@ func TestHandlePreview_ESCPointsScaledByJuryMembers(t *testing.T) {
 	}
 }
 
-func TestHandlePreview_gRPCError_Returns502(t *testing.T) {
-	client := &mockVoteClient{err: errors.New("grpc unavailable")}
-	handler := converter.HandlePreview(client, 1)
+func TestHandlePreview_APIError_Returns502(t *testing.T) {
+	srv := mockAPIServer(nil, http.StatusInternalServerError)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -170,8 +183,10 @@ func TestHandlePreview_gRPCError_Returns502(t *testing.T) {
 }
 
 func TestHandlePreview_EmptySongs_Returns200EmptyPayload(t *testing.T) {
-	client := &mockVoteClient{songs: []*pb.SongVoteData{}}
-	handler := converter.HandlePreview(client, 1)
+	srv := mockAPIServer([]songData{}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -183,8 +198,10 @@ func TestHandlePreview_EmptySongs_Returns200EmptyPayload(t *testing.T) {
 }
 
 func TestHandlePreview_ContentTypeIsJSON(t *testing.T) {
-	client := &mockVoteClient{songs: []*pb.SongVoteData{}}
-	handler := converter.HandlePreview(client, 1)
+	srv := mockAPIServer([]songData{}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -202,13 +219,13 @@ func TestHandlePreview_ContentTypeIsJSON(t *testing.T) {
 }
 
 func TestHandlePreview_ZeroVotesSongsGet0ESCPoints(t *testing.T) {
-	client := &mockVoteClient{
-		songs: []*pb.SongVoteData{
-			makeSong(1, "Song A", "Germany", "DE", 0),
-			makeSong(2, "Song B", "Sweden", "SE", 0),
-		},
-	}
-	handler := converter.HandlePreview(client, 3)
+	srv := mockAPIServer([]songData{
+		makeSong(1, "Song A", "Germany", "DE", 0),
+		makeSong(2, "Song B", "Sweden", "SE", 0),
+	}, http.StatusOK)
+	defer srv.Close()
+
+	handler := converter.HandlePreview(srv.URL, 3)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
 	rr := httptest.NewRecorder()
@@ -223,6 +240,242 @@ func TestHandlePreview_ZeroVotesSongsGet0ESCPoints(t *testing.T) {
 		if song["escPoints"].(float64) != 0 {
 			t.Errorf("song with 0 raw votes should have escPoints=0, got %v", song["escPoints"])
 		}
+	}
+}
+
+func makeJWT(t *testing.T, secret, email, role string, includeExp, includeIat bool) string {
+	t.Helper()
+	now := time.Now()
+	claims := converter.JWTClaims{
+		Role: role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject: email,
+		},
+	}
+	if includeExp {
+		claims.ExpiresAt = jwt.NewNumericDate(now.Add(30 * time.Minute))
+	}
+	if includeIat {
+		claims.IssuedAt = jwt.NewNumericDate(now)
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	sum := sha256.Sum256([]byte("jwt-secret:" + secret))
+	signed, err := token.SignedString(sum[:])
+	if err != nil {
+		t.Fatalf("failed to sign token: %v", err)
+	}
+	return signed
+}
+
+func newVerifier(t *testing.T, secret string) *converter.JWTVerifier {
+	t.Helper()
+	t.Setenv("JWT_SECRET", secret)
+	verifier, err := converter.NewJWTVerifierFromEnv()
+	if err != nil {
+		t.Fatalf("failed to build verifier: %v", err)
+	}
+	return verifier
+}
+
+func TestRequireJWTAuth_MissingToken_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+	var body map[string]string
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body["error"] != "missing authentication token" {
+		t.Fatalf("unexpected error message: %q", body["error"])
+	}
+}
+
+func TestRequireJWTAuth_InvalidSignature_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "different-secret", "user@example.com", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_MissingRequiredClaims_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "user@example.com", "user", false, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_MissingIatClaim_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "user@example.com", "user", true, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_InvalidSubjectClaim_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "not-an-email", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_BearerToken_AllowsProtectedPreview(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	srv := mockAPIServer([]songData{
+		makeSong(1, "Satellite Reprise", "Germany", "DE", 100),
+	}, http.StatusOK)
+	defer srv.Close()
+
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(converter.HandlePreview(srv.URL, 1))
+	token := makeJWT(t, "test-secret", "user@example.com", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d — body: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestRequireJWTAuth_MalformedBearerToken_Returns401(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer")
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_CookieToken_AllowsRequest(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "admin@example.com", "admin", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.AddCookie(&http.Cookie{Name: "auth_token", Value: token, HttpOnly: true})
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_HeaderTokenPreferredOverCookie(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin", "jury", "user")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	validCookieToken := makeJWT(t, "test-secret", "user@example.com", "user", true, true)
+	invalidHeaderToken := makeJWT(t, "different-secret", "user@example.com", "user", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+invalidHeaderToken)
+	req.AddCookie(&http.Cookie{Name: "auth_token", Value: validCookieToken, HttpOnly: true})
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 because header token should be used, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_RoleNormalizedToLowercase(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := converter.AuthClaimsFromContext(r.Context())
+		if !ok {
+			t.Fatal("expected claims in request context")
+		}
+		if claims.Role != "admin" {
+			t.Fatalf("expected normalized role admin, got %q", claims.Role)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "admin@example.com", "ADMIN", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+}
+
+func TestRequireJWTAuth_RejectsDisallowedRole_Returns403(t *testing.T) {
+	verifier := newVerifier(t, "test-secret")
+	protected := converter.RequireJWTAuth(verifier, "admin")(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	token := makeJWT(t, "test-secret", "jury@example.com", "jury", true, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/esc-points", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	protected.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", rr.Code)
 	}
 }
 

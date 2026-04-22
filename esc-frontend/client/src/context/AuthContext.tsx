@@ -5,12 +5,11 @@ import type { Role } from "../types";
 
 interface AuthContextValue {
   role: Role | null;
-  token: string | null;
   authenticated: boolean;
   loading: boolean;
-  login: (role: Role, token: string) => Promise<void>;
   authLogin: (email: string, password: string, role: Role) => Promise<void>;
-  authVerify: (email: string, code: string, role: Role) => Promise<void>;
+  authVerifyCode: (email: string, code: string, role: Role) => Promise<void>;
+  authVerify: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -18,15 +17,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<Role | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const run = async () => {
       try {
-        const session = await api.session();
-        setRole(session.role);
-        setToken(session.token);
+        const session = await api.authMe();
+        setRole(session.authenticated ? session.role : null);
+      } catch {
+        setRole(null);
       } finally {
         setLoading(false);
       }
@@ -37,29 +36,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<AuthContextValue>(
     () => ({
       role,
-      token,
       loading,
-      authenticated: Boolean(role && token),
-      login: async (nextRole, nextToken) => {
-        await api.login(nextRole, nextToken);
-        setRole(nextRole);
-        setToken(nextToken);
+      authenticated: Boolean(role),
+      authLogin: async (email, password, requestedRole) => {
+        await api.authLogin(email, password, requestedRole);
       },
-      authLogin: async (email, password, nextRole) => {
-        await api.authLogin(email, password, nextRole);
+      authVerifyCode: async (email, code, requestedRole) => {
+        await api.authVerifyCode(email, code, requestedRole);
+        const verified = await api.authVerify();
+        if (!verified.ok || !verified.role) {
+          throw new Error("Authentication verification failed");
+        }
+        setRole(verified.role);
       },
-      authVerify: async (email, code, nextRole) => {
-        await api.authVerify(email, code, nextRole);
-        setRole(nextRole);
-        setToken(email);
+      authVerify: async () => {
+        const verified = await api.authVerify();
+        setRole(verified.ok ? verified.role : null);
       },
       logout: async () => {
         await api.logout();
         setRole(null);
-        setToken(null);
       }
     }),
-    [loading, role, token]
+    [loading, role]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -72,4 +71,3 @@ export const useAuth = (): AuthContextValue => {
   }
   return context;
 };
-

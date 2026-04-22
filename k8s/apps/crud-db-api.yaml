@@ -1,0 +1,148 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crud-db-api
+  namespace: esc-voting
+  labels:
+    app: crud-db-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crud-db-api
+  template:
+    metadata:
+      labels:
+        app: crud-db-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: crud-db-api
+          image: ghcr.io/git47829/esc-voting-crud-db-api:sha-8a85722bb93171dae850617cd12174e7bb4f09ca
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DB_HOST
+              value: "mysql"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: "esc_voting"
+            - name: DB_USER
+              value: "esc_user"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: MYSQL_PASSWORD
+            - name: REDIS_URL
+              value: "redis:6379"
+            - name: RABBITMQ_URL
+              value: "amqp://guest:guest@rabbitmq:5672/"
+            - name: OTEL_EXPORTER_OTLP_HTTP_ENDPOINT
+              value: "http://otel-collector:4318"
+            - name: COOKIESIGNINGKEY
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: COOKIESIGNINGKEY
+            - name: PHONESIGNINGKEY
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: PHONESIGNINGKEY
+            - name: adminMail
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: adminMail
+            - name: adminPassword
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: adminPassword
+            - name: juryMail1
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryMail1
+            - name: juryPassword1
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryPassword1
+            - name: juryMail2
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryMail2
+            - name: juryPassword2
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryPassword2
+            - name: juryMail3
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryMail3
+            - name: juryPassword3
+              valueFrom:
+                secretKeyRef:
+                  name: esc-secrets
+                  key: juryPassword3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crud-db-api
+  namespace: esc-voting
+spec:
+  selector:
+    app: crud-db-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: crud-db-api
+  namespace: esc-voting
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: crud-db-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

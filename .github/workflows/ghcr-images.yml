@@ -1,0 +1,75 @@
+name: Build and Push GHCR Images
+
+on:
+  push:
+  workflow_run:
+    workflows:
+      - "CI"
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    name: Build & push (${{ matrix.image }})
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name != github.event.repository.default_branch) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push') }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: esc-voting-crud-db-api
+            context: ./backend/CRUD-DB-API
+            dockerfile: ./backend/CRUD-DB-API/Dockerfile
+          - image: esc-voting-public-vote-converter
+            context: ./backend/PublicVoteConverter
+            dockerfile: ./backend/PublicVoteConverter/Dockerfile
+          - image: esc-voting-eurostats
+            context: ./backend/EuroStats
+            dockerfile: ./backend/EuroStats/Dockerfile
+          - image: esc-voting-euromail
+            context: ./backend/EuroMail
+            dockerfile: ./backend/EuroMail/Dockerfile
+          - image: esc-voting-esc-frontend
+            context: ./esc-frontend
+            dockerfile: ./esc-frontend/Dockerfile
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/git47829/${{ matrix.image }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

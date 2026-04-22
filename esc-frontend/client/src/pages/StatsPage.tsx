@@ -18,10 +18,9 @@ const formatNumber = (value: number) => new Intl.NumberFormat("en-US").format(va
 
 export const StatsPage = () => {
   const [stats, setStats] = useState<Stats | null>(null);
-
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/eurostats/ws/stats`;
+    const defaultWsUrl = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/eurostats/ws/stats`;
+    const wsUrl = import.meta.env.VITE_EUROSTATS_WS_URL?.trim() || defaultWsUrl;
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectDelay = 1000;
@@ -34,7 +33,6 @@ export const StatsPage = () => {
       ws.onopen = () => {
         reconnectDelay = 1000;
       };
-
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);

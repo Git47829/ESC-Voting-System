@@ -18,7 +18,7 @@ export const LoginPage = () => {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const { authLogin, authVerify } = useAuth();
+  const { authLogin, authVerifyCode } = useAuth();
   const navigate = useNavigate();
   const { addFlash } = useFlash();
 
@@ -40,7 +40,7 @@ export const LoginPage = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await authVerify(email, code, role);
+      await authVerifyCode(email, code, role);
       addFlash("Login successful", "success");
       navigate(role === "admin" ? "/admin" : "/jury");
     } catch (error: unknown) {

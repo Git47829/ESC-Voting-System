@@ -1,4 +1,28 @@
+# Local development/integration stack.
+# Production/go-live deployment is maintained in k8s/ for K3s clusters.
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   db:
     build: ./backend/DB/
     container_name: escmysql
@@ -55,6 +79,7 @@ services:
       DB_PASS: esc_password
       EuroMailURL: http://euromail:3000/send
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
+      JWT_SECRET: ${JWT_SECRET}
     healthcheck:
       test: ["CMD", "/healthcheck"]
       interval: 30s
@@ -63,6 +88,10 @@ services:
       start_period: 10s
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       euromail:
         condition: service_healthy
@@ -73,21 +102,21 @@ services:
       - frontend
       - mail
       - observability
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.crud-api.rule=PathPrefix(`/crud-api`)"
+      - "traefik.http.routers.crud-api.entrypoints=websecure"
+      - "traefik.http.routers.crud-api.tls=true"
+      - "traefik.http.routers.crud-api.priority=200"
+      - "traefik.http.routers.crud-api.middlewares=crud-api-strip"
+      - "traefik.http.middlewares.crud-api-strip.stripprefix.prefixes=/crud-api"
+      - "traefik.http.services.crud-api.loadbalancer.server.port=8000"
 
   frontend:
     build: ./esc-frontend/
     container_name: esc-frontend
     restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      USE_MOCK: "false"
-      API_BASE_URL: http://db-crud-api:8000
-      API_TIMEOUT: 10000
-      ESC_CONVERTER_URL: http://public-vote-converter:8090
-      EUROSTATS_URL: http://eurostats:8880
-      PORT: 3001
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
-      TOTAL_VOTE_POINTS: 20
     depends_on:
       api:
         condition: service_healthy
@@ -98,11 +127,19 @@ services:
     networks:
       - frontend
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3001"
 
   public-vote-converter:
     build: ./backend/PublicVoteConverter/
@@ -117,8 +154,12 @@ services:
       DB_USER: esc_user
       DB_PASS: esc_password
       PORT: 8090
+      CRUD_API_URL: http://api:8000
       OTEL_EXPORTER_OTLP_HTTP_ENDPOINT: http://otel-collector:4318
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
+      api:
+        condition: service_healthy
       db:
         condition: service_healthy
       otel-collector:
@@ -133,6 +174,16 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.esc-converter.rule=PathPrefix(`/esc-converter`)"
+      - "traefik.http.routers.esc-converter.entrypoints=websecure"
+      - "traefik.http.routers.esc-converter.tls=true"
+      - "traefik.http.routers.esc-converter.priority=200"
+      - "traefik.http.routers.esc-converter.middlewares=esc-converter-strip"
+      - "traefik.http.middlewares.esc-converter-strip.stripprefix.prefixes=/esc-converter"
+      - "traefik.http.services.esc-converter.loadbalancer.server.port=8090"
 
   eurostats:
     build:
@@ -140,12 +191,14 @@ services:
       dockerfile: Dockerfile
     container_name: eurostats
     environment:
-      - GRPC_HOST=db-crud-api
-      - GRPC_PORT=50051
       - LOG_LEVEL=INFO
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     depends_on:
       api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
@@ -166,19 +219,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=frontend"
+      - "traefik.http.routers.eurostats.rule=PathPrefix(`/eurostats`)"
+      - "traefik.http.routers.eurostats.entrypoints=websecure"
+      - "traefik.http.routers.eurostats.tls=true"
+      - "traefik.http.routers.eurostats.priority=200"
+      - "traefik.http.routers.eurostats.middlewares=eurostats-strip"
+      - "traefik.http.middlewares.eurostats-strip.stripprefix.prefixes=/eurostats"
+      - "traefik.http.services.eurostats.loadbalancer.server.port=8880"
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.94.0
     command: ["--config=/etc/otel/otel-collector.yml"]
     volumes:
       - ./backend/Observability/OTel/src/otel-collector.yml:/etc/otel/otel-collector.yml:ro
-      - caddy_logs:/var/log/caddy:ro
+      - traefik_logs:/var/log/traefik:ro
     networks:
       - observability
     depends_on:
       db:
         condition: service_healthy
-      caddy-log-init:
+      traefik-log-init:
         condition: service_completed_successfully
 
   prometheus:
@@ -193,6 +256,16 @@ services:
       - observability
     depends_on:
       - otel-collector
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=observability"
+      - "traefik.http.routers.prometheus.rule=PathPrefix(`/prometheus`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls=true"
+      - "traefik.http.routers.prometheus.priority=220"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-strip"
+      - "traefik.http.middlewares.prometheus-strip.stripprefix.prefixes=/prometheus"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
 
   grafana:
     image: grafana/grafana:10.4.2
@@ -207,6 +280,14 @@ services:
     depends_on:
       - prometheus
       - tempo
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=observability"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.routers.grafana.priority=220"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   loki:
     image: grafana/loki:2.9.6
@@ -215,13 +296,23 @@ services:
       - observability
     volumes:
       - loki_data:/loki
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=observability"
+      - "traefik.http.routers.loki.rule=PathPrefix(`/loki`)"
+      - "traefik.http.routers.loki.entrypoints=websecure"
+      - "traefik.http.routers.loki.tls=true"
+      - "traefik.http.routers.loki.priority=220"
+      - "traefik.http.routers.loki.middlewares=loki-strip"
+      - "traefik.http.middlewares.loki-strip.stripprefix.prefixes=/loki"
+      - "traefik.http.services.loki.loadbalancer.server.port=3100"
 
-  caddy-log-init:
+  traefik-log-init:
     image: busybox
     user: root
-    command: chown -R 10001:10001 /var/log/caddy
+    command: sh -c "touch /var/log/traefik/access.log && chmod 0644 /var/log/traefik/access.log"
     volumes:
-      - caddy_logs:/var/log/caddy
+      - traefik_logs:/var/log/traefik
 
   tempo-init:
     image: busybox
@@ -241,16 +332,38 @@ services:
     depends_on:
       tempo-init:
         condition: service_completed_successfully
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=observability"
+      - "traefik.http.routers.tempo.rule=PathPrefix(`/tempo`)"
+      - "traefik.http.routers.tempo.entrypoints=websecure"
+      - "traefik.http.routers.tempo.tls=true"
+      - "traefik.http.routers.tempo.priority=220"
+      - "traefik.http.routers.tempo.middlewares=tempo-strip"
+      - "traefik.http.middlewares.tempo-strip.stripprefix.prefixes=/tempo"
+      - "traefik.http.services.tempo.loadbalancer.server.port=3200"
 
-  caddy:
-    image: caddy:2.8-alpine
-    container_name: caddy
+  traefik:
+    image: traefik:v3.1
+    container_name: traefik
     restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.metrics.address=:8082"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--api.dashboard=true"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=metrics"
+      - "--accesslog=true"
+      - "--accesslog.filepath=/var/log/traefik/access.log"
+      - "--accesslog.format=json"
     volumes:
-      - ./backend/Caddy/src/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-      - caddy_logs:/var/log/caddy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_logs:/var/log/traefik
     ports:
       - "80:80"
       - "443:443"
@@ -267,16 +380,16 @@ services:
       - tempo
       - loki
       - otel-collector
-      - caddy-log-init
+      - traefik-log-init
+    labels:
+      - "traefik.enable=false"
 
 volumes:
   mysql_data:
   grafana_data:
   loki_data:
   tempo_data:
-  caddy_data:
-  caddy_config:
-  caddy_logs:
+  traefik_logs:
 
 networks:
   backend:

@@ -4,12 +4,12 @@ receivers:
       grpc:
       http:
 
-  # Tail Caddy's newline-delimited JSON access log from the shared Docker
-  # volume.  Each line is a self-contained JSON object emitted by Caddy's
+  # Tail Traefik's newline-delimited JSON access log from the shared Docker
+  # volume. Each line is a self-contained JSON object emitted by Traefik's
   # built-in log directive (format json).
   filelog:
     include:
-      - /var/log/caddy/access.log
+      - /var/log/traefik/access.log
     # Pick up lines written before the collector started (e.g. after a
     # collector restart) so no entries are silently lost.
     start_at: beginning
@@ -49,15 +49,15 @@ receivers:
         field: attributes.level
         value: INFO
 
-      # ── 4. Tag the resource with service.name = caddy ─────────────────────
+      # ── 4. Tag the resource with service.name = traefik ───────────────────
       # The resource/loki_labels processor (see processors section) promotes
       # resource attributes listed in loki.resource.labels to Loki stream
-      # labels.  service.name is already in that list, so every Caddy log
-      # line will appear under {service_name="caddy"} in Loki — exactly like
+      # labels. service.name is already in that list, so every Traefik log
+      # line will appear under {service_name="traefik"} in Loki — exactly like
       # the other services in the stack.
       - type: add
         field: resource["service.name"]
-        value: caddy
+        value: traefik
 
 processors:
   batch:

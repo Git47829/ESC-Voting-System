@@ -12,14 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	pb "esc-points-converter/proto"
-
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // escPointTable maps 0-indexed rank to ESC televote points.
@@ -43,20 +38,46 @@ type Song struct {
 	Rank      int    `json:"rank"`
 }
 
-func fetchSongs(ctx context.Context, client pb.VoteServiceClient) ([]Song, error) {
-	resp, err := client.GetSongsWithVotes(ctx, &pb.GetSongsRequest{})
+// songAPIData matches the JSON shape returned by CRUD-DB-API GET /api/songs-with-votes.
+type songAPIData struct {
+	SongID      int    `json:"songId"`
+	SongName    string `json:"songName"`
+	CountryID   string `json:"countryId"`
+	CountryName string `json:"countryName"`
+	PublicVotes int    `json:"publicVotes"`
+}
+
+func fetchSongs(ctx context.Context, apiURL string) ([]Song, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/api/songs-with-votes", nil)
 	if err != nil {
-		return nil, fmt.Errorf("GetSongsWithVotes: %w", err)
+		return nil, fmt.Errorf("build request: %w", err)
 	}
 
-	songs := make([]Song, 0, len(resp.Songs))
-	for _, s := range resp.Songs {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch songs: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch songs: status %d", resp.StatusCode)
+	}
+
+	var body struct {
+		Payload []songAPIData `json:"payload"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	songs := make([]Song, 0, len(body.Payload))
+	for _, s := range body.Payload {
 		songs = append(songs, Song{
-			ID:        int(s.SongId),
-			Name:      s.SongName,
-			Country:   s.CountryName,
-			CountryID: s.CountryId,
-			RawVotes:  int(s.PublicVotes),
+			ID:       s.SongID,
+			Name:     s.SongName,
+			Country:  s.CountryName,
+			CountryID: s.CountryID,
+			RawVotes: s.PublicVotes,
 		})
 	}
 	return songs, nil
@@ -84,13 +105,13 @@ func HandleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func HandlePreview(client pb.VoteServiceClient, juryScale int) http.HandlerFunc {
+func HandlePreview(apiURL string, juryScale int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		_, span := Tracer.Start(ctx, "preview.fetchAndRank")
 		defer span.End()
 
-		songs, err := fetchSongs(ctx, client)
+		songs, err := fetchSongs(ctx, apiURL)
 		if err != nil {
 			Logger.ErrorContext(ctx, "preview: failed to fetch songs", "error", err)
 			span.RecordError(err)
@@ -129,54 +150,38 @@ func GetEnvInt(key string, fallback int) int {
 	return fallback
 }
 
-func connectToGRPC() (*grpc.ClientConn, error) {
-	host := getEnv("GRPC_HOST", "db-crud-api")
-	port := getEnv("GRPC_PORT", "50051")
-	target := fmt.Sprintf("%s:%s", host, port)
-
+func waitForAPI(apiURL string) error {
 	const (
 		maxAttempts = 20
 		retryDelay  = 3 * time.Second
 	)
 
-	Logger.Info("connecting to CrudAPI gRPC", slog.String("target", target))
+	Logger.Info("waiting for CRUD-DB-API", slog.String("url", apiURL))
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		conn, err := grpc.NewClient(target, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			Logger.Warn("gRPC dial failed, retrying",
-				slog.Int("attempt", attempt),
-				slog.Int("max", maxAttempts),
-				"error", err,
-			)
-			if attempt < maxAttempts {
-				time.Sleep(retryDelay)
-			}
-			continue
-		}
-
-		// Probe with a short-timeout RPC to verify the server is ready.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		client := pb.NewVoteServiceClient(conn)
-		_, probeErr := client.GetSongsWithVotes(ctx, &pb.GetSongsRequest{})
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, apiURL+"/health", nil)
+		resp, err := http.DefaultClient.Do(req)
 		cancel()
 
-		if probeErr == nil {
-			Logger.Info("gRPC connection established", slog.Int("attempt", attempt))
-			return conn, nil
+		if err == nil && resp.StatusCode == http.StatusOK {
+			resp.Body.Close()
+			Logger.Info("CRUD-DB-API is ready", slog.Int("attempt", attempt))
+			return nil
+		}
+		if resp != nil {
+			resp.Body.Close()
 		}
 
-		conn.Close()
-		Logger.Warn("gRPC server not ready, retrying",
+		Logger.Warn("CRUD-DB-API not ready, retrying",
 			slog.Int("attempt", attempt),
 			slog.Int("max", maxAttempts),
-			"error", probeErr,
 		)
 		if attempt < maxAttempts {
 			time.Sleep(retryDelay)
 		}
 	}
-	return nil, fmt.Errorf("could not connect to gRPC after %d attempts", maxAttempts)
+	return fmt.Errorf("CRUD-DB-API not reachable after %d attempts", maxAttempts)
 }
 
 func Run() {
@@ -211,31 +216,31 @@ func Run() {
 
 	Tracer = otel.Tracer("esc-points-converter")
 
-	conn, err := connectToGRPC()
-	if err != nil {
-		Logger.Error("failed to connect to CrudAPI gRPC", "error", err)
+	apiURL := getEnv("CRUD_API_URL", "http://db-crud-api:8000")
+	if err := waitForAPI(apiURL); err != nil {
+		Logger.Error("failed to connect to CRUD-DB-API", "error", err)
 		os.Exit(1)
 	}
-	defer conn.Close()
-	Logger.Info("CrudAPI gRPC connection established")
-
-	grpcClient := pb.NewVoteServiceClient(conn)
 
 	port := getEnv("PORT", "8090")
+	jwtVerifier, err := NewJWTVerifierFromEnv()
+	if err != nil {
+		Logger.Error("failed to configure JWT auth", "error", err)
+		os.Exit(1)
+	}
 
 	// juryScale equalises the 50/50 jury vs televote weighting.
 	juryScale := GetEnvInt("NUM_JURY_MEMBERS", 3)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", HandleHealth)
-	mux.HandleFunc("GET /api/esc-points", HandlePreview(grpcClient, juryScale))
+	mux.Handle("GET /api/esc-points", RequireJWTAuth(jwtVerifier, "admin", "jury", "user")(HandlePreview(apiURL, juryScale)))
 	mux.Handle("GET /metrics", promhttp.Handler())
 
 	Logger.Info("ESC points converter starting",
 		slog.String("port", port),
 		slog.Int("jury_scale", juryScale),
-		slog.String("grpc_host", getEnv("GRPC_HOST", "db-crud-api")),
-		slog.String("grpc_port", getEnv("GRPC_PORT", "50051")),
+		slog.String("crud_api_url", apiURL),
 		slog.String("otel_endpoint", getEnv("OTEL_EXPORTER_OTLP_HTTP_ENDPOINT", "http://otel-collector:4318")),
 	)
 

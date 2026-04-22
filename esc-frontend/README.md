@@ -1,41 +1,80 @@
-# ESC Frontend Monorepo (React + Express + TypeScript)
+# ESC Frontend (`esc-frontend/`)
 
-## Setup
+Frontend workspace for the React SPA (`client/`).
+
+## Workspace layout
+
+- `client/` — React 18 + TypeScript + Vite
+
+## Prerequisites
+
+- Node.js 22+
+- pnpm 10.10.0
+
+## Setup & run
 
 ```bash
-cd /Users/rodimemboyrazli/IdeaProjects/ESC-Voting-System/esc-frontend
+cd esc-frontend
 pnpm install
 pnpm dev
 ```
 
+Development endpoints:
+
 - Client: `http://localhost:5173`
-- Server: `http://localhost:3001`
+- CRUD API (direct): `http://localhost:8000`
 
-## Build
+## Scripts
 
-```bash
-pnpm build
-```
+Root scripts:
 
-## Mock credentials
+- `pnpm dev` — run the React client in dev mode
+- `pnpm build` — build the client
+- `pnpm lint` — TypeScript no-emit check for the client
 
-- Admin token: `admin-token`
-- Jury token: `jury-token`
+Package scripts:
 
-## Real backend mode
+- `client`: `dev`, `build`, `preview`, `lint`
 
-Create `server/.env`:
+## Client runtime architecture
 
-```env
-NODE_ENV=production
-USE_MOCK=false
-API_BASE_URL=http://db-crud-api:8000
-API_TIMEOUT=10000
-ESC_CONVERTER_URL=http://public-vote-converter:8090
-EUROSTATS_URL=http://eurostats:8880
-PORT=3001
-SESSION_SECRET=change-me-in-production
-TOTAL_VOTE_POINTS=20
-```
+- Routes: `/`, `/now`, `/results`, `/stats`, `/cookies`, `/login`, `/admin`, `/jury`
+- `ProtectedRoute` enforces role access for `/admin` and `/jury`
+- Polling:
+  - results every 10s (`useResultsPoll`)
+  - contest current song every 5s (`useContestPoll`)
+  - voting status every 5s (`useVotingStatus`)
+- Cookie consent is stored client-side (`esc_cookie_consent`)
 
-In development, mock mode is active by default (`NODE_ENV=development`), but you can force real-backend mode with `USE_MOCK=false`.
+## Client API integration (direct Go services)
+
+The React client talks directly to backend services:
+
+- CRUD-DB-API (`/crud-api` by default): auth, songs, votes, countries, contest, admin, jury, results
+- EuroStats WebSocket (`/eurostats/ws/stats` by default): live stats
+
+Auth uses HttpOnly JWT cookies (`credentials: include`) with:
+
+- `POST /auth/login`
+- `POST /auth/verify`
+- `GET /auth/me`
+- `POST /auth/refresh`
+- `POST /auth/logout`
+
+## Client environment variables
+
+Create `client/.env` (see `client/.env.example`):
+
+- `VITE_CRUD_API_BASE_URL` (default `/crud-api`)
+- `VITE_EUROSTATS_WS_URL` (optional explicit WS URL)
+
+## Vite dev proxy
+
+`client/vite.config.ts` proxies:
+
+- `/crud-api` → `http://localhost:8000`
+- `/eurostats` (WS enabled) → `http://localhost:8880`
+
+## Docker
+
+`esc-frontend/Dockerfile` builds the client and serves static assets via Nginx on port `3001`.
