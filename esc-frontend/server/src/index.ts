@@ -62,7 +62,7 @@ app.use(
 if (isProduction) {
   const csrfMiddleware = lusca.csrf();
   app.use((req, res, next) => {
-    const csrfExempt = ["/api/login", "/api/auth/login", "/api/auth/verify", "/api/csrf-token", "/health"];
+    const csrfExempt = ["/api/login", "/api/auth/login", "/api/auth/verify", "/health"];
     if (csrfExempt.includes(req.path)) {
       next();
       return;
