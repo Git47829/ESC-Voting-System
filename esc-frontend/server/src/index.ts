@@ -60,10 +60,23 @@ app.use(
 );
 
 if (isProduction) {
-  app.use(lusca.csrf());
+  const csrfMiddleware = lusca.csrf();
+  app.use((req, res, next) => {
+    const csrfExempt = ["/api/login", "/api/auth/login", "/api/auth/verify", "/api/csrf-token", "/health"];
+    if (csrfExempt.includes(req.path)) {
+      next();
+      return;
+    }
+    csrfMiddleware(req, res, next);
+  });
 }
 app.get("/api/csrf-token", (req, res) => {
-  res.status(200).json({ csrfToken: (req as unknown as { csrfToken(): string }).csrfToken() });
+  const tokenFn = (req as unknown as { csrfToken?: () => string }).csrfToken;
+  if (typeof tokenFn === "function") {
+    res.status(200).json({ csrfToken: tokenFn.call(req) });
+  } else {
+    res.status(200).json({ csrfToken: "" });
+  }
 });
 
 app.get("/health", (_req, res) => {
