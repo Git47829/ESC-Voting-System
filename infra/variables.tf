@@ -20,6 +20,12 @@ variable "ssh_public_key" {
   type        = string
 }
 
+variable "node_login_user" {
+  description = "Primary non-root username to create on every node"
+  type        = string
+  default     = "ubuntu"
+}
+
 variable "k3s_nodes" {
   description = "Map of k3s nodes to provision"
   type = map(object({

@@ -1,0 +1,32 @@
+env:
+  MYSQL_DATABASE: esc_voting
+  MYSQL_USER: esc_user
+  MYSQL_PASSWORD: esc_password
+  MYSQL_ROOT_PASSWORD: secretroot
+
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  DB_NAME: esc_voting
+  DB_USER: esc_user
+  DB_PASS: esc_password
+
+  adminMail: mm1000@gmx.net
+  adminPassword: '$2a$10$oYYaClRXbOtY7gZ9S3PKPeENcyMRfac7i.h2jXPpsBcXOjWvGHATK'
+
+  juryMail1: ""
+  juryPassword1: '$2a$10$sg4I5oodnxl6TGh32jOQzOSTPoYKDfW.CNpXbA8q/J0LHL4Vir1hO'
+
+  juryMail2: mm1000@gmx.net
+  juryPassword2: '$2a$10$ARUAjNi1700nGPBppkMmUuWKxOdLG.uQ5m2RdSZ.rhAxyHxuhnAcG'
+
+  juryMail3: ""
+  juryPassword3: '$2a$10$UV6Tth1duKtnJ85CxNnn8OELFJZ4bN4i3a6I4vHew8hbvaWedBCE.'
+
+  TESTADMINPW: test123
+
+  COOKIESIGNINGKEY: '$2a$10$kIrNLOvU8aFmk/YwrWh2IOEeGZLt2.cTjhvxVpCaKtcY2yOG7CLF.'
+  PHONESIGNINGKEY: c8e70b128dc497fbcd7c727b305b050526acb0750989bbf60123dde0ce935203
+  EuroMailURL: ""
+  RESEND_API_KEY: re_Pam3BSrp_CcDA6i6cmQq8hdb5jmiaLnfD
+
+  JWT_SECRET: bb7aed6dfc4cc74820003e98086ff625a6e2b1d573423dfbd18c598ddb71a55d

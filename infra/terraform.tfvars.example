@@ -1,0 +1,18 @@
+proxmox_url       = "https://proxmox.example.local:8006/api2/json"
+proxmox_api_token = "root@pam!terraform=replace-with-token-value"
+proxmox_host      = "192.168.178.10"
+
+ssh_public_key  = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExamplePublicKeyReplaceMe user@example"
+node_login_user = "ubuntu"
+k3s_token      = "replace-with-strong-k3s-shared-secret"
+
+# Optional: override defaults from variables.tf when needed.
+# proxmox_node    = "pve"
+# gateway         = "192.168.178.1"
+# template_vm_id  = 9000
+# k3s_nodes = {
+#   "k3s-server-01" = { role = "server", cores = 2, memory = 4096, disk = 20, ip = "192.168.178.110" }
+#   "k3s-agent-01"  = { role = "agent", cores = 4, memory = 8192, disk = 40, ip = "192.168.178.111" }
+#   "k3s-agent-02"  = { role = "agent", cores = 4, memory = 8192, disk = 40, ip = "192.168.178.112" }
+#   "k3s-agent-03"  = { role = "agent", cores = 4, memory = 8192, disk = 40, ip = "192.168.178.113" }
+# }

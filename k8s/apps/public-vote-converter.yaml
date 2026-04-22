@@ -19,7 +19,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: public-vote-converter
-          image: ghcr.io/git47829/esc-voting-public-vote-converter:latest
+          image: ghcr.io/git47829/esc-voting-public-vote-converter:sha-8a85722bb93171dae850617cd12174e7bb4f09ca
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8090

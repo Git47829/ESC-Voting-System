@@ -4,8 +4,20 @@ resource "proxmox_virtual_environment_file" "cloud_init_server" {
   node_name    = var.proxmox_node
 
   source_raw {
-    data = <<-EOF
+    data      = <<-EOF
       #cloud-config
+      disable_root: false
+      users:
+        - name: ${var.node_login_user}
+          groups: [sudo]
+          shell: /bin/bash
+          sudo: ALL=(ALL) NOPASSWD:ALL
+          ssh_authorized_keys:
+            - ${var.ssh_public_key}
+        - name: root
+          shell: /bin/bash
+          ssh_authorized_keys:
+            - ${var.ssh_public_key}
       package_update: true
       packages:
         - curl
@@ -22,8 +34,20 @@ resource "proxmox_virtual_environment_file" "cloud_init_agent" {
   node_name    = var.proxmox_node
 
   source_raw {
-    data = <<-EOF
+    data      = <<-EOF
       #cloud-config
+      disable_root: false
+      users:
+        - name: ${var.node_login_user}
+          groups: [sudo]
+          shell: /bin/bash
+          sudo: ALL=(ALL) NOPASSWD:ALL
+          ssh_authorized_keys:
+            - ${var.ssh_public_key}
+        - name: root
+          shell: /bin/bash
+          ssh_authorized_keys:
+            - ${var.ssh_public_key}
       package_update: true
       packages:
         - curl
@@ -73,10 +97,6 @@ resource "proxmox_virtual_environment_vm" "k3s_nodes" {
         address = "${each.value.ip}/24"
         gateway = var.gateway
       }
-    }
-    user_account {
-      username = "ubuntu"
-      keys     = [var.ssh_public_key]
     }
   }
 
