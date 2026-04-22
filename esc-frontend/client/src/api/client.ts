@@ -40,15 +40,37 @@ const extractErrorMessage = (value: unknown): string | null => {
   return null;
 };
 
-const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+let csrfToken: string | null = null;
+
+const getCsrfToken = async (): Promise<string> => {
+  if (csrfToken) return csrfToken;
+  const res = await fetch("/api/csrf-token", { credentials: "include" });
+  const data = (await res.json()) as { csrfToken: string };
+  csrfToken = data.csrfToken || "";
+  return csrfToken;
+};
+
+const fetchJson = async <T>(url: string, init?: RequestInit, isRetry = false): Promise<T> => {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string> ?? {})
+  };
+
+  if (method !== "GET" && method !== "HEAD") {
+    headers["x-csrf-token"] = await getCsrfToken();
+  }
+
   const response = await fetch(url, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    },
-    ...init
+    ...init,
+    headers
   });
+
+  if (response.status === 403 && !isRetry) {
+    csrfToken = null;
+    return fetchJson<T>(url, init, true);
+  }
 
   const rawBody = await response.text();
   let data = {} as T;

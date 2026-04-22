@@ -7,7 +7,7 @@ export const requireRole = (role: "admin" | "jury") => {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
-    if (currentRole !== role && currentRole !== "admin") {
+    if (currentRole !== role) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
