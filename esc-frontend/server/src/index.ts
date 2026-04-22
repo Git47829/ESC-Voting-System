@@ -1,9 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import axios from "axios";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
 import lusca from "lusca";
@@ -15,6 +16,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isProduction = config.nodeEnv === "production";
+
+if (isProduction && config.sessionSecret === "change-me-in-production") {
+  throw new Error("SESSION_SECRET environment variable is required in production");
+}
 
 const app = express();
 
@@ -54,12 +59,12 @@ app.use(
   })
 );
 
-if (!isProduction) {
+if (isProduction) {
   app.use(lusca.csrf());
-  app.get("/api/csrf-token", (req, res) => {
-    res.status(200).json({ csrfToken: (req as unknown as { csrfToken(): string }).csrfToken() });
-  });
 }
+app.get("/api/csrf-token", (req, res) => {
+  res.status(200).json({ csrfToken: (req as unknown as { csrfToken(): string }).csrfToken() });
+});
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "healthy", service: "esc-frontend-server", mock: isMockMode() });
@@ -74,6 +79,16 @@ if (isProduction) {
     res.sendFile(path.join(clientDist, "index.html"));
   });
 }
+
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (axios.isAxiosError(err)) {
+    res.status(502).json({ error: "Upstream service unavailable" });
+    return;
+  }
+  // eslint-disable-next-line no-console
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Internal server error" });
+});
 
 app.listen(config.port, () => {
   // eslint-disable-next-line no-console

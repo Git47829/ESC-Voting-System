@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 
 import { config, isMockMode } from "../config.js";
@@ -14,6 +14,9 @@ const authHeaders = (session: { token?: string; email?: string }) => ({
 });
 
 export const apiRouter = Router();
+
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
+  (req: Request, res: Response, next: NextFunction) => { fn(req, res, next).catch(next); };
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -85,7 +88,7 @@ apiRouter.get("/session", (req, res) => {
   });
 });
 
-apiRouter.post("/login", authLimiter, async (req, res) => {
+apiRouter.post("/login", authLimiter, asyncHandler(async (req, res) => {
   const role = String(req.body?.role ?? "") as "admin" | "jury";
   const token = String(req.body?.token ?? "").trim();
   if (!token || (role !== "admin" && role !== "jury")) {
@@ -114,9 +117,9 @@ apiRouter.post("/login", authLimiter, async (req, res) => {
   req.session.role = role;
   req.session.token = token;
   res.json({ ok: true, role });
-});
+}));
 
-apiRouter.post("/auth/login", authLimiter, async (req, res) => {
+apiRouter.post("/auth/login", authLimiter, asyncHandler(async (req, res) => {
   const email = String(req.body?.email ?? "").trim();
   const password = String(req.body?.password ?? "").trim();
   const role = String(req.body?.role ?? "") as "admin" | "jury";
@@ -147,26 +150,30 @@ apiRouter.post("/auth/login", authLimiter, async (req, res) => {
     req.session.pendingPassword = password;
   }
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/auth/verify", authLimiter, async (req, res) => {
+apiRouter.post("/auth/verify", authLimiter, asyncHandler(async (req, res) => {
   const email = String(req.body?.email ?? "").trim();
   const code = String(req.body?.code ?? "").trim();
-  const role = String(req.body?.role ?? "") as "admin" | "jury";
+  const role = req.session.pendingRole as "admin" | "jury" | undefined;
   if (!email || !code) {
     res.status(422).json({ error: "Email and code are required" });
+    return;
+  }
+  if (!role) {
+    res.status(409).json({ error: "No pending login — call /auth/login first" });
     return;
   }
 
   if (isMockMode()) {
     if (req.session.pendingEmail === email) {
-      req.session.role = req.session.pendingRole as "admin" | "jury";
+      req.session.role = role;
       req.session.token = req.session.pendingPassword ?? "mock-2fa-token";
       req.session.email = email;
       delete req.session.pendingEmail;
       delete req.session.pendingRole;
       delete req.session.pendingPassword;
-      res.json({ ok: true, role: req.session.role });
+      res.json({ ok: true, role });
       return;
     }
     res.status(401).json({ error: "Invalid or expired verification code" });
@@ -185,7 +192,7 @@ apiRouter.post("/auth/verify", authLimiter, async (req, res) => {
     return;
   }
   res.status(response.status).json(response.data);
-});
+}));
 
 apiRouter.post("/logout", (req, res) => {
   req.session.destroy(() => {
@@ -193,7 +200,7 @@ apiRouter.post("/logout", (req, res) => {
   });
 });
 
-apiRouter.get("/songs", async (_req, res) => {
+apiRouter.get("/songs", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.getSongs() });
     return;
@@ -211,27 +218,27 @@ apiRouter.get("/songs", async (_req, res) => {
     return;
   }
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.get("/votes", async (_req, res) => {
+apiRouter.get("/votes", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.getVotes() });
     return;
   }
   const response = await upstream.get("/votes/");
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.get("/countries", async (_req, res) => {
+apiRouter.get("/countries", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.getCountries() });
     return;
   }
   const response = await upstream.get("/countries/");
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.get("/contest/current", async (_req, res) => {
+apiRouter.get("/contest/current", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.getContestCurrent() });
     return;
@@ -274,7 +281,7 @@ apiRouter.get("/contest/current", async (_req, res) => {
   }
 
   res.json(response.data);
-});
+}));
 
 apiRouter.get("/vote/state", (req, res) => {
   let state = req.session.voteState;
@@ -294,7 +301,7 @@ apiRouter.get("/vote/state", (req, res) => {
   res.json(state ?? { votesRemaining: config.totalVotePoints, votesCast: {} });
 });
 
-apiRouter.post("/vote", async (req, res) => {
+apiRouter.post("/vote", asyncHandler(async (req, res) => {
   const essentialConsent = parseConsentCookie(req.headers.cookie);
   if (!essentialConsent) {
     res.status(403).json({ error: "Please accept required vote cookies before submitting votes." });
@@ -363,9 +370,9 @@ apiRouter.post("/vote", async (req, res) => {
       ? { ...response.data, payload: state }
       : response.data
   );
-});
+}));
 
-apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), async (req, res) => {
+apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), asyncHandler(async (req, res) => {
   const songID = toInt(req.body?.songID);
   const points = toInt(req.body?.points);
   const juryVoteState = getJuryVoteState(req.session);
@@ -409,14 +416,14 @@ apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), async (req,
     req.session.juryVoteState = juryVoteState;
   }
   res.status(response.status).json(response.data);
-});
+}));
 
 apiRouter.get("/jury/vote/state", authorizedLimiter, requireRole("jury"), (req, res) => {
   const state = getJuryVoteState(req.session);
   res.json({ payload: { votesCast: state.votesCast } });
 });
 
-apiRouter.get("/admin/authenticate", authLimiter, async (req, res) => {
+apiRouter.get("/admin/authenticate", authLimiter, asyncHandler(async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "admin-token" ? 202 : 403).json(
@@ -426,9 +433,9 @@ apiRouter.get("/admin/authenticate", authLimiter, async (req, res) => {
   }
   const response = await upstream.get("/admin/authenticate", { params: { Token: token } });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.get("/jury/authenticate", authLimiter, async (req, res) => {
+apiRouter.get("/jury/authenticate", authLimiter, asyncHandler(async (req, res) => {
   const token = String(req.query.Token ?? "");
   if (isMockMode()) {
     res.status(token === "jury-token" ? 202 : 403).json(
@@ -438,9 +445,9 @@ apiRouter.get("/jury/authenticate", authLimiter, async (req, res) => {
   }
   const response = await upstream.get("/jury/authenticate", { params: { Token: token } });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), async (_req, res) => {
+apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(true);
     res.json({ message: "Voting opened" });
@@ -448,9 +455,9 @@ apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), async (_r
   }
   const response = await upstream.post("/admin/open", null, { headers: authHeaders(_req.session) });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     mockDataService.setVotingOpen(false);
     res.json({ message: "Voting closed" });
@@ -458,9 +465,9 @@ apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), async (r
   }
   const response = await upstream.post("/admin/close", null, { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     mockDataService.resetVotes();
     req.session.voteState = { votesRemaining: config.totalVotePoints, votesCast: {} };
@@ -469,9 +476,9 @@ apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), 
   }
   const response = await upstream.delete("/admin/deleteVotes/", { headers: authHeaders(req.session) });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   const pot = toInt(req.body?.pot, 1);
   if (isMockMode()) {
     mockDataService.addCountry(String(req.body?.countryId ?? ""), String(req.body?.countryName ?? ""), pot);
@@ -487,9 +494,9 @@ apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), asy
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     mockDataService.addArtist();
     res.json({ message: "Artist added" });
@@ -505,9 +512,9 @@ apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), asyn
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     const songs = mockDataService.getSongs();
     const country = songs.find((entry) => entry.countryId === String(req.body?.countryId)) ?? songs[0];
@@ -533,9 +540,9 @@ apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), async 
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.startContest() });
     return;
@@ -544,9 +551,9 @@ apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), a
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"), async (req, res) => {
+apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
   if (isMockMode()) {
     res.json({ payload: mockDataService.advanceContest() });
     return;
@@ -555,9 +562,9 @@ apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"),
     headers: authHeaders(req.session)
   });
   res.status(response.status).json(response.data);
-});
+}));
 
-apiRouter.get("/results", async (_req, res) => {
+apiRouter.get("/results", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     res.json(mockDataService.getVotes());
     return;
@@ -591,9 +598,9 @@ apiRouter.get("/results", async (_req, res) => {
 
   results.sort((a, b) => b.totalPts - a.totalPts || a.id - b.id);
   res.json(results.map((entry, index) => ({ ...entry, rank: index + 1 })));
-});
+}));
 
-apiRouter.get("/stats", async (_req, res) => {
+apiRouter.get("/stats", asyncHandler(async (_req, res) => {
   if (isMockMode()) {
     const songs = mockDataService.getSongs();
     const totalPublic = songs.reduce((sum, song) => sum + song.publicVotes, 0);
@@ -615,4 +622,4 @@ apiRouter.get("/stats", async (_req, res) => {
   }
   // Stats are delivered via WebSocket from EuroStats; this endpoint is not used in production
   res.json({ totalPublic: 0, totalJury: 0, byCountry: [] });
-});
+}));
