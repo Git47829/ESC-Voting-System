@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,7 +8,6 @@ import cors from "cors";
 import express, { type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
-import lusca from "lusca";
 
 import { config, isMockMode } from "./config.js";
 import { apiRouter } from "./routes/api.js";
@@ -59,24 +59,27 @@ app.use(
   })
 );
 
-if (isProduction) {
-  const csrfMiddleware = lusca.csrf();
-  app.use((req, res, next) => {
-    const csrfExempt = ["/api/login", "/api/auth/login", "/api/auth/verify", "/health"];
-    if (csrfExempt.includes(req.path)) {
-      next();
-      return;
-    }
-    csrfMiddleware(req, res, next);
-  });
-}
-app.get("/api/csrf-token", (req, res) => {
-  const tokenFn = (req as unknown as { csrfToken?: () => string }).csrfToken;
-  if (typeof tokenFn === "function") {
-    res.status(200).json({ csrfToken: tokenFn.call(req) });
-  } else {
-    res.status(200).json({ csrfToken: "" });
+const csrfExempt = new Set(["/api/login", "/api/auth/login", "/api/auth/verify", "/api/csrf-token", "/health"]);
+const csrfSafeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+
+app.use((req, res, next) => {
+  if (csrfSafeMethods.has(req.method) || csrfExempt.has(req.path)) {
+    next();
+    return;
   }
+  const token = req.headers["x-csrf-token"] as string | undefined;
+  if (!token || token !== req.session.csrfToken) {
+    res.status(403).json({ error: "CSRF token invalid" });
+    return;
+  }
+  next();
+});
+
+app.get("/api/csrf-token", (req, res) => {
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = crypto.randomUUID();
+  }
+  res.json({ csrfToken: req.session.csrfToken });
 });
 
 app.get("/health", (_req, res) => {

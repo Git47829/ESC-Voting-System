@@ -17,5 +17,6 @@ declare module "express-session" {
       token: string;
       votesCast: Record<number, number>;
     };
+    csrfToken?: string;
   }
 }
