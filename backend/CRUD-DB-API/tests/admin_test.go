@@ -32,9 +32,10 @@ func badTokenReq(method, path string) *http.Request {
 // ---------------------------------------------------------------------------
 
 func TestAdminAuthenticate_CorrectToken_Returns202(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := adminReq(http.MethodGet, "/admin/authenticate")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AdminLogin)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeAdminLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d", rr.Code)
@@ -42,9 +43,10 @@ func TestAdminAuthenticate_CorrectToken_Returns202(t *testing.T) {
 }
 
 func TestAdminAuthenticate_WrongToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := badTokenReq(http.MethodGet, "/admin/authenticate")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AdminLogin)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeAdminLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -52,9 +54,10 @@ func TestAdminAuthenticate_WrongToken_Returns403(t *testing.T) {
 }
 
 func TestAdminAuthenticate_NoToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/admin/authenticate", nil)
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AdminLogin)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeAdminLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -71,14 +74,14 @@ func TestOpenVote_Returns202(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Voting_Status SET isOpen = true").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/open/", nil)
 	rr := httptest.NewRecorder()
-	server.OpenVote(rr, req)
+	h.ServeOpenVote(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d — body: %s", rr.Code, rr.Body.String())
@@ -91,13 +94,13 @@ func TestOpenVote_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Voting_Status").WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/open/", nil)
 	rr := httptest.NewRecorder()
-	server.OpenVote(rr, req)
+	h.ServeOpenVote(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
@@ -110,13 +113,13 @@ func TestOpenVote_ZeroRowsAffected_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Voting_Status").WillReturnResult(sqlmock.NewResult(0, 0))
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/open/", nil)
 	rr := httptest.NewRecorder()
-	server.OpenVote(rr, req)
+	h.ServeOpenVote(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -133,14 +136,14 @@ func TestCloseVote_ValidToken_Returns202(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Voting_Status SET isOpen = false").
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/close", nil)
 	rr := httptest.NewRecorder()
-	server.CloseVote(rr, req)
+	h.ServeCloseVote(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d", rr.Code)
@@ -148,9 +151,10 @@ func TestCloseVote_ValidToken_Returns202(t *testing.T) {
 }
 
 func TestCloseVote_InvalidToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := badTokenReq(http.MethodPost, "/admin/close")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.CloseVote)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeCloseVote)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -167,7 +171,7 @@ func TestDeleteVotes_ValidToken_Returns202(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Song SET PublikumsPunkte").
 		WillReturnResult(sqlmock.NewResult(0, 2))
@@ -176,7 +180,7 @@ func TestDeleteVotes_ValidToken_Returns202(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/admin/deleteVotes/", nil)
 	rr := httptest.NewRecorder()
-	server.DeleteVotes(rr, req)
+	h.ServeDeleteVotes(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d — body: %s", rr.Code, rr.Body.String())
@@ -189,13 +193,13 @@ func TestDeleteVotes_ValidToken_NoVotes_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("UPDATE Song").WillReturnResult(sqlmock.NewResult(0, 0))
 
 	req := httptest.NewRequest(http.MethodDelete, "/admin/deleteVotes/", nil)
 	rr := httptest.NewRecorder()
-	server.DeleteVotes(rr, req)
+	h.ServeDeleteVotes(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -203,9 +207,10 @@ func TestDeleteVotes_ValidToken_NoVotes_Returns404(t *testing.T) {
 }
 
 func TestDeleteVotes_InvalidToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := badTokenReq(http.MethodDelete, "/admin/deleteVotes/")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.DeleteVotes)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeDeleteVotes)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -222,14 +227,14 @@ func TestAddCountry_ValidToken_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("INSERT INTO Land").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addCountry/?ID=DE&Name=Germany&Pot=5", nil)
 	rr := httptest.NewRecorder()
-	server.AddCountry(rr, req)
+	h.ServeAddCountry(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -237,10 +242,11 @@ func TestAddCountry_ValidToken_Returns201(t *testing.T) {
 }
 
 func TestAddCountry_InvalidPot_Returns422(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addCountry/?ID=DE&Name=Germany&Pot=notanumber", nil)
 	rr := httptest.NewRecorder()
-	server.AddCountry(rr, req)
+	h.ServeAddCountry(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -248,9 +254,10 @@ func TestAddCountry_InvalidPot_Returns422(t *testing.T) {
 }
 
 func TestAddCountry_InvalidToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := badTokenReq(http.MethodPost, "/admin/addCountry/?ID=DE&Name=Germany&Pot=5")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AddCountry)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeAddCountry)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -267,14 +274,14 @@ func TestAddSong_ValidToken_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("INSERT INTO Song").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addSong/?KuenstlerID=1&SongName=TestSong&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
-	server.AddSong(rr, req)
+	h.ServeAddSong(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -282,10 +289,11 @@ func TestAddSong_ValidToken_Returns201(t *testing.T) {
 }
 
 func TestAddSong_InvalidKuenstlerID_Returns422(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addSong/?KuenstlerID=notanumber&SongName=TestSong&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
-	server.AddSong(rr, req)
+	h.ServeAddSong(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -298,14 +306,14 @@ func TestAddSong_WithYoutubeURL_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("INSERT INTO Song").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addSong/?KuenstlerID=1&SongName=TestSong&CountryID=DE&YoutubeURL=https://youtube.com/watch?v=test", nil)
 	rr := httptest.NewRecorder()
-	server.AddSong(rr, req)
+	h.ServeAddSong(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -322,14 +330,14 @@ func TestAddArtist_ValidToken_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("INSERT INTO Kuenstler").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DE", nil)
 	rr := httptest.NewRecorder()
-	server.AddArtist(rr, req)
+	h.ServeAddArtist(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -337,10 +345,11 @@ func TestAddArtist_ValidToken_Returns201(t *testing.T) {
 }
 
 func TestAddArtist_InvalidCountryID_Returns422(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DEU", nil)
 	rr := httptest.NewRecorder()
-	server.AddArtist(rr, req)
+	h.ServeAddArtist(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -348,9 +357,10 @@ func TestAddArtist_InvalidCountryID_Returns422(t *testing.T) {
 }
 
 func TestAddArtist_InvalidToken_Returns403(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := badTokenReq(http.MethodPost, "/admin/addArtist/?FirstName=Max&LastName=Mueller&Type=solo&CountryID=DE")
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AddArtist)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(h.ServeAddArtist)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -367,14 +377,14 @@ func TestAddInterpret_ValidToken_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectExec("INSERT INTO Komponist").WillReturnResult(sqlmock.NewResult(1, 1))
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addInterpret/?ID=1&Name=Wagner&Vorname=Hans", nil)
 	rr := httptest.NewRecorder()
-	server.AddInterpret(rr, req)
+	h.ServeAddInterpret(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -382,10 +392,11 @@ func TestAddInterpret_ValidToken_Returns201(t *testing.T) {
 }
 
 func TestAddInterpret_InvalidID_Returns400(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost,
 		"/admin/addInterpret/?ID=notanumber&Name=Wagner&Vorname=Hans", nil)
 	rr := httptest.NewRecorder()
-	server.AddInterpret(rr, req)
+	h.ServeAddInterpret(rr, req)
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", rr.Code)
@@ -402,11 +413,12 @@ func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("juryPassword1", h)
+	hndlr := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
 	req.Header.Set("Authorization", "Bearer jury1")
 	req.Header.Set("X-Email", "jury1@test.com")
 	rr := httptest.NewRecorder()
-	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
+	server.RequireJury(http.HandlerFunc(hndlr.ServeJuryLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusAccepted {
 		t.Errorf("expected 202, got %d", rr.Code)
@@ -414,10 +426,11 @@ func TestJuryAuthenticate_CorrectToken_Returns202(t *testing.T) {
 }
 
 func TestJuryAuthenticate_WrongToken_Returns403(t *testing.T) {
+	hndlr := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
 	req.Header.Set("Authorization", "Bearer notjurytoken")
 	rr := httptest.NewRecorder()
-	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
+	server.RequireJury(http.HandlerFunc(hndlr.ServeJuryLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -425,9 +438,10 @@ func TestJuryAuthenticate_WrongToken_Returns403(t *testing.T) {
 }
 
 func TestJuryAuthenticate_NoToken_Returns403(t *testing.T) {
+	hndlr := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/jury/authenticate", nil)
 	rr := httptest.NewRecorder()
-	server.RequireJury(http.HandlerFunc(server.JuryLogin)).ServeHTTP(rr, req)
+	server.RequireJury(http.HandlerFunc(hndlr.ServeJuryLogin)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)

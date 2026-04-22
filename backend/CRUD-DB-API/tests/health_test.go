@@ -6,14 +6,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"crud-db-api/server"
 )
 
 func TestGetHealth_Returns200(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
-	server.GetHealth(rr, req)
+	h.ServeGetHealth(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -21,9 +20,10 @@ func TestGetHealth_Returns200(t *testing.T) {
 }
 
 func TestGetHealth_BodyHasStatusKey(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
-	server.GetHealth(rr, req)
+	h.ServeGetHealth(rr, req)
 
 	var body map[string]string
 	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
@@ -38,9 +38,10 @@ func TestGetHealth_BodyHasStatusKey(t *testing.T) {
 }
 
 func TestGetHealth_ContentTypeJSON(t *testing.T) {
+	h := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
 	rr := httptest.NewRecorder()
-	server.GetHealth(rr, req)
+	h.ServeGetHealth(rr, req)
 
 	ct := rr.Header().Get("Content-Type")
 	if !strings.Contains(ct, "application/json") {

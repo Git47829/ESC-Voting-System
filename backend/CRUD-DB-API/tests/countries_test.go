@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-
-	"crud-db-api/server"
 )
 
 var countryCols = []string{"ID", "Name", "POT"}
@@ -20,7 +18,7 @@ func TestGetCountries_Returns200WithList(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(countryCols).
 		AddRow("DE", "Germany", 5).
@@ -29,7 +27,7 @@ func TestGetCountries_Returns200WithList(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/countries/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCountries(rr, req)
+	h.ServeGetCountries(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -50,14 +48,14 @@ func TestGetCountries_ResponseShape(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(countryCols).AddRow("DE", "Germany", 5)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	req := httptest.NewRequest(http.MethodGet, "/countries/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCountries(rr, req)
+	h.ServeGetCountries(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -77,14 +75,14 @@ func TestGetCountries_NullPot_SerializesAsNull(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(countryCols).AddRow("DE", "Germany", nil)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	req := httptest.NewRequest(http.MethodGet, "/countries/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCountries(rr, req)
+	h.ServeGetCountries(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -102,13 +100,13 @@ func TestGetCountries_DBError_Returns502(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/countries/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCountries(rr, req)
+	h.ServeGetCountries(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
@@ -121,14 +119,14 @@ func TestGetCountryByName_ExistingID_Returns200(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(countryCols).AddRow("DE", "Germany", 5)
 	mock.ExpectQuery("SELECT").WithArgs("DE").WillReturnRows(rows)
 
 	// Use the pattern-based router to resolve path values.
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /countryByName/{NAME}", server.GetCountryByName)
+	mux.HandleFunc("GET /countryByName/{NAME}", h.ServeGetCountryByName)
 	req := httptest.NewRequest(http.MethodGet, "/countryByName/DE", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -150,12 +148,12 @@ func TestGetCountryByName_NonExistent_Returns422EmptyArray(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows(countryCols))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /countryByName/{NAME}", server.GetCountryByName)
+	mux.HandleFunc("GET /countryByName/{NAME}", h.ServeGetCountryByName)
 	req := httptest.NewRequest(http.MethodGet, "/countryByName/UNKNOWN", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -171,12 +169,12 @@ func TestGetCountryByName_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("db error"))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /countryByName/{NAME}", server.GetCountryByName)
+	mux.HandleFunc("GET /countryByName/{NAME}", h.ServeGetCountryByName)
 	req := httptest.NewRequest(http.MethodGet, "/countryByName/DE", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)

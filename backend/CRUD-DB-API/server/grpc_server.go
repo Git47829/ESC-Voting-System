@@ -16,6 +16,26 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+// ---------------------------------------------------------------------------
+// VoteNotifier — interface that severs the HTTP-to-gRPC global coupling (DIP)
+// ---------------------------------------------------------------------------
+
+// VoteNotifier broadcasts a new vote event to gRPC subscribers.
+// Handlers depend on this interface, not on the concrete *voteServer.
+type VoteNotifier interface {
+	NotifyVote(ctx context.Context, songID int, voterCountry string) error
+}
+
+// NoopVoteNotifier is a no-op VoteNotifier used when gRPC is not available
+// (e.g., during unit tests).
+type NoopVoteNotifier struct{}
+
+func (NoopVoteNotifier) NotifyVote(_ context.Context, _ int, _ string) error { return nil }
+
+// ---------------------------------------------------------------------------
+// voteServer — gRPC service implementation + VoteNotifier
+// ---------------------------------------------------------------------------
+
 type voteServer struct {
 	pb.UnimplementedVoteServiceServer
 	db          *sql.DB
@@ -51,10 +71,10 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 				break
 			}
 		}
-		remainingSubscribers := len(s.subscribers)
+		remaining := len(s.subscribers)
 		s.mu.Unlock()
 		close(voteChan)
-		Logger.Info("client disconnected from vote stream", slog.Int("remaining_subscribers", remainingSubscribers))
+		Logger.Info("client disconnected from vote stream", slog.Int("remaining_subscribers", remaining))
 	}()
 
 	if req.IncludeHistorical {
@@ -68,179 +88,96 @@ func (s *voteServer) StreamVotes(req *pb.VoteStreamRequest, stream pb.VoteServic
 	for {
 		select {
 		case <-ctx.Done():
-			Logger.Info("client context cancelled")
 			return ctx.Err()
 		case vote := <-voteChan:
 			if err := stream.Send(vote); err != nil {
 				Logger.ErrorContext(ctx, "failed to send vote", slog.Any("error", err))
 				return err
 			}
-			Logger.Debug("vote sent to subscriber",
-				slog.Int("song_id", int(vote.SongId)),
-				slog.String("country", vote.CountryVotedFor),
-			)
 		}
 	}
 }
 
 func (s *voteServer) sendCurrentVotes(ctx context.Context, stream pb.VoteService_StreamVotesServer) error {
-	Logger.Info("querying database for current votes")
-
-	query := `
-		SELECT
-			s.ID,
-			s.Name,
-			l.ID as country_id,
-			l.Name as country_name,
-			s.PublikumsPunkte,
-			s.JuryPunkte,
-			s.GesamtPunkte
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT s.ID, s.Name, l.ID as country_id, l.Name as country_name,
+		       s.PublikumsPunkte, s.JuryPunkte, s.GesamtPunkte
 		FROM Song s
 		JOIN Land l ON s.Land_ID = l.ID
-		ORDER BY s.GesamtPunkte DESC, s.ID
-	`
-
-	rows, err := s.db.QueryContext(ctx, query)
+		ORDER BY s.GesamtPunkte DESC, s.ID`)
 	if err != nil {
-		Logger.ErrorContext(ctx, "failed to query current votes", slog.Any("error", err))
 		return err
 	}
 	defer rows.Close()
 
-	voteCount := 0
 	for rows.Next() {
 		var (
-			songID      int
-			songName    string
-			countryID   string
-			countryName string
-			publicVotes int
-			juryVotes   int
-			totalVotes  int
+			songID, publicVotes, juryVotes, totalVotes int
+			songName, countryID, countryName           string
 		)
-
 		if err := rows.Scan(&songID, &songName, &countryID, &countryName, &publicVotes, &juryVotes, &totalVotes); err != nil {
-			Logger.ErrorContext(ctx, "failed to scan vote row", slog.Any("error", err))
 			continue
 		}
-
-		vote := &pb.Vote{
+		if err := stream.Send(&pb.Vote{
 			CountryVotedFor:     countryID,
 			CountryVotedForName: countryName,
 			VoteCount:           int32(totalVotes),
 			Timestamp:           time.Now().Unix(),
 			SongId:              int32(songID),
 			SongName:            songName,
-		}
-
-		if err := stream.Send(vote); err != nil {
-			Logger.ErrorContext(ctx, "failed to send current vote", slog.Any("error", err))
+		}); err != nil {
 			return err
 		}
-		voteCount++
 	}
-
-	Logger.Info("sent all current votes", slog.Int("count", voteCount))
 	return rows.Err()
 }
 
 func (s *voteServer) BroadcastVote(vote *pb.Vote) {
 	s.mu.RLock()
-	subscriberCount := len(s.subscribers)
 	subscribers := make([]chan *pb.Vote, len(s.subscribers))
 	copy(subscribers, s.subscribers)
 	s.mu.RUnlock()
 
-	if subscriberCount == 0 {
+	if len(subscribers) == 0 {
 		return
 	}
-
-	Logger.Info("broadcasting vote to subscribers",
-		slog.Int("subscriber_count", subscriberCount),
-		slog.Int("song_id", int(vote.SongId)),
-		slog.String("country", vote.CountryVotedFor),
-	)
 
 	for i, ch := range subscribers {
 		select {
 		case ch <- vote:
-
 		default:
-
-			Logger.Warn("subscriber channel full, skipping vote broadcast", slog.Int("subscriber_index", i))
+			Logger.Warn("subscriber channel full, skipping", slog.Int("subscriber_index", i))
 		}
 	}
 }
 
 func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequest) (*pb.GetSongsResponse, error) {
-	Logger.InfoContext(ctx, "GetSongsWithVotes called")
-
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.ID, s.Name, l.ID, l.Name, s.PublikumsPunkte
-		FROM Song s
-		JOIN Land l ON s.Land_ID = l.ID
-	`)
+		FROM Song s JOIN Land l ON s.Land_ID = l.ID`)
 	if err != nil {
-		Logger.ErrorContext(ctx, "GetSongsWithVotes: query failed", slog.Any("error", err))
 		return nil, err
 	}
 	defer rows.Close()
 
 	var songs []*pb.SongVoteData
 	for rows.Next() {
-		var s pb.SongVoteData
-		if err := rows.Scan(&s.SongId, &s.SongName, &s.CountryId, &s.CountryName, &s.PublicVotes); err != nil {
-			Logger.ErrorContext(ctx, "GetSongsWithVotes: scan failed", slog.Any("error", err))
+		var sv pb.SongVoteData
+		if err := rows.Scan(&sv.SongId, &sv.SongName, &sv.CountryId, &sv.CountryName, &sv.PublicVotes); err != nil {
 			return nil, err
 		}
-		songs = append(songs, &s)
+		songs = append(songs, &sv)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
-	Logger.InfoContext(ctx, "GetSongsWithVotes complete", slog.Int("count", len(songs)))
 	return &pb.GetSongsResponse{Songs: songs}, nil
 }
 
-func StartGRPCServer(database *sql.DB, port string) (*voteServer, error) {
-	lis, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		return nil, err
-	}
-
-	grpcServer := grpc.NewServer()
-	voteService := newVoteServer(database)
-	pb.RegisterVoteServiceServer(grpcServer, voteService)
-
-	reflection.Register(grpcServer)
-
-	log.Printf("gRPC server listening on port %s", port)
-	Logger.Info("gRPC vote stream server starting", slog.String("port", port))
-
-	// Start server in goroutine
-	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			Logger.Error("gRPC server error", slog.Any("error", err))
-		}
-	}()
-
-	return voteService, nil
-}
-
-var globalVoteServer *voteServer
-
-func SetGlobalVoteServer(vs *voteServer) {
-	globalVoteServer = vs
-}
-
-func NotifyVote(songID int, voterCountry string, db *sql.DB) {
-	if globalVoteServer == nil {
-		Logger.Warn("vote server not initialized, skipping notification")
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// NotifyVote implements VoteNotifier. It queries song details and broadcasts
+// the vote to all gRPC subscribers.
+func (s *voteServer) NotifyVote(ctx context.Context, songID int, voterCountry string) error {
+	notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var (
@@ -249,63 +186,39 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 		voterCountryName                 string
 	)
 
-	g, gctx := errgroup.WithContext(ctx)
+	g, gctx := errgroup.WithContext(notifyCtx)
 
 	g.Go(func() error {
-		query := `
-			SELECT
-				s.ID,
-				s.Name,
-				l.ID as country_id,
-				l.Name as country_name,
-				s.PublikumsPunkte + s.JuryPunkte as total_votes
-			FROM Song s
-			JOIN Land l ON s.Land_ID = l.ID
-			WHERE s.ID = ?
-		`
-
-		err := db.QueryRowContext(gctx, query, songID).
-			Scan(&id, &songName, &countryID, &countryName, &totalVotes)
-		if err != nil {
-			Logger.ErrorContext(gctx, "failed to get vote details for notification",
-				slog.Any("error", err),
-				slog.Int("song_id", songID),
-			)
-		}
-		return err
+		return s.db.QueryRowContext(gctx, `
+			SELECT s.ID, s.Name, l.ID as country_id, l.Name as country_name,
+			       s.PublikumsPunkte + s.JuryPunkte as total_votes
+			FROM Song s JOIN Land l ON s.Land_ID = l.ID
+			WHERE s.ID = ?`, songID,
+		).Scan(&id, &songName, &countryID, &countryName, &totalVotes)
 	})
 
 	g.Go(func() error {
-		if voterCountry == "JURY" {
+		switch voterCountry {
+		case "JURY":
 			voterCountryName = "Jury"
-			return nil
-		}
-		if voterCountry == "" || voterCountry == "SYSTEM" {
+		case "", "SYSTEM":
 			voterCountryName = "Unknown"
-			return nil
-		}
-		err := db.QueryRowContext(ctx, "SELECT Name FROM Land WHERE ID = ?", voterCountry).Scan(&voterCountryName)
-		if err != nil {
-			voterCountryName = voterCountry
-			Logger.Debug("could not get voter country name",
-				slog.String("country_id", voterCountry),
-				slog.Any("error", err),
-			)
-			return nil
+		default:
+			if err := s.db.QueryRowContext(notifyCtx,
+				`SELECT Name FROM Land WHERE ID = ?`, voterCountry,
+			).Scan(&voterCountryName); err != nil {
+				voterCountryName = voterCountry
+			}
 		}
 		return nil
-
 	})
 
 	if err := g.Wait(); err != nil {
-		Logger.ErrorContext(ctx, "NotifyVote: aborting broadcast due to DB error",
-			slog.Any("error", err),
-			slog.Int("song_id", songID),
-		)
-		return
+		Logger.Warn("NotifyVote: aborting broadcast", slog.Any("error", err), slog.Int("song_id", songID))
+		return err
 	}
 
-	vote := &pb.Vote{
+	s.BroadcastVote(&pb.Vote{
 		CountryVotedFor:     countryID,
 		CountryVotedForName: countryName,
 		VoteCount:           int32(totalVotes),
@@ -314,14 +227,35 @@ func NotifyVote(songID int, voterCountry string, db *sql.DB) {
 		Timestamp:           time.Now().Unix(),
 		SongId:              int32(songID),
 		SongName:            songName,
+	})
+	return nil
+}
+
+// ---------------------------------------------------------------------------
+// StartGRPCServer — returns VoteNotifier (not the concrete *voteServer)
+// ---------------------------------------------------------------------------
+
+// StartGRPCServer starts the gRPC server and returns a VoteNotifier interface.
+// Callers depend on the interface, not the concrete type (DIP).
+func StartGRPCServer(database *sql.DB, port string) (VoteNotifier, error) {
+	lis, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return nil, err
 	}
 
-	globalVoteServer.BroadcastVote(vote)
+	grpcServer := grpc.NewServer()
+	vs := newVoteServer(database)
+	pb.RegisterVoteServiceServer(grpcServer, vs)
+	reflection.Register(grpcServer)
 
-	Logger.Info("vote notification complete",
-		slog.Int("song_id", songID),
-		slog.String("country_voted_for", countryID),
-		slog.Int("total_votes", totalVotes),
-		slog.String("voter_country", voterCountry),
-	)
+	log.Printf("gRPC server listening on port %s", port)
+	Logger.Info("gRPC vote stream server starting", slog.String("port", port))
+
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			Logger.Error("gRPC server error", slog.Any("error", err))
+		}
+	}()
+
+	return vs, nil
 }

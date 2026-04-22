@@ -8,31 +8,15 @@ import (
 	"net/http"
 )
 
-func StartContest(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeStartContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	rows, err := DB.QueryContext(ctx, "SELECT ID FROM Song ORDER BY ID")
+	ids, err := h.songs.GetSongIDs(ctx)
 	if err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to query songs", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to query songs"})
-		return
-	}
-	defer rows.Close()
-
-	var ids []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			continue
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		Logger.ErrorContext(ctx, "startContest: rows error", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to read songs"})
 		return
 	}
 
@@ -57,17 +41,14 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := DB.ExecContext(ctx, "UPDATE Contest_Run SET IsActive = FALSE WHERE IsActive = TRUE"); err != nil {
+	if err := h.songs.DeactivateContestRuns(ctx); err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to deactivate old runs", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to deactivate previous contest"})
 		return
 	}
 
-	if _, err := DB.ExecContext(ctx,
-		"INSERT INTO Contest_Run (SongOrder, CurrentIndex, IsActive) VALUES (?, 0, TRUE)",
-		string(orderJSON),
-	); err != nil {
+	if err := h.songs.InsertContestRun(ctx, string(orderJSON)); err != nil {
 		Logger.ErrorContext(ctx, "startContest: failed to insert contest run", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to start contest"})
@@ -83,18 +64,11 @@ func StartContest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func AdvanceContest(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeAdvanceContest(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	var (
-		runID        int
-		orderJSON    string
-		currentIndex int
-	)
-	err := DB.QueryRowContext(ctx,
-		"SELECT ID, SongOrder, CurrentIndex FROM Contest_Run WHERE IsActive = TRUE ORDER BY ID DESC LIMIT 1",
-	).Scan(&runID, &orderJSON, &currentIndex)
+	runID, orderJSON, currentIndex, err := h.songs.GetCurrentContestRun(ctx)
 	if err == sql.ErrNoRows {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "No active contest"})
@@ -115,7 +89,9 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 
 	nextIndex := currentIndex + 1
 	if nextIndex >= len(ids) {
-		DB.ExecContext(ctx, "UPDATE Contest_Run SET IsActive = FALSE WHERE ID = ?", runID)
+		if err := h.songs.FinishContestRun(ctx, runID); err != nil {
+			Logger.ErrorContext(ctx, "failed to finish contest run", slog.Any("error", err))
+		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]any{
 			"message":  "Contest finished",
@@ -124,9 +100,7 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := DB.ExecContext(ctx,
-		"UPDATE Contest_Run SET CurrentIndex = ? WHERE ID = ?", nextIndex, runID,
-	); err != nil {
+	if err := h.songs.AdvanceContestRun(ctx, runID, nextIndex); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to advance contest"})
 		return
@@ -141,18 +115,11 @@ func AdvanceContest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func GetCurrentSong(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeGetCurrentSong(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
-	var (
-		runID        int
-		orderJSON    string
-		currentIndex int
-	)
-	err := DB.QueryRowContext(ctx,
-		"SELECT ID, SongOrder, CurrentIndex FROM Contest_Run WHERE IsActive = TRUE ORDER BY ID DESC LIMIT 1",
-	).Scan(&runID, &orderJSON, &currentIndex)
+	runID, orderJSON, currentIndex, err := h.songs.GetCurrentContestRun(ctx)
 	if err == sql.ErrNoRows {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "No active contest"})
@@ -178,35 +145,7 @@ func GetCurrentSong(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentSongID := ids[currentIndex]
-
-	songQuery := `SELECT
-		s.ID, s.Name, s.PublikumsPunkte, s.JuryPunkte, s.GesamtPunkte,
-		COALESCE(s.YoutubeURL, ''),
-		l.ID, l.Name,
-		k.ID, k.Vorname, k.Name, k.Typ,
-		vs.isOpen
-		FROM Song s
-		INNER JOIN Land l ON s.Land_ID = l.ID
-		INNER JOIN Kuenstler k ON s.Kuenstler_ID = k.ID
-		LEFT JOIN Voting_Status vs ON vs.VotingID = 1
-		WHERE s.ID = ?`
-
-	var (
-		songID, artistID                            int
-		songName, countryID, countryName            string
-		artistFirstName, artistLastName, artistType string
-		publicVotes, juryVotes, totalVotes          int
-		youtubeURL                                  string
-		votingIsOpen                                bool
-	)
-	err = DB.QueryRowContext(ctx, songQuery, currentSongID).Scan(
-		&songID, &songName, &publicVotes, &juryVotes, &totalVotes,
-		&youtubeURL,
-		&countryID, &countryName,
-		&artistID, &artistFirstName, &artistLastName, &artistType,
-		&votingIsOpen,
-	)
+	cs, err := h.songs.GetContestSong(ctx, ids[currentIndex])
 	if err == sql.ErrNoRows {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
@@ -223,24 +162,24 @@ func GetCurrentSong(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{
 		"message": "Success",
 		"payload": map[string]any{
-			"runId":          runID,
-			"currentIndex":   currentIndex,
-			"totalSongs":     len(ids),
-			"contestActive":  true,
+			"runId":         runID,
+			"currentIndex":  currentIndex,
+			"totalSongs":    len(ids),
+			"contestActive": true,
 			"currentSong": map[string]any{
-				"songId":          songID,
-				"songName":        songName,
-				"youtubeUrl":      youtubeURL,
-				"countryId":       countryID,
-				"countryName":     countryName,
-				"artistId":        artistID,
-				"artistFirstName": artistFirstName,
-				"artistLastName":  artistLastName,
-				"artistType":      artistType,
-				"publicVotes":     publicVotes,
-				"juryVotes":       juryVotes,
-				"totalVotes":      totalVotes,
-				"votingIsOpen":    votingIsOpen,
+				"songId":          cs.SongID,
+				"songName":        cs.SongName,
+				"youtubeUrl":      cs.YoutubeURL,
+				"countryId":       cs.CountryID,
+				"countryName":     cs.CountryName,
+				"artistId":        cs.ArtistID,
+				"artistFirstName": cs.ArtistFirstName,
+				"artistLastName":  cs.ArtistLastName,
+				"artistType":      cs.ArtistType,
+				"publicVotes":     cs.PublicVotes,
+				"juryVotes":       cs.JuryVotes,
+				"totalVotes":      cs.TotalVotes,
+				"votingIsOpen":    cs.VotingIsOpen,
 			},
 		},
 	})

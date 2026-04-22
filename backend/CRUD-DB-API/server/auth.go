@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"crypto/rand"
-  "crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -14,17 +13,13 @@ import (
 	"time"
 )
 
+// Package-level auth state. Kept global so state persists across handler calls
+// regardless of how many Handlers instances exist (test shims create a new one
+// per call).
 var (
 	storedTokens = make(map[string]time.Time)
 	tokenMu      sync.Mutex
 )
-
-// 2FA pending verifications keyed by email
-type PendingVerification struct {
-	Code      string
-	Role      string
-	CreatedAt time.Time
-}
 
 var (
 	pendingVerifications = make(map[string]*PendingVerification)
@@ -33,9 +28,9 @@ var (
 
 func requestVerificationMail(email, token string) error {
 	reqURL := os.Getenv("EuroMailURL")
-	body, jErr := json.Marshal(map[string]string{"email": email, "token": token})
-	if jErr != nil {
-		return jErr
+	body, err := json.Marshal(map[string]string{"email": email, "token": token})
+	if err != nil {
+		return err
 	}
 	resp, err := http.Post(reqURL, "application/json", bytes.NewReader(body))
 	if err != nil {
@@ -51,57 +46,6 @@ func requestVerificationMail(email, token string) error {
 
 	Logger.Info("Verification mail sent", slog.String("email", email))
 	return nil
-}
-
-func RequestToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	Logger.InfoContext(ctx, "New Verification Token requested")
-
-	w.Header().Set("Content-Type", "application/json")
-	token, err := generateAndStoreToken()
-	if err != nil {
-		Logger.ErrorContext(ctx, "Invalid Token generation", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Unable to generate Token",
-		})
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "authorized",
-		"token":   token,
-	})
-}
-
-func VerifiyWithToken(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	providedToken := r.PathValue("token")
-
-	w.Header().Set("Content-Type", "application/json")
-
-	tokenMu.Lock()
-	_, exists := storedTokens[providedToken]
-	if exists {
-		evictToken(providedToken)
-	}
-	tokenMu.Unlock()
-
-	if exists {
-		Logger.InfoContext(ctx, "New Token verified, evicting from TokenStore", slog.String("message:", "New Verification via Token"))
-		w.WriteHeader(http.StatusAccepted)
-		json.NewEncoder(w).Encode(map[string]string{
-			"message": "authenticated",
-		})
-		return
-	}
-
-	w.WriteHeader(http.StatusUnauthorized)
-	json.NewEncoder(w).Encode(map[string]string{
-		"messsage": "Invalid Token provided",
-	})
 }
 
 func generate2FACode() (string, error) {
@@ -139,18 +83,47 @@ func evictToken(input string) {
 	}
 }
 
-type AuthLoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Role     string `json:"role"`
+// ---------------------------------------------------------------------------
+// Package-level shims — kept for test and router compatibility
+// ---------------------------------------------------------------------------
+
+func (h *Handlers) ServeRequestToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	Logger.InfoContext(ctx, "New Verification Token requested")
+	w.Header().Set("Content-Type", "application/json")
+
+	token, err := h.auth.GenerateAndStoreToken()
+	if err != nil {
+		Logger.ErrorContext(ctx, "Invalid Token generation", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate Token"})
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "authorized",
+		"token":   token,
+	})
 }
 
-type AuthVerifyRequest struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
+func (h *Handlers) ServeVerifyToken(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	providedToken := r.PathValue("token")
+	w.Header().Set("Content-Type", "application/json")
+
+	if h.auth.VerifyToken(providedToken) {
+		Logger.InfoContext(ctx, "Token verified and evicted")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]string{"message": "authenticated"})
+		return
+	}
+
+	w.WriteHeader(http.StatusUnauthorized)
+	json.NewEncoder(w).Encode(map[string]string{"messsage": "Invalid Token provided"})
 }
 
-func AuthLogin(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeAuthLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
@@ -161,14 +134,13 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate credentials based on role
 	var ok bool
 	var msg string
 	switch req.Role {
 	case "admin":
-		ok, msg = CheckAccessAdmin(req.Password, req.Email)
+		ok, msg = h.auth.CheckAdmin(req.Password, req.Email)
 	case "jury":
-		ok, msg = CheckAccessJury(req.Password, req.Email)
+		ok, msg = h.auth.CheckJury(req.Password, req.Email)
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid role"})
@@ -176,44 +148,26 @@ func AuthLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !ok {
-		Logger.WarnContext(ctx, "2FA login: credential check failed", slog.String("email", req.Email), slog.String("reason", msg))
+		Logger.WarnContext(ctx, "2FA login: credential check failed",
+			slog.String("email", req.Email), slog.String("reason", msg))
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{"error": msg})
 		return
 	}
 
-	// Generate 6-digit code
-	code, err := generate2FACode()
-	if err != nil {
-		Logger.ErrorContext(ctx, "Failed to generate 2FA code", slog.Any("error", err))
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to generate verification code"})
-		return
-	}
-
-	// Store pending verification
-	verifyMu.Lock()
-	pendingVerifications[req.Email] = &PendingVerification{
-		Code:      code,
-		Role:      req.Role,
-		CreatedAt: time.Now(),
-	}
-	verifyMu.Unlock()
-
-	// Send code via EuroMail
-	if err := requestVerificationMail(req.Email, code); err != nil {
-		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
+	if err := h.auth.Generate2FAAndSend(ctx, req.Email, req.Role); err != nil {
+		Logger.ErrorContext(ctx, "Failed to send 2FA code", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
 		return
 	}
 
-	Logger.InfoContext(ctx, "2FA code sent", slog.String("email", req.Email), slog.String("role", req.Role))
+	Logger.InfoContext(ctx, "2FA code sent", slog.String("email", req.Email))
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Verification code sent"})
 }
 
-func AuthVerify(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeAuthVerify(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w.Header().Set("Content-Type", "application/json")
 
@@ -224,26 +178,15 @@ func AuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifyMu.Lock()
-	pending, exists := pendingVerifications[req.Email]
-	if exists && subtle.ConstantTimeCompare([]byte(pending.Code), []byte(req.Code)) == 1 && time.Since(pending.CreatedAt) <= 5*time.Minute {
-		delete(pendingVerifications, req.Email)
-		// Clean up expired entries
-		for k, v := range pendingVerifications {
-			if time.Since(v.CreatedAt) > 5*time.Minute {
-				delete(pendingVerifications, k)
-			}
-		}
-		verifyMu.Unlock()
-
+	if h.auth.Verify2FA(req.Email, req.Code) {
 		Logger.InfoContext(ctx, "2FA verified", slog.String("email", req.Email))
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{"message": "Verified"})
 		return
 	}
-	verifyMu.Unlock()
 
 	Logger.WarnContext(ctx, "2FA verification failed", slog.String("email", req.Email))
 	w.WriteHeader(http.StatusUnauthorized)
 	json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired verification code"})
 }
+

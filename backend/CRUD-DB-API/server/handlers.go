@@ -5,16 +5,14 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -23,116 +21,17 @@ import (
 	sdklog "go.opentelemetry.io/otel/sdk/log"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/time/rate"
-)
-
-type Client struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-type RateLimitConfig struct {
-	RequestsPerSecond float64
-	BurstSize         int
-}
-
-var clients = make(map[string]*Client)
-
-type Countrys struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Pot  *int   `json:"pot"`
-}
-
-type Composer struct {
-	ID        int `json:"id"`
-	firstName string
-	name      string
-}
-
-type CompleteESCEntryWithComposers struct {
-	SongID       int    `json:"songId"`
-	SongName     string `json:"songName"`
-	PublicPoints int    `json:"publicVotes"`
-	JuryPoints   int    `json:"juryVotes"`
-	TotalPoints  int    `json:"totalVotes"`
-
-	CountryID   string `json:"countryId"`
-	CountryName string `json:"countryName"`
-	CountryPOT  *int   `json:"countryPot,omitempty"`
-
-	ArtistID        int    `json:"artistId"`
-	ArtistFirstName string `json:"artistFirstName"`
-	ArtistName      string `json:"artistLastName"`
-	ArtistType      string `json:"artistType"`
-
-	Composer []Composer `json:"composers"`
-
-	VotingID         int    `json:"votingId"`
-	VotingIsOpen     bool   `json:"votingIsOpen"`
-	VotingLastChange string `json:"votingLastChange"`
-}
-
-var (
-	rateLimitConfigs = map[string]RateLimitConfig{
-		"GET /health":          {RequestsPerSecond: 100, BurstSize: 100},
-		"GET /votes/":          {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /countries/":      {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /songs/":          {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /songByID/{ID}":   {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /contest/current": {RequestsPerSecond: 10, BurstSize: 20},
-		"GET /auth/requestToken":        {RequestsPerSecond: 1, BurstSize: 1},
-		"GET /auth/verifyToken/{token}": {RequestsPerSecond: 1, BurstSize: 1},
-		"POST /auth/login":              {RequestsPerSecond: 1, BurstSize: 3},
-		"POST /auth/verify":             {RequestsPerSecond: 1, BurstSize: 5},
-
-		"POST /vote/":             {RequestsPerSecond: 1, BurstSize: 1},
-		"POST /jury/vote":         {RequestsPerSecond: 5, BurstSize: 5},
-		"GET /jury/authenticate":  {RequestsPerSecond: 1, BurstSize: 1},
-		"GET /admin/authenticate": {RequestsPerSecond: 1, BurstSize: 1},
-
-		"POST /admin/open":           {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/close":          {RequestsPerSecond: 2, BurstSize: 2},
-		"POST /admin/addCountry":     {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addSong":        {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addArtist":      {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/addInterpret":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/startContest":   {RequestsPerSecond: 5, BurstSize: 5},
-		"POST /admin/advanceContest": {RequestsPerSecond: 5, BurstSize: 5},
-		"DELETE /admin/deleteVotes":  {RequestsPerSecond: 1, BurstSize: 1},
-
-		"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
-	}
-)
-
-var (
-	usedTokens = make(map[string]bool)
-	mu         sync.Mutex
 )
 
 const totalVotePoints = 20
 
-type CookieVoteState struct {
-	VotesRemaining int            `json:"votes_remaining"`
-	VotesCast      map[string]int `json:"votes_cast"`
-}
-
+// SignedCookieSecret and SignedPhoneSecret are package-level vars retained for
+// test compatibility (tests read/set them directly).
 var SignedCookieSecret []byte
 var SignedPhoneSecret []byte
 
-func cleanupClients() {
-	ticker := time.NewTicker(5 * time.Minute)
-	for range ticker.C {
-		mu.Lock()
-		for key, c := range clients {
-			if time.Since(c.lastSeen) > 10*time.Minute {
-				delete(clients, key)
-			}
-		}
-		mu.Unlock()
-	}
-}
-
+// InitCookieSecret derives or generates the cookie signing secret and stores it
+// in SignedCookieSecret. Called by tests and by Run().
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
 		sum := sha256.Sum256([]byte("cookie-secret:" + key))
@@ -145,6 +44,8 @@ func InitCookieSecret() {
 	}
 }
 
+// InitPhoneSecret derives the phone signing secret from env and stores it in
+// SignedPhoneSecret. Called by Run().
 func InitPhoneSecret() {
 	if key := os.Getenv("PHONESIGNINGSECRET"); key != "" {
 		sum := sha256.Sum256([]byte("phone-secret:" + key))
@@ -152,6 +53,7 @@ func InitPhoneSecret() {
 	}
 }
 
+// EncodeCookieValue marshals state and appends an HMAC-SHA256 signature.
 func EncodeCookieValue(state CookieVoteState) (string, error) {
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -165,64 +67,37 @@ func EncodeCookieValue(state CookieVoteState) (string, error) {
 	return hex.EncodeToString(payload), nil
 }
 
-func getCLientLimiter(ip string, endpoint string) *rate.Limiter {
-	mu.Lock()
-	defer mu.Unlock()
+// ---------------------------------------------------------------------------
+// Handlers struct — dependency-injected handler container (DIP / ISP)
+// ---------------------------------------------------------------------------
 
-	key := ip + "::" + endpoint
-	if client, exists := clients[key]; exists {
-		return client.limiter
-	}
-
-	config, exists := rateLimitConfigs[endpoint]
-	if !exists {
-		config = RateLimitConfig{RequestsPerSecond: 10, BurstSize: 20}
-	}
-
-	limiter := rate.NewLimiter(rate.Limit(config.RequestsPerSecond), config.BurstSize)
-	clients[key] = &Client{limiter: limiter}
-	return limiter
+// Handlers holds all dependencies for HTTP handler methods.
+type Handlers struct {
+	votes    VoteRepository
+	songs    SongRepository
+	auth     AuthService
+	notifier VoteNotifier
+	cfg      AppConfig
 }
 
-func getClientIP(r *http.Request) string {
-	ip := r.Header.Get("X-Forwarded-For")
-	if ip == "" {
-		ip = r.Header.Get("X-Real_IP")
+// NewHandlers constructs a Handlers with the provided database, notifier, and config.
+func NewHandlers(db *sql.DB, notifier VoteNotifier, cfg AppConfig) *Handlers {
+	return &Handlers{
+		votes:    newMySQLVoteRepository(db),
+		songs:    newMySQLSongRepository(db),
+		auth:     &authService{},
+		notifier: notifier,
+		cfg:      cfg,
 	}
-	if ip == "" {
-		ip, _, _ = net.SplitHostPort(r.RemoteAddr)
-	}
-	return ip
 }
 
-func RateLimitingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		endpoint := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
-		clientIP := getClientIP(r)
-
-		limiter := getCLientLimiter(clientIP, endpoint)
-
-		if !limiter.Allow() {
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Retry-After", "1")
-			w.WriteHeader(http.StatusTooManyRequests)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "Rate limit exceeded",
-			})
-
-			Logger.WarnContext(r.Context(), "rate limit exeeded",
-				slog.String("ip", clientIP),
-				slog.String("endpoint", endpoint),
-			)
-			return
-		}
-
-		next.ServeHTTP(w, r)
-	})
-}
+// ---------------------------------------------------------------------------
+// Run — server entry point
+// ---------------------------------------------------------------------------
 
 func Run() {
 	InitCookieSecret()
+	InitPhoneSecret()
 
 	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -283,53 +158,42 @@ func Run() {
 
 	Tracer = otel.Tracer("esc-voting-crud-api")
 
+	cfg := LoadConfig()
+	// Sync package-level secrets with what LoadConfig derived, so that
+	// EncodeCookieValue (which reads the globals) stays consistent.
+	SignedCookieSecret = cfg.CookieSecret
+	SignedPhoneSecret = cfg.PhoneSecret
+
+	// h is set in the DB goroutine before dbReady is closed.
+	// dbReadinessMiddleware blocks all non-health requests until then.
+	var h *Handlers
+
 	router := http.NewServeMux()
-	router.HandleFunc("GET /health", GetHealth)
-	router.HandleFunc("GET /votes/", GetVotes)
-	router.HandleFunc("POST /vote/", Vote)
-	router.HandleFunc("GET /countries/", GetCountries)
-	router.HandleFunc("GET /countryByName/{NAME}", GetCountryByName)
-	router.HandleFunc("GET /songs/", HTTPGetSongs)
-	router.HandleFunc("GET /songByID/{ID}", GetSongByID)
-	router.HandleFunc("GET /auth/requestToken", RequestToken)
-	router.HandleFunc("GET /auth/verifyToken/{token}", VerifiyWithToken)
-	router.HandleFunc("POST /auth/login", AuthLogin)
-	router.HandleFunc("POST /auth/verify", AuthVerify)
-	router.Handle("POST /admin/open", RequireAdmin(http.HandlerFunc(OpenVote)))
-	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(CloseVote)))
-	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(DeleteVotes)))
-	router.Handle("POST /admin/addCountry/", RequireAdmin(http.HandlerFunc(AddCountry)))
-	router.Handle("POST /admin/addSong/", RequireAdmin(http.HandlerFunc(AddSong)))
-	router.Handle("POST /admin/addArtist/", RequireAdmin(http.HandlerFunc(AddArtist)))
-	router.Handle("POST /admin/addInterpret/", RequireAdmin(http.HandlerFunc(AddInterpret)))
-	router.Handle("POST /jury/vote/", RequireJury(http.HandlerFunc(JuryVote)))
-	router.Handle("GET /admin/authenticate", RequireAdmin(http.HandlerFunc(AdminLogin)))
-	router.Handle("GET /jury/authenticate", RequireJury(http.HandlerFunc(JuryLogin)))
-	router.Handle("POST /admin/startContest", RequireAdmin(http.HandlerFunc(StartContest)))
-	router.Handle("POST /admin/advanceContest", RequireAdmin(http.HandlerFunc(AdvanceContest)))
-	router.HandleFunc("GET /contest/current", GetCurrentSong)
-
+	router.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { h.ServeGetHealth(w, r) })
+	router.HandleFunc("GET /votes/", func(w http.ResponseWriter, r *http.Request) { h.ServeGetVotes(w, r) })
+	router.HandleFunc("POST /vote/", func(w http.ResponseWriter, r *http.Request) { h.ServeVote(w, r) })
+	router.HandleFunc("GET /countries/", func(w http.ResponseWriter, r *http.Request) { h.ServeGetCountries(w, r) })
+	router.HandleFunc("GET /countryByName/{NAME}", func(w http.ResponseWriter, r *http.Request) { h.ServeGetCountryByName(w, r) })
+	router.HandleFunc("GET /songs/", func(w http.ResponseWriter, r *http.Request) { h.ServeGetSongs(w, r) })
+	router.HandleFunc("GET /songByID/{ID}", func(w http.ResponseWriter, r *http.Request) { h.ServeGetSongByID(w, r) })
+	router.HandleFunc("GET /auth/requestToken", func(w http.ResponseWriter, r *http.Request) { h.ServeRequestToken(w, r) })
+	router.HandleFunc("GET /auth/verifyToken/{token}", func(w http.ResponseWriter, r *http.Request) { h.ServeVerifyToken(w, r) })
+	router.HandleFunc("POST /auth/login", func(w http.ResponseWriter, r *http.Request) { h.ServeAuthLogin(w, r) })
+	router.HandleFunc("POST /auth/verify", func(w http.ResponseWriter, r *http.Request) { h.ServeAuthVerify(w, r) })
+	router.Handle("POST /admin/open", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeOpenVote(w, r) })))
+	router.Handle("POST /admin/close", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeCloseVote(w, r) })))
+	router.Handle("DELETE /admin/deleteVotes/", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeDeleteVotes(w, r) })))
+	router.Handle("POST /admin/addCountry/", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAddCountry(w, r) })))
+	router.Handle("POST /admin/addSong/", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAddSong(w, r) })))
+	router.Handle("POST /admin/addArtist/", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAddArtist(w, r) })))
+	router.Handle("POST /admin/addInterpret/", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAddInterpret(w, r) })))
+	router.Handle("POST /jury/vote/", RequireJury(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeJuryVote(w, r) })))
+	router.Handle("GET /admin/authenticate", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAdminLogin(w, r) })))
+	router.Handle("GET /jury/authenticate", RequireJury(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeJuryLogin(w, r) })))
+	router.Handle("POST /admin/startContest", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeStartContest(w, r) })))
+	router.Handle("POST /admin/advanceContest", RequireAdmin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.ServeAdvanceContest(w, r) })))
+	router.HandleFunc("GET /contest/current", func(w http.ResponseWriter, r *http.Request) { h.ServeGetCurrentSong(w, r) })
 	router.Handle("GET /metrics/", promhttp.Handler())
-
-	dbReadinessMiddleware := func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/health" {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			select {
-			case <-dbReady:
-				next.ServeHTTP(w, r)
-			case <-r.Context().Done():
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusServiceUnavailable)
-				json.NewEncoder(w).Encode(map[string]string{
-					"error": "service is starting up, please retry",
-				})
-			}
-		})
-	}
 
 	handler := dbReadinessMiddleware(RateLimitingMiddleware(ObservabilityMiddleware(router)))
 
@@ -346,8 +210,7 @@ func Run() {
 	}()
 
 	go func() {
-		conn, dbErr := connectToDatabase(loadLocalConfig())
-
+		conn, dbErr := connectToDatabase(cfg)
 		if dbErr != nil {
 			Logger.Error("could not connect to Database after all retries",
 				slog.Any("error", dbErr),
@@ -356,16 +219,17 @@ func Run() {
 		}
 
 		DB = conn
-		close(dbReady)
 
-		Logger.Info("database connection established - service fully ready")
-
-		voteService, err := StartGRPCServer(DB, "50051")
+		notifier, err := StartGRPCServer(DB, cfg.GRPCPort)
 		if err != nil {
 			Logger.Error("Failed to start gRPC server", slog.String("error", err.Error()))
 			os.Exit(1)
 		}
-		SetGlobalVoteServer(voteService)
+
+		h = NewHandlers(DB, notifier, cfg)
+		close(dbReady)
+
+		Logger.Info("database connection established - service fully ready")
 		Logger.Info("gRPC vote streaming service initialized")
 	}()
 
