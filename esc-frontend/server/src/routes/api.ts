@@ -366,8 +366,9 @@ apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), asyncHandle
     return;
   }
 
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    await votingService.castJuryVote(songID, points);
+    await votingService.castJuryVote(songID, points, creds);
     juryVoteState.votesCast[songID] = points;
     req.session.juryVoteState = juryVoteState;
     span.setAttributes({

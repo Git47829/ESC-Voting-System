@@ -34,7 +34,7 @@ export interface VotingService {
     sessionCookie?: string,
     additionalParams?: Record<string, unknown>
   ): Promise<{ message: string; payload: { votesRemaining: number; votesCast: Record<number, number> } }>;
-  castJuryVote(songId: number, points: number): Promise<{ message: string }>;
+  castJuryVote(songId: number, points: number, credentials?: AuthCredentials): Promise<{ message: string }>;
   getVotes(): Promise<VoteResult[]>;
   setVotingOpen(open: boolean, credentials?: AuthCredentials): Promise<{ message: string }>;
   resetVotes(credentials?: AuthCredentials): Promise<{ message: string }>;

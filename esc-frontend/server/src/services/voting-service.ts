@@ -32,9 +32,10 @@ export class ProductionVotingService implements VotingService {
     throw new Error(response.data?.error ?? "Vote failed");
   }
 
-  async castJuryVote(songId: number, points: number) {
+  async castJuryVote(songId: number, points: number, credentials?: AuthCredentials) {
     const response = await upstream.post("/jury/vote/", null, {
-      params: { songID: songId, points }
+      params: { songID: songId, points },
+      headers: authHeaders(credentials ?? {})
     });
     if (response.status >= 200 && response.status < 300) {
       return { message: "Jury vote submitted" };
