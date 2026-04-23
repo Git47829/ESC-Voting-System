@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { getSongs } from "../services/songs-api";
+import { getJuryVoteState, juryVote } from "../services/jury-api";
 import { JuryCard } from "../components/jury/JuryCard";
 import { PointsLegend } from "../components/jury/PointsLegend";
 import { useFlash } from "../context/FlashContext";
@@ -15,7 +16,7 @@ export const JuryPage = () => {
   const allowedPoints = [1, 2, 3, 4, 5, 6, 7, 8, 10, 12];
 
   useEffect(() => {
-    void Promise.all([api.getSongs(), api.getJuryVoteState()])
+    void Promise.all([getSongs(), getJuryVoteState()])
       .then(([fetchedSongs, voteState]) => {
         setSongs(fetchedSongs);
         setSubmittedVotes(voteState.votesCast);
@@ -157,8 +158,7 @@ export const JuryPage = () => {
                       return;
                     }
                     setSubmittingSongs((current) => ({ ...current, [song.songId]: true }));
-                    void api
-                      .juryVote(song.songId, points)
+                    void juryVote(song.songId, points)
                       .then(() => {
                         setSubmittedVotes((current) => ({ ...current, [song.songId]: points }));
                         addFlash(`Jury vote sent for ${song.countryName}`, "success");

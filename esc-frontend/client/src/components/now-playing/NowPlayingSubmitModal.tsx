@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../../api/client";
+import { getSongs } from "../../services/songs-api";
+import { submitVote } from "../../services/voting-api";
 import { useFlash } from "../../context/FlashContext";
 import type { Song } from "../../types";
 import { Modal } from "../ui/Modal";
@@ -25,8 +26,7 @@ export const NowPlayingSubmitModal = ({
 
   useEffect(() => {
     if (open) {
-      void api
-        .getSongs()
+      void getSongs()
         .then(setSongs)
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : "Failed to load countries";
@@ -45,7 +45,7 @@ export const NowPlayingSubmitModal = ({
     }
     setSubmitting(true);
     try {
-      await api.submitVote({
+      await submitVote({
         songID: songId,
         phoneNum: phone.trim(),
         ownCountry,

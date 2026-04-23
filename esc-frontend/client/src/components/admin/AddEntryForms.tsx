@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { api } from "../../api/client";
+import { adminAddArtist, adminAddCountry, adminAddSong } from "../../services/admin-api";
 import type { FlashMessage } from "../../types";
 import { normalizeYoutubeUrl } from "../../utils/normalizeYoutubeUrl";
 
@@ -46,7 +46,7 @@ export const AddEntryForms = ({
         onSubmit={(e) => {
           e.preventDefault();
           void run(
-            () => api.adminAddCountry(countryId, countryName, Number.parseInt(countryPot, 10) || 1),
+            () => adminAddCountry(countryId, countryName, Number.parseInt(countryPot, 10) || 1),
             `Country '${countryName}' added`,
             () => { setCountryId(""); setCountryName(""); setCountryPot("1"); }
           );
@@ -101,7 +101,7 @@ export const AddEntryForms = ({
         onSubmit={(e) => {
           e.preventDefault();
           void run(
-            () => api.adminAddArtist(artistFirstName, artistLastName, countryId),
+            () => adminAddArtist(artistFirstName, artistLastName, countryId),
             `Artist '${artistFirstName} ${artistLastName}' added`,
             () => { setArtistFirstName(""); setArtistLastName(""); }
           );
@@ -153,7 +153,7 @@ export const AddEntryForms = ({
         onSubmit={(e) => {
           e.preventDefault();
           void run(
-            () => api.adminAddSong({
+            () => adminAddSong({
               songName,
               countryId,
               artistId: Number.parseInt(songArtistId, 10),

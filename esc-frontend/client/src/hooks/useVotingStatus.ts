@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { getSongs } from "../services/songs-api";
 
 export const useVotingStatus = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const songs = await api.getSongs();
+      const songs = await getSongs();
       setIsOpen(songs[0]?.votingIsOpen ?? false);
     };
 

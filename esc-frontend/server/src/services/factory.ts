@@ -1,9 +1,8 @@
 import type { AuthService, ContestService, VotingService, ResultsService } from "./interfaces.js";
-import { ProductionAuthService, MockAuthService } from "./auth-service.js";
-import { ProductionContestService, MockContestService } from "./contest-service.js";
-import { ProductionVotingService, MockVotingService } from "./voting-service.js";
-import { ProductionResultsService, MockResultsService } from "./results-service.js";
-import { isMockMode } from "../config.js";
+import { ProductionAuthService } from "./auth-service.js";
+import { ProductionContestService } from "./contest-service.js";
+import { ProductionVotingService } from "./voting-service.js";
+import { ProductionResultsService } from "./results-service.js";
 
 interface ServiceContainer {
   authService: AuthService;
@@ -15,13 +14,11 @@ interface ServiceContainer {
 let serviceContainer: ServiceContainer | null = null;
 
 export function initializeServices(): ServiceContainer {
-  const mockMode = isMockMode();
-
   const container: ServiceContainer = {
-    authService: mockMode ? new MockAuthService() : new ProductionAuthService(),
-    contestService: mockMode ? new MockContestService() : new ProductionContestService(),
-    votingService: mockMode ? new MockVotingService() : new ProductionVotingService(),
-    resultsService: mockMode ? new MockResultsService() : new ProductionResultsService()
+    authService: new ProductionAuthService(),
+    contestService: new ProductionContestService(),
+    votingService: new ProductionVotingService(),
+    resultsService: new ProductionResultsService()
   };
 
   serviceContainer = container;

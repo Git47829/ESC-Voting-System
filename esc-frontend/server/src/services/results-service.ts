@@ -2,7 +2,6 @@ import axios from "axios";
 import type { ResultsService } from "./interfaces.js";
 import type { Song, VoteResult } from "../types.js";
 import { config } from "../config.js";
-import { mockDataService } from "../mock/index.js";
 import { upstream } from "../upstream.js";
 
 export class ProductionResultsService implements ResultsService {
@@ -39,30 +38,5 @@ export class ProductionResultsService implements ResultsService {
 
   async getStats() {
     return { totalPublic: 0, totalJury: 0, byCountry: [] };
-  }
-}
-
-export class MockResultsService implements ResultsService {
-  async getResults() {
-    return mockDataService.getVotes();
-  }
-
-  async getStats() {
-    const songs = mockDataService.getSongs();
-    const totalPublic = songs.reduce((sum, song) => sum + song.publicVotes, 0);
-    const totalJury = songs.reduce((sum, song) => sum + song.juryVotes, 0);
-    const byCountry = songs
-      .map((song: Song) => ({
-        countryId: song.countryId,
-        country: song.countryName,
-        total: song.publicVotes + song.juryVotes
-      }))
-      .sort((a, b) => b.total - a.total || a.country.localeCompare(b.country));
-
-    return {
-      totalPublic,
-      totalJury,
-      byCountry
-    };
   }
 }

@@ -36,26 +36,3 @@ export class ProductionAuthService implements AuthService {
     return { error: response.data?.error ?? "Authentication failed" };
   }
 }
-
-export class MockAuthService implements AuthService {
-  async loginWithToken(role: "admin" | "jury", token: string) {
-    const isValid = (role === "admin" && token === "admin-token") || (role === "jury" && token === "jury-token");
-    return { ok: isValid, role };
-  }
-
-  async loginWithEmail(email: string, password: string, role: "admin" | "jury") {
-    const isValid =
-      (role === "admin" && password === "admin-token") ||
-      (role === "jury" && password === "jury-token");
-    return isValid ? { ok: true } : { error: "Invalid credentials" };
-  }
-
-  async verifyEmail(email: string, code: string, role: "admin" | "jury") {
-    return { ok: true, role };
-  }
-
-  async authenticateToken(token: string, role: "admin" | "jury") {
-    const isValid = (role === "admin" && token === "admin-token") || (role === "jury" && token === "jury-token");
-    return isValid ? { ok: true } : { error: "Invalid token" };
-  }
-}

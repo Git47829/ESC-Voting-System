@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, api } from "../api/client";
+import { ApiError } from "../services/error-handler";
+import { getContestCurrent } from "../services/results-api";
 import type { ContestState } from "../types";
 
 export const useContestPoll = () => {
@@ -12,7 +13,7 @@ export const useContestPoll = () => {
 
   const load = useCallback(async () => {
     try {
-      const next = await api.getContestCurrent();
+      const next = await getContestCurrent();
       if (!next?.contestActive || !next.currentSong) {
         setContest(next);
         setError(null);

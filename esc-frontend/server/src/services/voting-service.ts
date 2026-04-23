@@ -1,6 +1,5 @@
 import type { VotingService } from "./interfaces.js";
 import { config } from "../config.js";
-import { mockDataService } from "../mock/index.js";
 import { upstream } from "../upstream.js";
 import { authHeaders, toInt } from "../utils/helpers.js";
 
@@ -66,50 +65,5 @@ export class ProductionVotingService implements VotingService {
       return { message: "Votes reset" };
     }
     throw new Error(response.data?.error ?? "Failed to reset votes");
-  }
-}
-
-export class MockVotingService implements VotingService {
-  async castPublicVote(
-    songId: number,
-    points: number,
-    _sessionCookie?: string
-  ) {
-    const state = {
-      votesRemaining: config.totalVotePoints,
-      votesCast: {} as Record<number, number>
-    };
-    try {
-      const { voteState } = mockDataService.castPublicVote(songId, points, state);
-      return {
-        message: "Vote submitted",
-        payload: voteState
-      };
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : "Vote failed");
-    }
-  }
-
-  async castJuryVote(songId: number, points: number) {
-    try {
-      mockDataService.castJuryVote(songId, points);
-      return { message: "Jury vote submitted" };
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : "Jury vote failed");
-    }
-  }
-
-  async getVotes() {
-    return mockDataService.getVotes();
-  }
-
-  async setVotingOpen(open: boolean) {
-    mockDataService.setVotingOpen(open);
-    return { message: open ? "Voting opened" : "Voting closed" };
-  }
-
-  async resetVotes() {
-    mockDataService.resetVotes();
-    return { message: "Votes reset" };
   }
 }

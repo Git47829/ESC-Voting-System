@@ -1,6 +1,5 @@
 import type { ContestService } from "./interfaces.js";
 import type { Song } from "../types.js";
-import { mockDataService } from "../mock/index.js";
 import { upstream } from "../upstream.js";
 import { authHeaders, normalizeYoutubeUrl, toInt } from "../utils/helpers.js";
 
@@ -138,58 +137,5 @@ export class ProductionContestService implements ContestService {
       return response.data?.payload;
     }
     throw new Error(response.data?.error ?? "Failed to add song");
-  }
-}
-
-export class MockContestService implements ContestService {
-  async getSongs() {
-    return mockDataService.getSongs();
-  }
-
-  async getCountries() {
-    return mockDataService.getCountries();
-  }
-
-  async getContestCurrent() {
-    return mockDataService.getContestCurrent();
-  }
-
-  async startContest() {
-    return mockDataService.startContest();
-  }
-
-  async advanceContest() {
-    return mockDataService.advanceContest();
-  }
-
-  async addCountry(countryId: string, countryName: string, pot: number) {
-    mockDataService.addCountry(countryId, countryName, pot);
-    return { message: "Country added" };
-  }
-
-  async addArtist(firstName: string, lastName: string, countryId: string) {
-    mockDataService.addArtist();
-    return { message: "Artist added" };
-  }
-
-  async addSong(input: {
-    countryId: string;
-    countryName?: string;
-    songName: string;
-    artistFirstName?: string;
-    artistLastName?: string;
-    youtubeUrl?: string;
-  }) {
-    const songs = mockDataService.getSongs();
-    const country = songs.find((entry) => entry.countryId === input.countryId) ?? songs[0];
-    const song = mockDataService.addSong({
-      countryId: input.countryId,
-      countryName: country?.countryName ?? input.countryId,
-      songName: input.songName,
-      artistFirstName: input.artistFirstName ?? "Artist",
-      artistLastName: input.artistLastName ?? "Unknown",
-      youtubeUrl: normalizeYoutubeUrl(input.youtubeUrl ?? "")
-    });
-    return song;
   }
 }
