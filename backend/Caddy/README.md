@@ -80,13 +80,14 @@ All routes live inside a single `https://` site block. Requests are matched top-
 |---|---|---|---|
 | `/crud-api/*` | `handle_path` | yes — `/crud-api` stripped | `db-crud-api:8000` |
 | `/eurostats/*` | `handle_path` | yes — `/eurostats` stripped | `eurostats:8880` |
+| `/esc-converter/*` | `handle_path` | yes — `/esc-converter` stripped | `public-vote-converter:8090` |
 | `/grafana*` | `handle` | no | `grafana:3000` |
 | `/prometheus*` | `handle_path` | yes — `/prometheus` stripped | `prometheus:9090` |
 | `/tempo/*` | `handle_path` | yes — `/tempo` stripped | `tempo:3200` |
 | `/loki/*` | `handle_path` | yes — `/loki` stripped | `loki:3100` |
-| `*` (catch-all) | `handle` | no | `esc-frontend:5000` |
+| `*` (catch-all) | `handle` | no | `esc-frontend:3001` |
 
-All frontend routes (`/`, `/now`, `/results`, `/login`, `/admin`, `/jury`, `/vote/submit`, `/api/*`) are served by the catch-all rule and forwarded to the Flask frontend at `esc-frontend:5000`.
+All frontend routes (`/`, `/now`, `/results`, `/login`, `/admin`, `/jury`, `/vote/submit`, `/api/*`) are served by the catch-all rule and forwarded to the frontend at `esc-frontend:3001`.
 
 ### Why some routes strip and others do not
 
@@ -103,7 +104,7 @@ Caddy is attached to two networks so it can reach all upstream services:
 
 | Network | Upstreams reachable |
 |---|---|
-| `frontend` | `esc-frontend:5000`, `db-crud-api:8000` |
+| `frontend` | `esc-frontend:3001`, `db-crud-api:8000`, `public-vote-converter:8090` |
 | `observability` | `eurostats:8880`, `grafana:3000`, `prometheus:9090`, `tempo:3200`, `loki:3100` |
 
 ## Reloading Configuration
