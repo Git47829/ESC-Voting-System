@@ -39,6 +39,7 @@ _vote_df: pd.DataFrame = pd.DataFrame(
 class StatsConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -49,14 +50,15 @@ class StatsConnectionManager:
             self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
-        dead = []
-        for conn in self.active_connections:
-            try:
-                await conn.send_json(message)
-            except Exception:
-                dead.append(conn)
-        for d in dead:
-            self.active_connections.remove(d)
+        async with self._lock:
+            dead = []
+            for conn in self.active_connections:
+                try:
+                    await conn.send_json(message)
+                except Exception:
+                    dead.append(conn)
+            for d in dead:
+                self.active_connections.remove(d)
 
 
 stats_manager = StatsConnectionManager()
