@@ -1,6 +1,6 @@
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 
-import { api } from "../api/client";
+import { authService } from "../services/auth-service";
 import type { Role } from "../types";
 
 interface AuthContextValue {
@@ -24,7 +24,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const run = async () => {
       try {
-        const session = await api.session();
+        const session = await authService.getSession();
         setRole(session.role);
         setToken(session.token);
       } finally {
@@ -41,20 +41,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       loading,
       authenticated: Boolean(role && token),
       login: async (nextRole, nextToken) => {
-        await api.login(nextRole, nextToken);
+        await authService.directLogin(nextRole, nextToken);
         setRole(nextRole);
         setToken(nextToken);
       },
       authLogin: async (email, password, nextRole) => {
-        await api.authLogin(email, password, nextRole);
+        await authService.login(email, password, nextRole);
       },
       authVerify: async (email, code, nextRole) => {
-        await api.authVerify(email, code, nextRole);
-        setRole(nextRole);
-        setToken(email);
+        const session = await authService.verify(email, code, nextRole);
+        setRole(session.role);
+        setToken(session.token);
       },
       logout: async () => {
-        await api.logout();
+        await authService.logout();
         setRole(null);
         setToken(null);
       }

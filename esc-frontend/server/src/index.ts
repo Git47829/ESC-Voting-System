@@ -1,16 +1,17 @@
-import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import axios from "axios";
+import express, { type Request, type Response, type NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import express, { type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
 
 import { config, isMockMode } from "./config.js";
 import { apiRouter } from "./routes/api.js";
+import { healthCheck } from "./routes/health.js";
+import { csrfProtection, csrfTokenEndpoint } from "./middleware/csrf.js";
+import { errorHandler } from "./middleware/error-handler.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,7 @@ if (isProduction) {
   app.set("trust proxy", 1);
 }
 
+// CORS middleware (development only)
 if (!isProduction) {
   app.use(
     cors({
@@ -43,9 +45,12 @@ if (!isProduction) {
   );
 }
 
+// Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Session middleware
 app.use(
   session({
     secret: config.sessionSecret,
@@ -59,35 +64,15 @@ app.use(
   })
 );
 
-const csrfExempt = new Set(["/api/login", "/api/auth/login", "/api/auth/verify", "/api/csrf-token", "/health"]);
-const csrfSafeMethods = new Set(["GET", "HEAD", "OPTIONS"]);
+app.use(csrfProtection);
 
-app.use((req, res, next) => {
-  if (csrfSafeMethods.has(req.method) || csrfExempt.has(req.path)) {
-    next();
-    return;
-  }
-  const token = req.headers["x-csrf-token"] as string | undefined;
-  if (!token || token !== req.session.csrfToken) {
-    res.status(403).json({ error: "CSRF token invalid" });
-    return;
-  }
-  next();
-});
+app.get("/api/csrf-token", csrfTokenEndpoint);
 
-app.get("/api/csrf-token", (req, res) => {
-  if (!req.session.csrfToken) {
-    req.session.csrfToken = crypto.randomUUID();
-  }
-  res.json({ csrfToken: req.session.csrfToken });
-});
-
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "healthy", service: "esc-frontend-server", mock: isMockMode() });
-});
+app.get("/health", healthCheck);
 
 app.use("/api", apiRouter);
 
+// SPA fallback (production only)
 if (isProduction) {
   const clientDist = path.resolve(__dirname, "../../client/dist");
   app.use(express.static(clientDist));
@@ -96,18 +81,9 @@ if (isProduction) {
   });
 }
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  if (axios.isAxiosError(err)) {
-    res.status(502).json({ error: "Upstream service unavailable" });
-    return;
-  }
-  // eslint-disable-next-line no-console
-  console.error("Unhandled error:", err);
-  res.status(500).json({ error: "Internal server error" });
-});
+app.use(errorHandler);
 
 app.listen(config.port, () => {
   // eslint-disable-next-line no-console
   console.log(`ESC server listening on http://localhost:${config.port} (mock=${isMockMode()})`);
 });
-

@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import EurovisionHeart from "../../img/EurovisionHeart.png";
-import { api } from "../api/client";
 import { CountryCard } from "../components/ui/CountryCard";
 import { BudgetBar } from "../components/vote/BudgetBar";
-import { SubmitModal } from "../components/vote/SubmitModal";
+import { VoteSubmissionForm } from "../components/vote/VoteSubmissionForm";
 import { VoteBasket } from "../components/vote/VoteBasket";
 import { useCookieConsent } from "../context/CookieConsentContext";
 import { useFlash } from "../context/FlashContext";
-import type { Song } from "../types";
+import { useVotingSession } from "../hooks/useVotingSession";
+import { useHeroAnimation } from "../hooks/useHeroAnimation";
+import * as votingApi from "../services/voting-api";
 import { flagUrl } from "../utils/flagUrl";
 
 const TOTAL = 20;
@@ -17,77 +18,20 @@ const HERO_BAR_WIDTHS = ["62%", "54%", "72%"];
 const HERO_CHIPS = ["Live voting", "20 points to spend", "Choose your favorites", "Submit when ready"];
 
 export const VotePage = () => {
-  const [songs, setSongs] = useState<Song[]>([]);
-  const [selection, setSelection] = useState<Record<number, number>>({});
-  const [serverRemaining, setServerRemaining] = useState(TOTAL);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
   const [openSubmit, setOpenSubmit] = useState(false);
-  const [heroAccentActive, setHeroAccentActive] = useState(false);
-  const [heroSweepX, setHeroSweepX] = useState(-20);
   const { addFlash } = useFlash();
   const { consent } = useCookieConsent();
-
-  const votingLocked = hasSubmitted || serverRemaining === 0;
-
-  useEffect(() => {
-    void Promise.all([api.getSongs(), api.getVoteState()])
-      .then(([songs, state]) => {
-        setSongs(songs);
-        setServerRemaining(state.votesRemaining);
-        if (Object.keys(state.votesCast).length > 0) {
-          setSelection(state.votesCast);
-        }
-        if (state.votesRemaining === 0 && Object.keys(state.votesCast).length > 0) {
-          setHasSubmitted(true);
-        }
-      })
-      .catch((error: unknown) => {
-        addFlash(error instanceof Error ? error.message : "Failed to load voting data", "error");
-      });
-  }, [addFlash]);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    const onScroll = () => {
-      if (media.matches) {
-        setHeroSweepX(-20);
-        return;
-      }
-
-      const maxScroll = 700;
-      const progress = Math.max(0, Math.min(window.scrollY / maxScroll, 1));
-      const nextX = -20 + progress * 48;
-      setHeroSweepX(nextX);
-    };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (window.scrollY > 24) {
-        setHeroAccentActive(true);
-        window.removeEventListener("scroll", onScroll);
-      }
-    };
-
-    if (window.scrollY > 24) {
-      setHeroAccentActive(true);
-      return;
-    }
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-    };
-  }, []);
+  const {
+    songs,
+    selection,
+    setSelection,
+    serverRemaining,
+    setServerRemaining,
+    hasSubmitted,
+    setHasSubmitted,
+    votingLocked
+  } = useVotingSession();
+  const { heroAccentActive, heroSweepX } = useHeroAnimation();
 
   const used = useMemo(
     () => Object.values(selection).reduce((sum, value) => sum + value, 0),
@@ -128,7 +72,12 @@ export const VotePage = () => {
     let failed = false;
     for (const [songID, points] of entries) {
       try {
-        await api.submitVote({ songID: Number(songID), phoneNum: phone, ownCountry, points });
+        await votingApi.submitVote({
+          songID: Number(songID),
+          phoneNum: phone,
+          ownCountry,
+          points
+        });
       } catch (error: unknown) {
         failed = true;
         const msg = error instanceof Error ? error.message : "Vote submission failed";
@@ -136,7 +85,7 @@ export const VotePage = () => {
         break;
       }
     }
-    const state = await api.getVoteState();
+    const state = await votingApi.getVoteState();
     setSelection(state.votesCast);
     setServerRemaining(state.votesRemaining);
     setOpenSubmit(false);
@@ -583,9 +532,10 @@ export const VotePage = () => {
               <VoteBasket total={used} onSubmit={() => setOpenSubmit(true)} disabled={used === 0} />
             )}
 
-            <SubmitModal
+            <VoteSubmissionForm
               open={openSubmit}
-              totalPoints={used}
+              mode="total"
+              points={used}
               onClose={() => setOpenSubmit(false)}
               onSubmit={submit}
             />
