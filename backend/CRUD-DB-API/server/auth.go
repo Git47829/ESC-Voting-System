@@ -13,9 +13,6 @@ import (
 	"time"
 )
 
-// Package-level auth state. Kept global so state persists across handler calls
-// regardless of how many Handlers instances exist (test shims create a new one
-// per call).
 var (
 	storedTokens = make(map[string]time.Time)
 	tokenMu      sync.Mutex
@@ -83,9 +80,6 @@ func evictToken(input string) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Package-level shims — kept for test and router compatibility
-// ---------------------------------------------------------------------------
 
 func (h *Handlers) ServeRequestToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

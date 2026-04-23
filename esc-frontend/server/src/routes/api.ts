@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
+import { trace } from "@opentelemetry/api";
 
 import { config } from "../config.js";
 import { requireRole } from "../middleware/auth.js";
@@ -48,9 +49,22 @@ apiRouter.get("/session", (req, res) => {
 });
 
 apiRouter.post("/login", authLimiter, asyncHandler(async (req, res) => {
+  const tracer = trace.getTracer("esc-frontend-login");
+  const span = tracer.startSpan("login_with_token");
+
   const role = String(req.body?.role ?? "") as "admin" | "jury";
   const token = String(req.body?.token ?? "").trim();
+
+  span.setAttributes({
+    "user.role": role
+  });
+
   if (!token || (role !== "admin" && role !== "jury")) {
+    span.setAttributes({
+      "user.login_success": false,
+      "user.login_error": "invalid_payload"
+    });
+    span.end();
     res.status(422).json({ error: "Token and valid role are required" });
     return;
   }
@@ -58,17 +72,38 @@ apiRouter.post("/login", authLimiter, asyncHandler(async (req, res) => {
   try {
     const result = await authService.loginWithToken(role, token);
     if (!("role" in result)) {
+      span.setAttributes({
+        "user.login_success": false,
+        "user.login_error": "invalid_credentials"
+      });
+      span.end();
       res.status(403).json({ error: "Invalid credentials" });
       return;
     }
     if (!result.ok) {
+      span.setAttributes({
+        "user.login_success": false,
+        "user.login_error": "invalid_credentials"
+      });
+      span.end();
       res.status(403).json({ error: "Invalid credentials" });
       return;
     }
     req.session.role = role;
     req.session.token = token;
+    span.setAttributes({
+      "user.login_success": true,
+      "user.role": role
+    });
+    span.end();
     res.json({ ok: true, role });
   } catch (error) {
+    span.setAttributes({
+      "user.login_success": false,
+      "user.login_error": "exception",
+      "error.message": error instanceof Error ? error.message : "unknown"
+    });
+    span.end();
     res.status(500).json({ error: "Authentication failed" });
   }
 }));
@@ -135,10 +170,24 @@ apiRouter.post("/logout", (req, res) => {
 });
 
 apiRouter.get("/songs", asyncHandler(async (_req, res) => {
+  const tracer = trace.getTracer("esc-frontend-contest");
+  const span = tracer.startSpan("fetch_songs");
+
   try {
     const songs = await contestService.getSongs();
+    span.setAttributes({
+      "contest.operation": "get_songs",
+      "contest.songs_count": songs?.length ?? 0
+    });
+    span.end();
     res.json({ message: "Success", payload: songs });
   } catch (error) {
+    span.setAttributes({
+      "contest.operation": "get_songs",
+      "contest.error": "fetch_failed",
+      "error.message": error instanceof Error ? error.message : "unknown"
+    });
+    span.end();
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to fetch songs" });
   }
 }));
@@ -189,8 +238,16 @@ apiRouter.get("/vote/state", (req, res) => {
 });
 
 apiRouter.post("/vote", asyncHandler(async (req, res) => {
+  const tracer = trace.getTracer("esc-frontend-voting");
+  const span = tracer.startSpan("cast_public_vote");
+
   const essentialConsent = parseConsentCookie(req.headers.cookie);
   if (!essentialConsent) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "missing_consent"
+    });
+    span.end();
     res.status(403).json({ error: "Please accept required vote cookies before submitting votes." });
     return;
   }
@@ -202,7 +259,18 @@ apiRouter.post("/vote", asyncHandler(async (req, res) => {
     votesCast: {}
   };
 
+  span.setAttributes({
+    "vote.song_id": songID,
+    "vote.points": points,
+    "vote.votes_remaining": state.votesRemaining
+  });
+
   if (points > state.votesRemaining) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "insufficient_points"
+    });
+    span.end();
     res.status(403).json({
       error: `Not enough vote points remaining (have ${state.votesRemaining}, requested ${points})`,
       votes_remaining: state.votesRemaining
@@ -222,31 +290,66 @@ apiRouter.post("/vote", asyncHandler(async (req, res) => {
     );
     const newState = result.payload;
     req.session.voteState = newState;
+    span.setAttributes({
+      "vote.success": true,
+      "vote.votes_remaining_after": newState.votesRemaining
+    });
+    span.end();
     res.status(201).json({
       message: result.message,
       payload: newState
     });
   } catch (error) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "exception",
+      "error.message": error instanceof Error ? error.message : "unknown"
+    });
+    span.end();
     res.status(422).json({ error: error instanceof Error ? error.message : "Vote failed" });
   }
 }));
 
 apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), asyncHandler(async (req, res) => {
+  const tracer = trace.getTracer("esc-frontend-voting");
+  const span = tracer.startSpan("cast_jury_vote");
+
   const songID = toInt(req.body?.songID);
   const points = toInt(req.body?.points);
   const juryVoteState = getJuryVoteState(req.session);
 
+  span.setAttributes({
+    "vote.type": "jury",
+    "vote.song_id": songID,
+    "vote.points": points
+  });
+
   if (!songID || !juryPointValues.includes(points as (typeof juryPointValues)[number])) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "invalid_payload"
+    });
+    span.end();
     res.status(422).json({ error: "Invalid jury vote payload" });
     return;
   }
 
   if (juryVoteState.votesCast[songID] !== undefined) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "song_already_voted"
+    });
+    span.end();
     res.status(409).json({ error: "This song already has a jury vote from this session." });
     return;
   }
 
   if (Object.values(juryVoteState.votesCast).includes(points)) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "points_already_used"
+    });
+    span.end();
     res.status(409).json({ error: `${points} points were already used for another song in this session.` });
     return;
   }
@@ -255,8 +358,18 @@ apiRouter.post("/jury/vote", authorizedLimiter, requireRole("jury"), asyncHandle
     await votingService.castJuryVote(songID, points);
     juryVoteState.votesCast[songID] = points;
     req.session.juryVoteState = juryVoteState;
+    span.setAttributes({
+      "vote.success": true
+    });
+    span.end();
     res.json({ message: "Jury vote submitted" });
   } catch (error) {
+    span.setAttributes({
+      "vote.success": false,
+      "vote.error": "exception",
+      "error.message": error instanceof Error ? error.message : "unknown"
+    });
+    span.end();
     res.status(422).json({ error: error instanceof Error ? error.message : "Vote failed" });
   }
 }));

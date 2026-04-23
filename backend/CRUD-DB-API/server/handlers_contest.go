@@ -27,6 +27,7 @@ func (h *Handlers) ServeStartContest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fisher-Yates shuffle
+	//Shuffels the Order of the Songs Randomly
 	for i := len(ids) - 1; i > 0; i-- {
 		b := make([]byte, 4)
 		rand.Read(b)

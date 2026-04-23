@@ -16,25 +16,14 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-// ---------------------------------------------------------------------------
-// VoteNotifier — interface that severs the HTTP-to-gRPC global coupling (DIP)
-// ---------------------------------------------------------------------------
-
-// VoteNotifier broadcasts a new vote event to gRPC subscribers.
-// Handlers depend on this interface, not on the concrete *voteServer.
 type VoteNotifier interface {
 	NotifyVote(ctx context.Context, songID int, voterCountry string) error
 }
 
-// NoopVoteNotifier is a no-op VoteNotifier used when gRPC is not available
-// (e.g., during unit tests).
 type NoopVoteNotifier struct{}
 
 func (NoopVoteNotifier) NotifyVote(_ context.Context, _ int, _ string) error { return nil }
 
-// ---------------------------------------------------------------------------
-// voteServer — gRPC service implementation + VoteNotifier
-// ---------------------------------------------------------------------------
 
 type voteServer struct {
 	pb.UnimplementedVoteServiceServer
@@ -174,8 +163,6 @@ func (s *voteServer) GetSongsWithVotes(ctx context.Context, req *pb.GetSongsRequ
 	return &pb.GetSongsResponse{Songs: songs}, nil
 }
 
-// NotifyVote implements VoteNotifier. It queries song details and broadcasts
-// the vote to all gRPC subscribers.
 func (s *voteServer) NotifyVote(ctx context.Context, songID int, voterCountry string) error {
 	notifyCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -231,12 +218,6 @@ func (s *voteServer) NotifyVote(ctx context.Context, songID int, voterCountry st
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// StartGRPCServer — returns VoteNotifier (not the concrete *voteServer)
-// ---------------------------------------------------------------------------
-
-// StartGRPCServer starts the gRPC server and returns a VoteNotifier interface.
-// Callers depend on the interface, not the concrete type (DIP).
 func StartGRPCServer(database *sql.DB, port string) (VoteNotifier, error) {
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {

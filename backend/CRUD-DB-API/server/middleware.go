@@ -12,13 +12,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// Client tracks the rate limiter and last-seen time for an IP+endpoint pair.
 type Client struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
 }
 
-// RateLimitConfig describes the rate limit for a single endpoint pattern.
 type RateLimitConfig struct {
 	RequestsPerSecond float64
 	BurstSize         int
@@ -29,7 +27,6 @@ var (
 	rateMu  sync.Mutex
 )
 
-// rateLimitConfigs maps "METHOD /path" patterns to their rate limit settings.
 var rateLimitConfigs = map[string]RateLimitConfig{
 	"GET /health":          {RequestsPerSecond: 100, BurstSize: 100},
 	"GET /votes/":          {RequestsPerSecond: 10, BurstSize: 20},
@@ -61,7 +58,6 @@ var rateLimitConfigs = map[string]RateLimitConfig{
 	"GET /metrics/": {RequestsPerSecond: 10000, BurstSize: 10000},
 }
 
-// cleanupClients periodically evicts stale rate-limiter entries.
 func cleanupClients() {
 	ticker := time.NewTicker(5 * time.Minute)
 	for range ticker.C {
@@ -106,7 +102,6 @@ func getClientIP(r *http.Request) string {
 	return ip
 }
 
-// RateLimitingMiddleware applies per-IP token-bucket rate limiting.
 func RateLimitingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		endpoint := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
@@ -128,7 +123,6 @@ func RateLimitingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// dbReadinessMiddleware blocks requests (except /health) until the DB is ready.
 func dbReadinessMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {

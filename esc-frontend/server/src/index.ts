@@ -1,11 +1,14 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import "./observability.js";
+
 import express, { type Request, type Response, type NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
+import { trace } from "@opentelemetry/api";
 
 import { config, isMockMode } from "./config.js";
 import { apiRouter } from "./routes/api.js";
@@ -34,6 +37,36 @@ const spaFallbackRateLimiter = rateLimit({
 if (isProduction) {
   app.set("trust proxy", 1);
 }
+
+// Request logging middleware for observability
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const tracer = trace.getTracer("esc-frontend-request-logger");
+  const span = tracer.startSpan(`${req.method} ${req.path}`);
+
+  const startTime = Date.now();
+
+  res.on("finish", () => {
+    const duration = Date.now() - startTime;
+    span.setAttributes({
+      "http.method": req.method,
+      "http.url": req.originalUrl,
+      "http.target": req.path,
+      "http.status_code": res.statusCode,
+      "http.response_content_length": res.get("content-length") ?? 0
+    });
+    span.addEvent("http.request_complete", {
+      "http.duration_ms": duration
+    });
+    span.end();
+
+    if (!isProduction) {
+      // eslint-disable-next-line no-console
+      console.log(`[${req.method}] ${req.path} - ${res.statusCode} (${duration}ms)`);
+    }
+  });
+
+  next();
+});
 
 // CORS middleware (development only)
 if (!isProduction) {

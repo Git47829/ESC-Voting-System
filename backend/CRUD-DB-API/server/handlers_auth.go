@@ -27,8 +27,6 @@ func extractEmail(r *http.Request) string {
 	return strings.TrimSpace(r.Header.Get("X-Email"))
 }
 
-// RequireJury is middleware that enforces jury authentication.
-// Signature unchanged for test compatibility.
 func RequireJury(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
@@ -44,8 +42,6 @@ func RequireJury(next http.Handler) http.Handler {
 	})
 }
 
-// RequireAdmin is middleware that enforces admin authentication.
-// Signature unchanged for test compatibility.
 func RequireAdmin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := extractToken(r)
@@ -61,7 +57,6 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
-// CheckPhoneNum parses and validates a phone number, returning the region code.
 func CheckPhoneNum(num string) (string, error) {
 	parsed, err := phonenumbers.Parse(num, "")
 	if err != nil {
@@ -73,14 +68,12 @@ func CheckPhoneNum(num string) (string, error) {
 	return phonenumbers.GetRegionCodeForNumber(parsed), nil
 }
 
-// HashPhoneNumber returns an HMAC-SHA256 hex digest of the phone number.
 func HashPhoneNumber(phone string) string {
 	mac := hmac.New(sha256.New, SignedPhoneSecret)
 	mac.Write([]byte(phone))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// HashPassword bcrypt-hashes a plaintext password.
 func HashPassword(password string) (string, error) {
 	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -89,13 +82,10 @@ func HashPassword(password string) (string, error) {
 	return string(sum), nil
 }
 
-// CheckPassword reports whether plaintext matches a bcrypt hash.
 func CheckPassword(password, storedToken string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(storedToken), []byte(password)) == nil
 }
 
-// CheckAccessAdmin validates admin credentials against environment variables.
-// Kept as a package-level function for test compatibility.
 func CheckAccessAdmin(input, email string) (bool, string) {
 	if input == "" {
 		return false, "Token has to be provided"
@@ -113,10 +103,6 @@ func CheckAccessAdmin(input, email string) (bool, string) {
 	return false, "Wrong Token provided"
 }
 
-// CheckAccessJury validates jury credentials against environment variables.
-// Reads juryMail1..N / juryPassword1..N dynamically, enabling adding jury
-// members via env vars without code changes (OCP).
-// Kept as a package-level function for test compatibility.
 func CheckAccessJury(input, email string) (bool, string) {
 	if input == "" {
 		return false, "Token has to be provided"
@@ -142,9 +128,6 @@ func CheckAccessJury(input, email string) (bool, string) {
 	return false, "Invalid email"
 }
 
-// ---------------------------------------------------------------------------
-// Package-level shims for AdminLogin / JuryLogin
-// ---------------------------------------------------------------------------
 
 func (h *Handlers) ServeAdminLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

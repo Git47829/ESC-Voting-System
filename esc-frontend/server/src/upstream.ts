@@ -1,4 +1,5 @@
-import axios, { type AxiosResponseHeaders, type RawAxiosResponseHeaders } from "axios";
+import axios, { type AxiosResponseHeaders, type RawAxiosResponseHeaders, type InternalAxiosRequestConfig } from "axios";
+import { trace, type Span } from "@opentelemetry/api";
 
 import { config } from "./config.js";
 
@@ -7,6 +8,62 @@ export const upstream = axios.create({
   timeout: config.apiTimeout,
   validateStatus: () => true
 });
+
+// Add request/response interceptors for observability
+upstream.interceptors.request.use((axiosConfig: InternalAxiosRequestConfig) => {
+  const tracer = trace.getTracer("esc-frontend-upstream");
+  const span = tracer.startSpan(`${axiosConfig.method?.toUpperCase()} ${axiosConfig.url}`);
+
+  span.setAttributes({
+    "http.method": axiosConfig.method?.toUpperCase() ?? "unknown",
+    "http.url": axiosConfig.url ?? "unknown",
+    "service.name": "esc-api-upstream"
+  });
+
+  // Store span in config for use in response interceptor
+  const configWithOtel = axiosConfig as unknown as Record<string, unknown>;
+  configWithOtel._otelSpan = span;
+  configWithOtel._otelStartTime = Date.now();
+
+  return axiosConfig;
+});
+
+upstream.interceptors.response.use(
+  (response) => {
+    const configWithOtel = response.config as unknown as Record<string, unknown>;
+    const span = configWithOtel._otelSpan as Span | undefined;
+    const startTime = configWithOtel._otelStartTime as number | undefined;
+
+    if (span && startTime) {
+      const duration = Date.now() - startTime;
+      span.setAttributes({
+        "http.status_code": response.status,
+        "http.response_content_length": response.headers["content-length"] ?? 0,
+        "http.duration_ms": duration
+      });
+      span.end();
+    }
+
+    return response;
+  },
+  (error) => {
+    const configWithOtel = error.config as unknown as Record<string, unknown> | undefined;
+    const span = configWithOtel?._otelSpan as Span | undefined;
+    const startTime = configWithOtel?._otelStartTime as number | undefined;
+
+    if (span && startTime) {
+      const duration = Date.now() - startTime;
+      span.setAttributes({
+        "http.error": true,
+        "error.message": error instanceof Error ? error.message : "unknown",
+        "http.duration_ms": duration
+      });
+      span.end();
+    }
+
+    return Promise.reject(error);
+  }
+);
 
 export const passSetCookie = (
   headers: AxiosResponseHeaders | RawAxiosResponseHeaders,
@@ -34,4 +91,5 @@ export const parseConsentCookie = (cookieHeader?: string): boolean => {
     return false;
   }
 };
+
 

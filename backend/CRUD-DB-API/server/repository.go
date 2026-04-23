@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-// ---------------------------------------------------------------------------
-// VoteRepository — interface for all vote-related DB operations (ISP / DIP)
-// ---------------------------------------------------------------------------
-
-// VoteRepository abstracts all vote-related database operations.
-// Handlers depend on this interface, not on *sql.DB directly.
 type VoteRepository interface {
 	GetVotingStatus(ctx context.Context) (isOpen bool, err error)
 	GetSongCountry(ctx context.Context, songID int) (countryID string, err error)
@@ -28,11 +22,6 @@ type VoteRepository interface {
 	UpdateSongJuryVotes(ctx context.Context, songID, points int) (rowsAffected int64, err error)
 }
 
-// ---------------------------------------------------------------------------
-// SongRepository — interface for song/country/contest DB operations
-// ---------------------------------------------------------------------------
-
-// SongRepository abstracts song, country, and contest database operations.
 type SongRepository interface {
 	GetAllCountries(ctx context.Context) ([]Countrys, error)
 	GetCountriesByID(ctx context.Context, id string) ([]Countrys, error)
@@ -51,9 +40,6 @@ type SongRepository interface {
 	InsertInterpret(ctx context.Context, id int, name, vorname string) (rowsAffected int64, err error)
 }
 
-// ---------------------------------------------------------------------------
-// mysqlVoteRepository — MySQL implementation of VoteRepository
-// ---------------------------------------------------------------------------
 
 type mysqlVoteRepository struct{ db *sql.DB }
 
@@ -164,8 +150,6 @@ func (r *mysqlVoteRepository) GetAllVotes(ctx context.Context) ([]SongVote, erro
 }
 
 func (r *mysqlVoteRepository) SetVotingOpen(ctx context.Context, open bool) (int64, error) {
-	// Use literal true/false in SQL (not a bind param) so that test mocks that
-	// match on "isOpen = true" / "isOpen = false" substrings continue to work.
 	var query string
 	if open {
 		query = `UPDATE Voting_Status SET isOpen = true, lastChange = ?`
@@ -203,10 +187,6 @@ func (r *mysqlVoteRepository) UpdateSongJuryVotes(ctx context.Context, songID, p
 	}
 	return result.RowsAffected()
 }
-
-// ---------------------------------------------------------------------------
-// mysqlSongRepository — MySQL implementation of SongRepository
-// ---------------------------------------------------------------------------
 
 type mysqlSongRepository struct{ db *sql.DB }
 

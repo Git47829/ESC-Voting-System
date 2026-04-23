@@ -33,6 +33,7 @@ values.yaml
 *.tfstate
 
 
+.claude/
 
 tools/
 

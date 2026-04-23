@@ -29,8 +29,6 @@ func getEnvOrDefaultInt(key string, fallback int) int {
 	return fallback
 }
 
-// DB is the package-level database connection.
-// Kept as a package-level var for test compatibility (tests assign mockDB here).
 var DB *sql.DB
 
 var (
@@ -39,8 +37,6 @@ var (
 	dbReady        = make(chan struct{})
 )
 
-// connectToDatabase establishes a MySQL connection with retry logic.
-// Accepts AppConfig so all configuration comes from a single source.
 func connectToDatabase(cfg AppConfig) (*sql.DB, error) {
 	escapedPass := url.QueryEscape(cfg.DbPass)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",

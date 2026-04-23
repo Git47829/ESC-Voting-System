@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// AppConfig holds all application configuration loaded from environment variables.
-// JuryMembers is a slice, so adding jury members requires only env var changes (OCP).
 type AppConfig struct {
 	DbHost        string
 	DbName        string
@@ -25,13 +23,11 @@ type AppConfig struct {
 	GRPCPort      string
 }
 
-// JuryMember holds credentials for a single jury member.
 type JuryMember struct {
 	Email    string
 	Password string
 }
 
-// LoadConfig reads all configuration from environment variables.
 func LoadConfig() AppConfig {
 	cfg := AppConfig{
 		DbHost:        getEnvOrDefault("DB_HOST", "localhost"),
@@ -50,7 +46,6 @@ func LoadConfig() AppConfig {
 	return cfg
 }
 
-// loadJuryMembersFromEnv reads juryMail1..N / juryPassword1..N env vars until a gap is found.
 func loadJuryMembersFromEnv() []JuryMember {
 	var members []JuryMember
 	for i := 1; ; i++ {

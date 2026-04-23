@@ -25,13 +25,9 @@ import (
 
 const totalVotePoints = 20
 
-// SignedCookieSecret and SignedPhoneSecret are package-level vars retained for
-// test compatibility (tests read/set them directly).
 var SignedCookieSecret []byte
 var SignedPhoneSecret []byte
 
-// InitCookieSecret derives or generates the cookie signing secret and stores it
-// in SignedCookieSecret. Called by tests and by Run().
 func InitCookieSecret() {
 	if key := os.Getenv("COOKIESIGNINGKEY"); key != "" {
 		sum := sha256.Sum256([]byte("cookie-secret:" + key))
@@ -44,8 +40,6 @@ func InitCookieSecret() {
 	}
 }
 
-// InitPhoneSecret derives the phone signing secret from env and stores it in
-// SignedPhoneSecret. Called by Run().
 func InitPhoneSecret() {
 	if key := os.Getenv("PHONESIGNINGSECRET"); key != "" {
 		sum := sha256.Sum256([]byte("phone-secret:" + key))
@@ -53,7 +47,6 @@ func InitPhoneSecret() {
 	}
 }
 
-// EncodeCookieValue marshals state and appends an HMAC-SHA256 signature.
 func EncodeCookieValue(state CookieVoteState) (string, error) {
 	data, err := json.Marshal(state)
 	if err != nil {
@@ -67,11 +60,6 @@ func EncodeCookieValue(state CookieVoteState) (string, error) {
 	return hex.EncodeToString(payload), nil
 }
 
-// ---------------------------------------------------------------------------
-// Handlers struct — dependency-injected handler container (DIP / ISP)
-// ---------------------------------------------------------------------------
-
-// Handlers holds all dependencies for HTTP handler methods.
 type Handlers struct {
 	votes    VoteRepository
 	songs    SongRepository
@@ -80,7 +68,6 @@ type Handlers struct {
 	cfg      AppConfig
 }
 
-// NewHandlers constructs a Handlers with the provided database, notifier, and config.
 func NewHandlers(db *sql.DB, notifier VoteNotifier, cfg AppConfig) *Handlers {
 	return &Handlers{
 		votes:    newMySQLVoteRepository(db),
@@ -91,9 +78,6 @@ func NewHandlers(db *sql.DB, notifier VoteNotifier, cfg AppConfig) *Handlers {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Run — server entry point
-// ---------------------------------------------------------------------------
 
 func Run() {
 	InitCookieSecret()
@@ -159,8 +143,6 @@ func Run() {
 	Tracer = otel.Tracer("esc-voting-crud-api")
 
 	cfg := LoadConfig()
-	// Sync package-level secrets with what LoadConfig derived, so that
-	// EncodeCookieValue (which reads the globals) stays consistent.
 	SignedCookieSecret = cfg.CookieSecret
 	SignedPhoneSecret = cfg.PhoneSecret
 
