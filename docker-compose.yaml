@@ -275,9 +275,7 @@ services:
     restart: unless-stopped
     env_file:
       - .env
-    environment:
-      CLOUDFLARE_TUNNEL_NAME: ${CLOUDFLARE_TUNNEL_NAME}
-      CLOUDFLARE_TUNNEL_TOKEN: ${CLOUDFLARE_SECRET}
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_SECRET}
     volumes:
       - ./backend/Cloudflare/config.yml:/etc/cloudflared/config.yml:ro
     networks:

@@ -136,7 +136,6 @@ To expose the ESC Voting System to the internet via `escvoting.dev`, use Cloudfl
 2. In the Cloudflare dashboard, go to **Zero Trust → Tunnels** and create a new tunnel named `escvoting`
 3. Copy the tunnel token and add it to your `.env`:
    ```env
-   CLOUDFLARE_TUNNEL_NAME=escvoting
    CLOUDFLARE_SECRET=<your-token-from-cloudflare-dashboard>
    ```
 4. Start Docker Compose — the `cloudflared` service will automatically connect to your tunnel

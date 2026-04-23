@@ -28,7 +28,6 @@ This document provides step-by-step instructions for setting up Cloudflare Tunne
 1. Open `.env` in the project root
 2. Find the Cloudflare section (added by the setup script):
    ```env
-   CLOUDFLARE_TUNNEL_NAME=escvoting
    CLOUDFLARE_SECRET=
    ```
 3. Paste your tunnel token into `CLOUDFLARE_SECRET`:

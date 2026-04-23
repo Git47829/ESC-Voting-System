@@ -1,8 +1,6 @@
 # Cloudflare Tunnel Configuration
 # Routes traffic from Cloudflare edge to local services
 
-tunnel: ${CLOUDFLARE_TUNNEL_NAME}
-credentials-file: /etc/cloudflared/cred.json
 protocol: http2
 
 # Ingress rules: match requests and route to backend services
