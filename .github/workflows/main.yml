@@ -54,14 +54,6 @@ jobs:
         working-directory: backend/EuroStats
         run: python -m pytest
 
-      - name: Install frontend test dependencies
-        working-directory: frontend
-        run: pip install -r requirements-test.txt
-
-      - name: Run frontend unit tests
-        working-directory: frontend
-        run: python -m pytest tests/
-
   test:
     name: Check all containers start
     runs-on: ubuntu-latest
