@@ -127,6 +127,28 @@ All services are accessed through Caddy on a single HTTPS host. Replace `<host>`
 
 > **Note:** Plain HTTP (`http://<host>`) redirects automatically to HTTPS.
 
+### Public Internet Access via Cloudflare Tunnel
+
+To expose the ESC Voting System to the internet via `escvoting.dev`, use Cloudflare Tunnel:
+
+**Setup:**
+1. Create a Cloudflare account and add your domain to Cloudflare DNS
+2. In the Cloudflare dashboard, go to **Zero Trust → Tunnels** and create a new tunnel named `escvoting`
+3. Copy the tunnel token and add it to your `.env`:
+   ```env
+   CLOUDFLARE_TUNNEL_NAME=escvoting
+   CLOUDFLARE_SECRET=<your-token-from-cloudflare-dashboard>
+   ```
+4. Start Docker Compose — the `cloudflared` service will automatically connect to your tunnel
+
+**Public Routes (via `escvoting.dev`):**
+- Frontend: `https://escvoting.dev/`
+- Grafana: `https://escvoting.dev/grafana/`
+
+**Security:** Only the frontend and Grafana are exposed to the internet. All other services (database, APIs, Prometheus, Tempo, Loki) remain internal and are unreachable from outside the Docker network.
+
+**TLS:** Cloudflare manages the public HTTPS certificate at the edge. Internally, services communicate via Caddy's self-signed certificates.
+
 ### HTTPS / Certificate Trust
 
 Caddy uses its built-in local CA to issue a self-signed certificate. Your browser will show a security warning until you trust the CA cert. To install it:

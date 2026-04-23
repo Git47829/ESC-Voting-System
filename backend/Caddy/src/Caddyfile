@@ -4,6 +4,13 @@
 # time for whatever identifier the client presents.
 # HTTP (port 80) redirects to HTTPS automatically.
 # OTel ingestion (4317/4318) is internal-only and not routed here.
+#
+# Cloudflare Tunnel exposes ONLY:
+#   - Frontend at escvoting.dev (routes to esc-frontend:3001 below)
+#   - Grafana at escvoting.dev/grafana (routes to grafana:3000 below)
+# All other paths/services are internal-only.
+# TLS termination: Cloudflare edge terminates public HTTPS; Caddy uses
+# self-signed certs internally for service-to-service communication.
 
 {
 	# Expose the admin API on all interfaces inside the container so that

@@ -1,0 +1,22 @@
+# Cloudflare Tunnel Configuration
+# Routes traffic from Cloudflare edge to local services
+
+tunnel: ${CLOUDFLARE_TUNNEL_NAME}
+credentials-file: /etc/cloudflared/cred.json
+protocol: http2
+
+# Ingress rules: match requests and route to backend services
+ingress:
+  # Frontend service (root path) - plain HTTP
+  - hostname: escvoting.dev
+    service: http://esc-frontend:3001
+
+  # Grafana observability dashboard - via Caddy (HTTPS with self-signed cert)
+  - hostname: escvoting.dev
+    path: /grafana*
+    service: https://caddy:443
+    originRequest:
+      noTLSVerify: true
+
+  # Default catch-all - deny everything else
+  - service: http_status:404
