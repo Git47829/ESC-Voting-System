@@ -16,17 +16,17 @@ import (
 	"crud-db-api/server"
 )
 
-// setupVoteMock prepares a sqlmock DB with the common successful-vote query
+// setupVoteSuccessMock prepares a sqlmock DB with the common successful-vote query
 // sequence. Since two goroutines run concurrently, MatchExpectationsInOrder is
 // disabled.
-func setupVoteSuccessMock(t *testing.T, songLandID string, remaining int) (*sqlmock.Sqlmock, func()) {
+func setupVoteSuccessMock(t *testing.T, songLandID string, remaining int) (*server.Handlers, *sqlmock.Sqlmock, func()) {
 	t.Helper()
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	mock.MatchExpectationsInOrder(false)
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	// Concurrent errgroup queries (order undefined):
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -47,7 +47,7 @@ func setupVoteSuccessMock(t *testing.T, songLandID string, remaining int) (*sqlm
 		WillReturnRows(sqlmock.NewRows([]string{"votes_remaining", "votes_cast"}).
 			AddRow(remaining, `{"1":5}`))
 
-	return &mock, func() { mockDB.Close() }
+	return h, &mock, func() { mockDB.Close() }
 }
 
 func voteRequest(phone, songID, points string) *http.Request {
@@ -64,12 +64,12 @@ func voteRequest(phone, songID, points string) *http.Request {
 // ---------------------------------------------------------------------------
 
 func TestVote_ValidRequest_Returns201(t *testing.T) {
-	_, cleanup := setupVoteSuccessMock(t, "FR", 15)
+	h, _, cleanup := setupVoteSuccessMock(t, "FR", 15)
 	defer cleanup()
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -77,12 +77,12 @@ func TestVote_ValidRequest_Returns201(t *testing.T) {
 }
 
 func TestVote_ValidRequest_ResponseShape(t *testing.T) {
-	_, cleanup := setupVoteSuccessMock(t, "FR", 15)
+	h, _, cleanup := setupVoteSuccessMock(t, "FR", 15)
 	defer cleanup()
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -95,12 +95,12 @@ func TestVote_ValidRequest_ResponseShape(t *testing.T) {
 }
 
 func TestVote_ValidRequest_SetsCookieWithHMAC(t *testing.T) {
-	_, cleanup := setupVoteSuccessMock(t, "FR", 15)
+	h, _, cleanup := setupVoteSuccessMock(t, "FR", 15)
 	defer cleanup()
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	var voteCookie *http.Cookie
 	for _, c := range rr.Result().Cookies() {
@@ -143,11 +143,11 @@ func TestVote_InvalidPhoneNumber_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := voteRequest("notaphone", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -164,7 +164,7 @@ func TestVote_VotingClosed_Returns425(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -174,7 +174,7 @@ func TestVote_VotingClosed_Returns425(t *testing.T) {
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusTooEarly {
 		t.Errorf("expected 425, got %d", rr.Code)
@@ -191,7 +191,7 @@ func TestVote_SongNotFound_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -201,7 +201,7 @@ func TestVote_SongNotFound_Returns404(t *testing.T) {
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -218,7 +218,7 @@ func TestVote_VoteForOwnCountry_Returns403(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	// Phone is German (+49), song belongs to "DE".
@@ -229,7 +229,7 @@ func TestVote_VoteForOwnCountry_Returns403(t *testing.T) {
 
 	req := voteRequest("+4915123456789", "1", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -251,11 +251,11 @@ func TestVote_InvalidSongID_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := voteRequest("+4915123456789", "notanumber", "5")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -268,11 +268,11 @@ func TestVote_PointsZero_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := voteRequest("+4915123456789", "1", "0")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -285,11 +285,11 @@ func TestVote_PointsTooHigh_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := voteRequest("+4915123456789", "1", "21")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -302,11 +302,11 @@ func TestVote_PointsNotInteger_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := voteRequest("+4915123456789", "1", "abc")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -323,7 +323,7 @@ func TestVote_InsufficientBudget_Returns403(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -344,7 +344,7 @@ func TestVote_InsufficientBudget_Returns403(t *testing.T) {
 
 	req := voteRequest("+4915123456789", "1", "10")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d — body: %s", rr.Code, rr.Body.String())
@@ -382,12 +382,12 @@ func TestHashPhoneNumber_DifferentPhones(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestVote_FullBudget20Points_Returns201(t *testing.T) {
-	_, cleanup := setupVoteSuccessMock(t, "FR", 0)
+	h, _, cleanup := setupVoteSuccessMock(t, "FR", 0)
 	defer cleanup()
 
 	req := voteRequest("+4915123456789", "1", "20")
 	rr := httptest.NewRecorder()
-	server.Vote(rr, req)
+	h.ServeVote(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())

@@ -6,12 +6,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/nyaruka/phonenumbers"
-	"golang.org/x/crypto/bcrypt"
 	"log/slog"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/nyaruka/phonenumbers"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func extractToken(r *http.Request) string {
@@ -61,14 +62,10 @@ func CheckPhoneNum(num string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not parse phone number: %w", err)
 	}
-
 	if !phonenumbers.IsValidNumber(parsed) {
 		return "", fmt.Errorf("invalid phone number")
 	}
-
-	numRegion := phonenumbers.GetRegionCodeForNumber(parsed)
-
-	return numRegion, nil
+	return phonenumbers.GetRegionCodeForNumber(parsed), nil
 }
 
 func HashPhoneNumber(phone string) string {
@@ -79,17 +76,14 @@ func HashPhoneNumber(phone string) string {
 
 func HashPassword(password string) (string, error) {
 	sum, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-
 	if err != nil {
 		return "", err
 	}
-
 	return string(sum), nil
 }
 
 func CheckPassword(password, storedToken string) bool {
-	err := bcrypt.CompareHashAndPassword([]byte(storedToken), []byte(password))
-	return err == nil
+	return bcrypt.CompareHashAndPassword([]byte(storedToken), []byte(password)) == nil
 }
 
 func CheckAccessAdmin(input, email string) (bool, string) {
@@ -103,8 +97,7 @@ func CheckAccessAdmin(input, email string) (bool, string) {
 	if !strings.EqualFold(email, strings.TrimSpace(adminMail)) {
 		return false, "Invalid email"
 	}
-	adminPassword := os.Getenv("adminPassword")
-	if CheckPassword(input, adminPassword) {
+	if CheckPassword(input, os.Getenv("adminPassword")) {
 		return true, "Authorized"
 	}
 	return false, "Wrong Token provided"
@@ -118,20 +111,14 @@ func CheckAccessJury(input, email string) (bool, string) {
 		return false, "Email has to be provided"
 	}
 
-	type juryMember struct {
-		mail     string
-		password string
-	}
-
-	members := []juryMember{
-		{strings.TrimSpace(os.Getenv("juryMail1")), os.Getenv("juryPassword1")},
-		{strings.TrimSpace(os.Getenv("juryMail2")), os.Getenv("juryPassword2")},
-		{strings.TrimSpace(os.Getenv("juryMail3")), os.Getenv("juryPassword3")},
-	}
-
-	for _, m := range members {
-		if strings.EqualFold(email, m.mail) {
-			if CheckPassword(input, m.password) {
+	for i := 1; ; i++ {
+		mail := strings.TrimSpace(os.Getenv(fmt.Sprintf("juryMail%d", i)))
+		if mail == "" {
+			break
+		}
+		pass := os.Getenv(fmt.Sprintf("juryPassword%d", i))
+		if strings.EqualFold(email, mail) {
+			if CheckPassword(input, pass) {
 				return true, "Authorized"
 			}
 			return false, "Wrong Token Provided"
@@ -142,12 +129,12 @@ func CheckAccessJury(input, email string) (bool, string) {
 }
 
 
-func AdminLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func (h *Handlers) ServeAdminLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	w.Header().Set("Content-Type", "application/json")
 
 	email := extractEmail(r)
-	token, err := generateAndStoreToken()
+	token, err := h.auth.GenerateAndStoreToken()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -155,7 +142,7 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := requestVerificationMail(email, token); err != nil {
+	if err := h.auth.SendVerificationMail(email, token); err != nil {
 		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})
@@ -167,12 +154,12 @@ func AdminLogin(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"message": "verification email sent"})
 }
 
-func JuryLogin(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func (h *Handlers) ServeJuryLogin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	w.Header().Set("Content-Type", "application/json")
 
 	email := extractEmail(r)
-	token, err := generateAndStoreToken()
+	token, err := h.auth.GenerateAndStoreToken()
 	if err != nil {
 		Logger.ErrorContext(ctx, "Failed to generate token", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -180,7 +167,7 @@ func JuryLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := requestVerificationMail(email, token); err != nil {
+	if err := h.auth.SendVerificationMail(email, token); err != nil {
 		Logger.ErrorContext(ctx, "Failed to send verification mail", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Unable to send verification email"})

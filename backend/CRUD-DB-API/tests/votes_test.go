@@ -8,8 +8,6 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-
-	"crud-db-api/server"
 )
 
 func TestGetVotes_EmptyDB_Returns200EmptyPayload(t *testing.T) {
@@ -18,14 +16,14 @@ func TestGetVotes_EmptyDB_Returns200EmptyPayload(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	cols := []string{"ID", "Name", "Country", "PublikumsPunkte", "JuryPunkte", "GesamtPunkte"}
 	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows(cols))
 
 	req := httptest.NewRequest(http.MethodGet, "/votes/", nil)
 	rr := httptest.NewRecorder()
-	server.GetVotes(rr, req)
+	h.ServeGetVotes(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -48,7 +46,7 @@ func TestGetVotes_WithSongs_Returns200(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	cols := []string{"ID", "Name", "Country", "PublikumsPunkte", "JuryPunkte", "GesamtPunkte"}
 	rows := sqlmock.NewRows(cols).
@@ -58,7 +56,7 @@ func TestGetVotes_WithSongs_Returns200(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/votes/", nil)
 	rr := httptest.NewRecorder()
-	server.GetVotes(rr, req)
+	h.ServeGetVotes(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -83,7 +81,7 @@ func TestGetVotes_ResponseShape(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	cols := []string{"ID", "Name", "Country", "PublikumsPunkte", "JuryPunkte", "GesamtPunkte"}
 	rows := sqlmock.NewRows(cols).
@@ -92,7 +90,7 @@ func TestGetVotes_ResponseShape(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/votes/", nil)
 	rr := httptest.NewRecorder()
-	server.GetVotes(rr, req)
+	h.ServeGetVotes(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -113,13 +111,13 @@ func TestGetVotes_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/votes/", nil)
 	rr := httptest.NewRecorder()
-	server.GetVotes(rr, req)
+	h.ServeGetVotes(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)

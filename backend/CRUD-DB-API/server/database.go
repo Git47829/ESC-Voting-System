@@ -13,24 +13,6 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-type LocalConfig struct {
-	DbHost string `env:"dbHost"`
-	DbName string `env:"dbName"`
-	DbUser string `env:"dbUser"`
-	DbPass string `env:"dbPass"`
-	DbPort int    `env:"dbPort"`
-}
-
-func loadLocalConfig() LocalConfig {
-	return LocalConfig{
-		DbHost: getEnvOrDefault("DB_HOST", "localhost"),
-		DbName: getEnvOrDefault("DB_NAME", "esc_voting"),
-		DbUser: getEnvOrDefault("DB_USER", "root"),
-		DbPass: getEnvOrDefault("DB_PASS", ""),
-		DbPort: getEnvOrDefaultInt("DB_PORT", 3306),
-	}
-}
-
 func getEnvOrDefault(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -47,7 +29,6 @@ func getEnvOrDefaultInt(key string, fallback int) int {
 	return fallback
 }
 
-// Singleton Pattern
 var DB *sql.DB
 
 var (
@@ -56,7 +37,7 @@ var (
 	dbReady        = make(chan struct{})
 )
 
-func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
+func connectToDatabase(cfg AppConfig) (*sql.DB, error) {
 	escapedPass := url.QueryEscape(cfg.DbPass)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&timeout=10s&readTimeout=10s&writeTimeout=10s",
 		cfg.DbUser,
@@ -67,7 +48,6 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 	)
 
 	log.Printf("Attempting to connect to database at %s:%d/%s", cfg.DbHost, cfg.DbPort, cfg.DbName)
-	log.Printf("Database config: Host=%s, Port=%d, User=%s, Database=%s", cfg.DbHost, cfg.DbPort, cfg.DbUser, cfg.DbName)
 
 	var (
 		conn *sql.DB
@@ -90,11 +70,9 @@ func connectToDatabase(cfg LocalConfig) (*sql.DB, error) {
 			}
 			err = pingErr
 		}
-		var errMsg string
+		errMsg := "unknown error"
 		if err != nil {
 			errMsg = err.Error()
-		} else {
-			errMsg = "unknown error"
 		}
 		log.Printf("Database connection attempt %d/%d failed: %s", attempt, maxDBAttempts, errMsg)
 		if attempt < maxDBAttempts {

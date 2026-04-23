@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -43,6 +44,16 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	mockEuroMail.Close()
 	os.Exit(code)
+}
+
+// newTestHandlers creates a Handlers for testing. db may be nil for tests that
+// do not hit the database (e.g. pure auth or health tests).
+func newTestHandlers(t *testing.T, db *sql.DB) *server.Handlers {
+	t.Helper()
+	return server.NewHandlers(db, server.NoopVoteNotifier{}, server.AppConfig{
+		CookieSecret: server.SignedCookieSecret,
+		PhoneSecret:  server.SignedPhoneSecret,
+	})
 }
 
 // adminURL appends the test admin token as a query parameter.

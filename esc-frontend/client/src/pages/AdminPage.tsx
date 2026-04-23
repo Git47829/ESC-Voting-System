@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../api/client";
+import { getSongs } from "../services/songs-api";
+import {
+  adminAdvanceContest,
+  adminClose,
+  adminDeleteVotes,
+  adminOpen,
+  adminStartContest,
+} from "../services/admin-api";
 import { AddEntryForms } from "../components/admin/AddEntryForms";
 import { EntryTable } from "../components/admin/EntryTable";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
@@ -14,7 +21,7 @@ export const AdminPage = () => {
 
   const load = async () => {
     try {
-      const nextSongs = await api.getSongs();
+      const nextSongs = await getSongs();
       setSongs(nextSongs);
     } catch (err) {
       addFlash(err instanceof Error ? err.message : "Failed to load songs", "error");
@@ -93,7 +100,7 @@ export const AdminPage = () => {
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <button
               className="flex min-h-[6.5rem] flex-col items-start justify-between rounded-[1.5rem] border border-esc-pink bg-esc-pink px-5 py-4 text-left text-white shadow-[0_20px_36px_rgba(255,4,144,0.22)] transition-colors duration-200 hover:bg-esc-pink-dim"
-              onClick={() => void run(() => api.adminOpen(), "Voting opened")}
+              onClick={() => void run(() => adminOpen(), "Voting opened")}
             >
               <span className="text-[11px] uppercase tracking-[0.18em] text-white/70">Voting</span>
               <span>
@@ -106,7 +113,7 @@ export const AdminPage = () => {
 
             <button
               className="flex min-h-[6.5rem] flex-col items-start justify-between rounded-[1.5rem] border border-esc-border bg-white px-5 py-4 text-left text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink"
-              onClick={() => void run(() => api.adminClose(), "Voting closed")}
+              onClick={() => void run(() => adminClose(), "Voting closed")}
             >
               <span className="text-[11px] uppercase tracking-[0.18em] text-esc-muted">Voting</span>
               <span>
@@ -119,7 +126,7 @@ export const AdminPage = () => {
 
             <button
               className="flex min-h-[6.5rem] flex-col items-start justify-between rounded-[1.5rem] border border-esc-border bg-white px-5 py-4 text-left text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink"
-              onClick={() => void run(() => api.adminStartContest(), "Contest started")}
+              onClick={() => void run(() => adminStartContest(), "Contest started")}
             >
               <span className="text-[11px] uppercase tracking-[0.18em] text-esc-muted">Contest</span>
               <span>
@@ -132,7 +139,7 @@ export const AdminPage = () => {
 
             <button
               className="flex min-h-[6.5rem] flex-col items-start justify-between rounded-[1.5rem] border border-esc-border bg-white px-5 py-4 text-left text-esc-black transition-colors duration-200 hover:border-esc-pink hover:text-esc-pink"
-              onClick={() => void run(() => api.adminAdvanceContest(), "Advanced to next song")}
+              onClick={() => void run(() => adminAdvanceContest(), "Advanced to next song")}
             >
               <span className="text-[11px] uppercase tracking-[0.18em] text-esc-muted">Contest</span>
               <span>
@@ -223,7 +230,7 @@ export const AdminPage = () => {
         text="This action clears public and jury votes."
         onClose={() => setConfirmReset(false)}
         onConfirm={() => {
-          void run(() => api.adminDeleteVotes(), "All votes reset").then(() =>
+          void run(() => adminDeleteVotes(), "All votes reset").then(() =>
             setConfirmReset(false)
           );
         }}

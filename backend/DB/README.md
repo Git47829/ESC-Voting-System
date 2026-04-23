@@ -1,6 +1,6 @@
 # MySQL Database
 
-Custom MySQL 8.0 image for the ESC Voting System. Runs the schema and seed data automatically on first start.
+Custom MySQL 8.2 image for the ESC Voting System. Runs the schema and seed data automatically on first start.
 
 ## Docker
 
@@ -121,7 +121,7 @@ Only one row should have `IsActive = TRUE` at a time. When the admin starts a ne
 
 | File                   | Purpose                                              |
 |------------------------|------------------------------------------------------|
-| `Dockerfile`           | Custom MySQL 8.0 image                               |
+| `Dockerfile`           | Custom MySQL 8.2 image                               |
 | `db_scheme.sql`        | DDL — creates all tables                             |
 | `seed_data.sql`        | DML — inserts initial countries, artists, and songs  |
 | `docker-entrypoint.sh` | Entrypoint that applies schema + seed on first start |

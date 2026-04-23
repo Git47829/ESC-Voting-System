@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { api } from "../../api/client";
+import { getSongs } from "../../services/songs-api";
 import { useFlash } from "../../context/FlashContext";
 import type { Song } from "../../types";
 import { Modal } from "../ui/Modal";
@@ -25,8 +25,7 @@ export const SubmitModal = ({
 
   useEffect(() => {
     if (open) {
-      void api
-        .getSongs()
+      void getSongs()
         .then(setSongs)
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : "Failed to load songs";

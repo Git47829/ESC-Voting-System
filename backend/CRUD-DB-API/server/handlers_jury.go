@@ -5,18 +5,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-
-	"golang.org/x/sync/errgroup"
 )
 
-func JuryVote(w http.ResponseWriter, r *http.Request) {
+func (h *Handlers) ServeJuryVote(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	ctx := r.Context()
 
-	query := r.URL.Query()
-	points := query.Get("points")
-	songIDStr := query.Get("songID")
-
+	songIDStr := r.URL.Query().Get("songID")
 	songID, err := strconv.Atoi(songIDStr)
 	if err != nil {
 		Logger.ErrorContext(ctx, "invalid songID value", slog.Any("error", err), slog.String("songID", songIDStr))
@@ -27,9 +22,10 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsedPoints, err := strconv.Atoi(points)
+	pointsStr := r.URL.Query().Get("points")
+	parsedPoints, err := strconv.Atoi(pointsStr)
 	if err != nil {
-		Logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", points))
+		Logger.ErrorContext(ctx, "invalid points value", slog.Any("error", err), slog.String("points", pointsStr))
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		json.NewEncoder(w).Encode(map[string]string{
 			"error": "Invalid points value - must be an Integer",
@@ -47,23 +43,11 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var isOpen bool
-
-	g, gctx := errgroup.WithContext(ctx)
-
-	g.Go(func() error {
-		err := DB.QueryRowContext(gctx, `SELECT isOpen FROM Voting_Status`).Scan(&isOpen)
-		if err != nil {
-			Logger.ErrorContext(gctx, "failed to query voting status", slog.Any("error", err))
-		}
-		return err
-	})
-
-	if err := g.Wait(); err != nil {
+	isOpen, err := h.votes.GetVotingStatus(ctx)
+	if err != nil {
+		Logger.ErrorContext(ctx, "failed to query voting status", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Error querying DB",
-		})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Error querying DB"})
 		return
 	}
 
@@ -75,39 +59,22 @@ func JuryVote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const juryWeight int = 1
-	totalPoints := juryWeight * parsedPoints
-
-	dbQuery := `UPDATE Song
-			 SET JuryPunkte = JuryPunkte + ?
-			 WHERE ID = ?`
-
-	result, err := DB.ExecContext(ctx, dbQuery, totalPoints, songID)
+	const juryWeight = 1
+	rowsAffected, err := h.votes.UpdateSongJuryVotes(ctx, songID, juryWeight*parsedPoints)
 	if err != nil {
 		Logger.ErrorContext(ctx, "failed to update vote", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to record vote",
-		})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to record vote"})
 		return
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		Logger.ErrorContext(ctx, "failed to get affected rows", slog.Any("error", err))
 	}
 	if rowsAffected == 0 {
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Song not found",
-		})
+		json.NewEncoder(w).Encode(map[string]string{"error": "Song not found"})
 		return
 	}
 
-	NotifyVote(songID, "JURY", DB)
+	h.notifier.NotifyVote(ctx, songID, "JURY") //nolint:errcheck
 
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]any{
-		"payload": "Vote Successfully Cast",
-	})
+	json.NewEncoder(w).Encode(map[string]any{"payload": "Vote Successfully Cast"})
 }

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { NowPlayingSubmitModal } from "../components/now-playing/NowPlayingSubmitModal";
+import { VoteSubmissionForm } from "../components/vote/VoteSubmissionForm";
 import { useContestPoll } from "../hooks/useContestPoll";
+import * as votingApi from "../services/voting-api";
+import { useFlash } from "../context/FlashContext";
 import { flagUrl } from "../utils/flagUrl";
 import { normalizeYoutubeUrl } from "../utils/normalizeYoutubeUrl";
 
@@ -12,6 +14,7 @@ export const NowPlayingPage = () => {
   const { contest, error, contestEnded } = useContestPoll();
   const [points, setPoints] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
+  const { addFlash } = useFlash();
 
   const currentSong = contest?.currentSong ?? null;
   const currentPosition = contest ? contest.currentIndex + 1 : 0;
@@ -276,11 +279,30 @@ export const NowPlayingPage = () => {
                 </button>
               </div>
 
-              <NowPlayingSubmitModal
+              <VoteSubmissionForm
                 open={modalOpen}
+                mode="single"
                 points={points}
                 songId={currentSong.songId}
                 onClose={() => setModalOpen(false)}
+                onSubmit={async (phone, ownCountry) => {
+                  try {
+                    await votingApi.submitVote({
+                      songID: currentSong.songId,
+                      phoneNum: phone,
+                      ownCountry,
+                      points
+                    });
+                    addFlash(
+                      `Vote submitted: ${points} point${points !== 1 ? "s" : ""}`,
+                      "success"
+                    );
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Submission failed";
+                    addFlash(message, "error");
+                    throw err;
+                  }
+                }}
               />
             </aside>
           </div>

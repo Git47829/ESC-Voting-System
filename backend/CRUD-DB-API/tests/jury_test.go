@@ -30,7 +30,7 @@ func TestJuryVote_ValidPoints_TableDriven(t *testing.T) {
 				t.Fatalf("sqlmock.New: %v", err)
 			}
 			defer mockDB.Close()
-			server.DB = mockDB
+			h := newTestHandlers(t, mockDB)
 			mock.MatchExpectationsInOrder(false)
 
 			mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -40,7 +40,7 @@ func TestJuryVote_ValidPoints_TableDriven(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, juryVoteURL("1", pts), nil)
 			rr := httptest.NewRecorder()
-			server.JuryVote(rr, req)
+			h.ServeJuryVote(rr, req)
 
 			if rr.Code != http.StatusAccepted {
 				t.Errorf("points=%s: expected 202, got %d — body: %s", pts, rr.Code, rr.Body.String())
@@ -63,11 +63,11 @@ func TestJuryVote_InvalidPoints_TableDriven(t *testing.T) {
 				t.Fatalf("sqlmock.New: %v", err)
 			}
 			defer mockDB.Close()
-			server.DB = mockDB
+			h := newTestHandlers(t, mockDB)
 
 			req := httptest.NewRequest(http.MethodPost, juryVoteURL("1", pts), nil)
 			rr := httptest.NewRecorder()
-			server.JuryVote(rr, req)
+			h.ServeJuryVote(rr, req)
 
 			if rr.Code != http.StatusBadRequest {
 				t.Errorf("points=%s: expected 400, got %d", pts, rr.Code)
@@ -86,12 +86,12 @@ func TestJuryVote_InvalidSongID_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/jury/vote/?Token=jury1&songID=notanumber&points=8", nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -104,12 +104,12 @@ func TestJuryVote_InvalidPointsNotInteger_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	req := httptest.NewRequest(http.MethodPost,
 		"/jury/vote/?Token=jury1&songID=1&points=notanumber", nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -126,7 +126,7 @@ func TestJuryVote_WrongToken_Returns403(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -135,7 +135,7 @@ func TestJuryVote_WrongToken_Returns403(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost,
 		"/jury/vote/?Token=wrongtoken&songID=1&points=8", nil)
 	rr := httptest.NewRecorder()
-	server.RequireJury(http.HandlerFunc(server.JuryVote)).ServeHTTP(rr, req)
+	server.RequireJury(http.HandlerFunc(h.ServeJuryVote)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -152,7 +152,7 @@ func TestJuryVote_VotingClosed_Returns425(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -160,7 +160,7 @@ func TestJuryVote_VotingClosed_Returns425(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, juryVoteURL("1", "8"), nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	if rr.Code != http.StatusTooEarly {
 		t.Errorf("expected 425, got %d", rr.Code)
@@ -177,7 +177,7 @@ func TestJuryVote_SongNotFound_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -188,7 +188,7 @@ func TestJuryVote_SongNotFound_Returns404(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, juryVoteURL("999", "8"), nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -205,7 +205,7 @@ func TestJuryVote_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -213,7 +213,7 @@ func TestJuryVote_DBError_Returns500(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, juryVoteURL("1", "8"), nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
@@ -234,7 +234,7 @@ func TestJuryVote_AnyJuryTokenAuthorizes(t *testing.T) {
 				t.Fatalf("sqlmock.New: %v", err)
 			}
 			defer mockDB.Close()
-			server.DB = mockDB
+			h := newTestHandlers(t, mockDB)
 			mock.MatchExpectationsInOrder(false)
 
 			mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -245,7 +245,7 @@ func TestJuryVote_AnyJuryTokenAuthorizes(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost,
 				"/jury/vote/?Token="+tok+"&songID=1&points=8", nil)
 			rr := httptest.NewRecorder()
-			server.JuryVote(rr, req)
+			h.ServeJuryVote(rr, req)
 
 			if rr.Code != http.StatusAccepted {
 				t.Errorf("token=%s: expected 202, got %d — body: %s", tok, rr.Code, rr.Body.String())
@@ -264,7 +264,7 @@ func TestJuryVote_SuccessResponseShape(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 	mock.MatchExpectationsInOrder(false)
 
 	mock.ExpectQuery("SELECT isOpen FROM Voting_Status").
@@ -274,7 +274,7 @@ func TestJuryVote_SuccessResponseShape(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, juryVoteURL("1", "12"), nil)
 	rr := httptest.NewRecorder()
-	server.JuryVote(rr, req)
+	h.ServeJuryVote(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)

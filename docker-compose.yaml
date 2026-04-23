@@ -269,6 +269,21 @@ services:
       - otel-collector
       - caddy-log-init
 
+  cloudflared:
+    build: ./backend/Cloudflare/
+    container_name: cloudflared
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run --token ${CLOUDFLARE_SECRET}
+    volumes:
+      - ./backend/Cloudflare/config.yml:/etc/cloudflared/config.yml:ro
+    networks:
+      - frontend
+    depends_on:
+      - caddy
+      - frontend
+
 volumes:
   mysql_data:
   grafana_data:

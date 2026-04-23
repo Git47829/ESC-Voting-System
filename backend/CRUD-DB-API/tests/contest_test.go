@@ -23,7 +23,7 @@ func TestStartContest_ValidToken_Returns201(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows([]string{"ID"}).AddRow(1).AddRow(2).AddRow(3)
 	mock.ExpectQuery("SELECT ID FROM Song").WillReturnRows(rows)
@@ -34,7 +34,7 @@ func TestStartContest_ValidToken_Returns201(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	h.ServeStartContest(rr, req)
 
 	if rr.Code != http.StatusCreated {
 		t.Errorf("expected 201, got %d — body: %s", rr.Code, rr.Body.String())
@@ -47,7 +47,7 @@ func TestStartContest_ValidToken_ResponseShape(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows([]string{"ID"}).AddRow(1).AddRow(2).AddRow(3)
 	mock.ExpectQuery("SELECT ID FROM Song").WillReturnRows(rows)
@@ -56,7 +56,7 @@ func TestStartContest_ValidToken_ResponseShape(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	h.ServeStartContest(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -75,7 +75,7 @@ func TestStartContest_SongOrderIsPermutation(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows([]string{"ID"}).AddRow(1).AddRow(2).AddRow(3)
 	mock.ExpectQuery("SELECT ID FROM Song").WillReturnRows(rows)
@@ -84,7 +84,7 @@ func TestStartContest_SongOrderIsPermutation(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	h.ServeStartContest(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -114,14 +114,14 @@ func TestStartContest_NoSongs_Returns422(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID FROM Song").
 		WillReturnRows(sqlmock.NewRows([]string{"ID"}))
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	h.ServeStartContest(rr, req)
 
 	if rr.Code != http.StatusUnprocessableEntity {
 		t.Errorf("expected 422, got %d", rr.Code)
@@ -129,9 +129,10 @@ func TestStartContest_NoSongs_Returns422(t *testing.T) {
 }
 
 func TestStartContest_InvalidToken_Returns403(t *testing.T) {
+	hndlr := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost, badTokenURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.StartContest)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(hndlr.ServeStartContest)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -144,13 +145,13 @@ func TestStartContest_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID FROM Song").WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/startContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.StartContest(rr, req)
+	h.ServeStartContest(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
@@ -167,7 +168,7 @@ func TestAdvanceContest_ActiveContest_Returns200(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnRows(sqlmock.NewRows([]string{"ID", "SongOrder", "CurrentIndex"}).
@@ -177,7 +178,7 @@ func TestAdvanceContest_ActiveContest_Returns200(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/advanceContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.AdvanceContest(rr, req)
+	h.ServeAdvanceContest(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d — body: %s", rr.Code, rr.Body.String())
@@ -203,7 +204,7 @@ func TestAdvanceContest_LastSong_ReturnsFinished(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	// currentIndex=2, len(ids)=3 → nextIndex=3 >= 3 → finished
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
@@ -214,7 +215,7 @@ func TestAdvanceContest_LastSong_ReturnsFinished(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/advanceContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.AdvanceContest(rr, req)
+	h.ServeAdvanceContest(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -233,14 +234,14 @@ func TestAdvanceContest_NoActiveContest_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnRows(sqlmock.NewRows([]string{"ID", "SongOrder", "CurrentIndex"}))
 
 	req := httptest.NewRequest(http.MethodPost, adminURL("/admin/advanceContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.AdvanceContest(rr, req)
+	h.ServeAdvanceContest(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -248,9 +249,10 @@ func TestAdvanceContest_NoActiveContest_Returns404(t *testing.T) {
 }
 
 func TestAdvanceContest_InvalidToken_Returns403(t *testing.T) {
+	hndlr := newTestHandlers(t, nil)
 	req := httptest.NewRequest(http.MethodPost, badTokenURL("/admin/advanceContest/"), nil)
 	rr := httptest.NewRecorder()
-	server.RequireAdmin(http.HandlerFunc(server.AdvanceContest)).ServeHTTP(rr, req)
+	server.RequireAdmin(http.HandlerFunc(hndlr.ServeAdvanceContest)).ServeHTTP(rr, req)
 
 	if rr.Code != http.StatusForbidden {
 		t.Errorf("expected 403, got %d", rr.Code)
@@ -267,7 +269,7 @@ func TestGetCurrentSong_ActiveContest_Returns200WithAllFields(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnRows(sqlmock.NewRows([]string{"ID", "SongOrder", "CurrentIndex"}).
@@ -287,7 +289,7 @@ func TestGetCurrentSong_ActiveContest_Returns200WithAllFields(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/contest/current/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCurrentSong(rr, req)
+	h.ServeGetCurrentSong(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d — body: %s", rr.Code, rr.Body.String())
@@ -340,14 +342,14 @@ func TestGetCurrentSong_NoActiveContest_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnRows(sqlmock.NewRows([]string{"ID", "SongOrder", "CurrentIndex"}))
 
 	req := httptest.NewRequest(http.MethodGet, "/contest/current/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCurrentSong(rr, req)
+	h.ServeGetCurrentSong(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -360,7 +362,7 @@ func TestGetCurrentSong_ContestEnded_Returns410(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	// currentIndex=3 >= len([1,2,3])=3 → contest ended
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
@@ -369,7 +371,7 @@ func TestGetCurrentSong_ContestEnded_Returns410(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/contest/current/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCurrentSong(rr, req)
+	h.ServeGetCurrentSong(rr, req)
 
 	if rr.Code != http.StatusGone {
 		t.Errorf("expected 410, got %d", rr.Code)
@@ -382,7 +384,7 @@ func TestGetCurrentSong_SongNotFoundInDB_Returns404(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnRows(sqlmock.NewRows([]string{"ID", "SongOrder", "CurrentIndex"}).
@@ -398,7 +400,7 @@ func TestGetCurrentSong_SongNotFoundInDB_Returns404(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/contest/current/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCurrentSong(rr, req)
+	h.ServeGetCurrentSong(rr, req)
 
 	if rr.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", rr.Code)
@@ -411,14 +413,14 @@ func TestGetCurrentSong_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT ID, SongOrder, CurrentIndex FROM Contest_Run").
 		WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/contest/current/", nil)
 	rr := httptest.NewRecorder()
-	server.GetCurrentSong(rr, req)
+	h.ServeGetCurrentSong(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)

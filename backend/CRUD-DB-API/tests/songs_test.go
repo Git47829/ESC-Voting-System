@@ -9,11 +9,9 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-
-	"crud-db-api/server"
 )
 
-// songCols matches the SELECT in HttpGetSongs / GetSongByID (18 columns).
+// songCols matches the SELECT in ServeGetSongs / ServeGetSongByID (18 columns).
 var songCols = []string{
 	"Song_ID", "Song_Name",
 	"PublikumsPunkte", "JuryPunkte", "GesamtPunkte",
@@ -40,14 +38,14 @@ func TestGetSongs_Returns200WithPayload(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(songCols).AddRow(sampleSongRow()...)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HTTPGetSongs(rr, req)
+	h.ServeGetSongs(rr, req)
 
 	if rr.Code != http.StatusOK {
 		t.Errorf("expected 200, got %d", rr.Code)
@@ -70,14 +68,14 @@ func TestGetSongs_ResponseShape(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(songCols).AddRow(sampleSongRow()...)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HTTPGetSongs(rr, req)
+	h.ServeGetSongs(rr, req)
 
 	var body map[string]any
 	json.NewDecoder(rr.Body).Decode(&body)
@@ -102,13 +100,13 @@ func TestGetSongs_DBError_Returns502(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("db error"))
 
 	req := httptest.NewRequest(http.MethodGet, "/songs/", nil)
 	rr := httptest.NewRecorder()
-	server.HTTPGetSongs(rr, req)
+	h.ServeGetSongs(rr, req)
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Errorf("expected 500, got %d", rr.Code)
@@ -121,13 +119,13 @@ func TestGetSongByID_ValidID_Returns200(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	rows := sqlmock.NewRows(songCols).AddRow(sampleSongRow()...)
 	mock.ExpectQuery("SELECT").WillReturnRows(rows)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /songByID/{ID}", server.GetSongByID)
+	mux.HandleFunc("GET /songByID/{ID}", h.ServeGetSongByID)
 	req := httptest.NewRequest(http.MethodGet, "/songByID/1", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -149,12 +147,12 @@ func TestGetSongByID_NotFound_Returns200EmptyPayload(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows(songCols))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /songByID/{ID}", server.GetSongByID)
+	mux.HandleFunc("GET /songByID/{ID}", h.ServeGetSongByID)
 	req := httptest.NewRequest(http.MethodGet, "/songByID/999", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -173,13 +171,13 @@ func TestGetSongByID_InvalidIDString_FallsThroughToQuery(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	// Handler falls through with ID=0 and runs the query.
 	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows(songCols))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /songByID/{ID}", server.GetSongByID)
+	mux.HandleFunc("GET /songByID/{ID}", h.ServeGetSongByID)
 	req := httptest.NewRequest(http.MethodGet, "/songByID/notanumber", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
@@ -196,12 +194,12 @@ func TestGetSongByID_DBError_Returns500(t *testing.T) {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
 	defer mockDB.Close()
-	server.DB = mockDB
+	h := newTestHandlers(t, mockDB)
 
 	mock.ExpectQuery("SELECT").WillReturnError(errors.New("db error"))
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /songByID/{ID}", server.GetSongByID)
+	mux.HandleFunc("GET /songByID/{ID}", h.ServeGetSongByID)
 	req := httptest.NewRequest(http.MethodGet, "/songByID/1", nil)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)

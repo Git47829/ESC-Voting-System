@@ -90,29 +90,38 @@ CRUD-DB-API/
 | `GET` | `/songs/` | Full song list with artist, country, composer, and voting status |
 | `GET` | `/songByID/{ID}` | Single song detail by ID |
 | `POST` | `/vote/` | Cast a public vote (phone number + cookie deduplication) |
-| `GET` | `/contest/current/` | Current song in the active contest run, with full details and progress |
+| `GET` | `/contest/current` | Current song in the active contest run, with full details and progress |
 | `GET` | `/metrics/` | Prometheus metrics scrape endpoint |
 
-### Admin (token required via `?Token=` query param)
+### Authentication
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/admin/authenticate` | Validate an admin token — returns `202` on success, `403` on failure |
-| `POST` | `/admin/open/` | Open the voting period |
+| `GET` | `/auth/requestToken` | Request a new authentication token — returns `201` with `{"token": "..."}` |
+| `GET` | `/auth/verifyToken/{token}` | Verify a token — returns `202` on success, `401` on failure |
+| `POST` | `/auth/login` | Login with email and password, triggers 2FA email — requires JSON body: `{"email": "...", "password": "...", "role": "admin"|"jury"}` |
+| `POST` | `/auth/verify` | Submit 2FA verification code — requires JSON body: `{"email": "...", "code": "..."}` |
+
+### Admin (token required via `Authorization: Bearer <token>` header + `X-Email` header)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/admin/authenticate` | Validate admin credentials — returns `202` on success, `403` on failure |
+| `POST` | `/admin/open` | Open the voting period |
 | `POST` | `/admin/close` | Close the voting period |
 | `DELETE` | `/admin/deleteVotes/` | Reset all vote counts to zero |
 | `POST` | `/admin/addCountry/` | Register a new country |
 | `POST` | `/admin/addSong/` | Add a new song entry (accepts optional `YoutubeURL` parameter) |
 | `POST` | `/admin/addArtist/` | Add a new artist (`Kuenstler`) |
 | `POST` | `/admin/addInterpret/` | Add a new composer (`Komponist`) |
-| `POST` | `/admin/startContest/` | Fetch all songs, shuffle into a random order, and start a new contest run |
-| `POST` | `/admin/advanceContest/` | Advance the active contest to the next song |
+| `POST` | `/admin/startContest` | Fetch all songs, shuffle into a random order, and start a new contest run |
+| `POST` | `/admin/advanceContest` | Advance the active contest to the next song |
 
-### Jury (token required via `?Token=` query param)
+### Jury (token required via `Authorization: Bearer <token>` header + `X-Email` header)
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/jury/authenticate` | Validate a jury token — returns `202` on success, `403` on failure |
+| `GET` | `/jury/authenticate` | Validate jury credentials — returns `202` on success, `403` on failure |
 | `POST` | `/jury/vote/` | Cast a jury vote with a specific point value |
 
 ## Contest Run
@@ -121,19 +130,19 @@ The contest run feature allows an admin to run through all registered songs one 
 
 ### Flow
 
-1. Admin presses **Start Contest** in the admin panel → `POST /admin/startContest/`
+1. Admin presses **Start Contest** in the admin panel → `POST /admin/startContest`
    - All song IDs are fetched from the database.
    - They are shuffled using a Fisher-Yates shuffle seeded with `crypto/rand`.
    - Any previously active `Contest_Run` row is deactivated.
    - A new `Contest_Run` row is inserted with the shuffled order (stored as a JSON array), `CurrentIndex = 0`, and `IsActive = TRUE`.
-2. Viewers visit `/now` → frontend calls `GET /contest/current/`
+2. Viewers visit `/now` → frontend calls `GET /contest/current`
    - Returns full song details for the song at the current index, plus `currentIndex` and `totalSongs` for the progress bar.
-3. Admin presses **Next Song** → `POST /admin/advanceContest/`
+3. Admin presses **Next Song** → `POST /admin/advanceContest`
    - `CurrentIndex` is incremented by 1.
    - If the index would exceed the total number of songs, the run is marked `IsActive = FALSE` and a `finished: true` response is returned.
 4. The `/now` page polls `/api/contest/current` every 5 seconds and reloads automatically when the song changes.
 
-### `GET /contest/current/` Response
+### `GET /contest/current` Response
 
 ```json
 {
@@ -161,23 +170,26 @@ The contest run feature allows an admin to run through all registered songs one 
 
 Returns `404` when no contest is active, `410 Gone` when the contest has finished.
 
-### `POST /admin/startContest/` Parameters
+### `POST /admin/startContest` Parameters
 
 | Parameter | Required | Description |
 |---|---|---|
-| `Token` | Yes | Admin token |
+| `Authorization` | Yes | Bearer token in header |
+| `X-Email` | Yes | Admin email in header |
 
-### `POST /admin/advanceContest/` Parameters
+### `POST /admin/advanceContest` Parameters
 
 | Parameter | Required | Description |
 |---|---|---|
-| `Token` | Yes | Admin token |
+| `Authorization` | Yes | Bearer token in header |
+| `X-Email` | Yes | Admin email in header |
 
 ### `POST /admin/addSong/` Parameters
 
 | Parameter | Required | Description |
 |---|---|---|
-| `Token` | Yes | Admin token |
+| `Authorization` | Yes | Bearer token in header |
+| `X-Email` | Yes | Admin email in header |
 | `SongName` | Yes | Song title |
 | `CountryID` | Yes | Country ID (`CHAR(2)`, e.g. `DE`) |
 | `KuenstlerID` | Yes | Artist (`Kuenstler`) ID (`INT`) |
@@ -187,7 +199,8 @@ Returns `404` when no contest is active, `410 Gone` when the contest has finishe
 
 | Parameter | Required | Description |
 |---|---|---|
-| `Token` | Yes | Admin token |
+| `Authorization` | Yes | Bearer token in header |
+| `X-Email` | Yes | Admin email in header |
 | `FirstName` | No | Artist first name (`Vorname`) |
 | `LastName` | Yes | Artist/stage name (`Name`) |
 | `Type` | No | Artist type (`solo`, `duo`, `gruppe`); defaults to `solo` |
@@ -273,21 +286,27 @@ protoc --go_out=. --go-grpc_out=. \
 
 ## Authentication
 
-Admin and jury endpoints verify a shared token passed as `?Token=<value>`. The incoming token is compared against the corresponding environment variable using a **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks.
+Admin and jury endpoints use **bearer token authentication** with email verification:
 
-| Endpoint | Checked against | Environment variable(s) |
+1. **Request Token** — `GET /auth/requestToken` returns a token in the response.
+2. **Email + Password Login** — `POST /auth/login` validates credentials against environment variables and sends a 2FA code via email.
+3. **Verify 2FA Code** — `POST /auth/verify` confirms the code; on success, a session token is issued.
+4. **Protected Requests** — Send the token via `Authorization: Bearer <token>` header and email via `X-Email` header.
+
+Incoming tokens are compared against stored tokens using **constant-time comparison** (`crypto/subtle.ConstantTimeCompare`) to prevent timing attacks.
+
+| Endpoint | Requires | Environment variable(s) |
 |---|---|---|
-| `GET /admin/authenticate` + all `/admin/*` routes | `checkAccessAdmin` | `adminPassword` (plaintext token) |
-| `GET /jury/authenticate` + `/jury/vote/` | `checkAccessJury` | `juryPassword1`, `juryPassword2`, `juryPassword3` (plaintext tokens) |
+| `POST /auth/login` with `role: "admin"` | Email + hashed password | `adminMail`, `adminPassword` (bcrypt hash) |
+| `POST /auth/login` with `role: "jury"` | Email + hashed password | `juryMail{N}`, `juryPassword{N}` (bcrypt hashes) |
+| Protected admin routes (`/admin/*`) | Authorization header + X-Email header | Verified against stored tokens |
+| Protected jury routes (`/jury/*`) | Authorization header + X-Email header | Verified against stored tokens |
 
-The dedicated authenticate endpoints are used by the frontend login flow to validate a token before establishing a session. They return `HTTP 202` with `{"message": "..."}` on success and `HTTP 403` with `{"error": "..."}` on failure.
-
-> **Example `.env` entries:**
-> ```
-> adminPassword=my-secret-admin-token
-> juryPassword1=jury-token-one
-> juryPassword2=jury-token-two
-> juryPassword3=jury-token-three
+> **Example request:**
+> ```bash
+> curl -H "Authorization: Bearer eyAbc123..." \
+>      -H "X-Email: admin@example.com" \
+>      https://voting.example.com/admin/open
 > ```
 
 ## Voting Logic (`POST /vote/`)
@@ -331,8 +350,12 @@ The dedicated authenticate endpoints are used by the frontend login flow to vali
 | `DB_NAME` | `esc_voting` | Database name |
 | `DB_USER` | `root` | Database user |
 | `DB_PASS` | *(empty)* | Database password |
-| `adminPassword` | *(required)* | Plaintext admin token |
-| `juryPassword1` | *(required)* | Plaintext jury token #1 |
-| `juryPassword2` | *(optional)* | Plaintext jury token #2 |
-| `juryPassword3` | *(optional)* | Plaintext jury token #3 |
+| `adminMail` | *(required)* | Admin email address |
+| `adminPassword` | *(required)* | Admin password (bcrypt hash) |
+| `juryMail{N}` | *(optional)* | Jury member N email address (e.g., `juryMail1`, `juryMail2`) |
+| `juryPassword{N}` | *(optional)* | Jury member N password (bcrypt hash) (e.g., `juryPassword1`, `juryPassword2`) |
+| `COOKIESIGNINGKEY` | *(auto-generated)* | Seed for HMAC-SHA256 cookie signing (if not provided, a random key is generated per startup) |
+| `PHONESIGNINGSECRET` | *(optional)* | Seed for HMAC-SHA256 phone number hashing |
+| `EuroMailURL` | *(optional)* | URL of the EuroMail service for sending verification emails |
+| `GRPC_PORT` | `50051` | Port on which the gRPC server listens |
 | `OTEL_EXPORTER_OTLP_HTTP_ENDPOINT` | `localhost:4318` | OTel Collector HTTP endpoint |

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { api } from "../api/client";
+import { getResults } from "../services/results-api";
 import type { VoteResult } from "../types";
 
 export const useResultsPoll = () => {
@@ -14,7 +14,7 @@ export const useResultsPoll = () => {
 
   const fetchResults = useCallback(async () => {
     try {
-      const next = await api.getResults();
+      const next = await getResults();
       setResults(next);
       setError(null);
       hasLoadedDataRef.current = true;

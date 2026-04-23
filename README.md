@@ -17,8 +17,8 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
           ▼                             ▼              ▼              │
 ┌─────────────────────┐   ┌────────────────────┐  ┌──────────────┐    │
 │     Frontend        │   │   CRUD DB API (Go) │  │  EuroStats   │    │
-│  Flask + Gunicorn   │   │  REST + gRPC       │  │  FastAPI     │    │
-│  Port 5000          │   │  Port 8000 / 50051 │  │  Port 8880   │    │
+│  Node.js/Express    │   │  REST + gRPC       │  │  FastAPI     │    │
+│  Port 3001          │   │  Port 8000 / 50051 │  │  Port 8880   │    │
 └──────────┬──────────┘   └──────────┬─────────┘  └──────┬───────┘    │
            │                         │ SQL    ▲  gRPC     │           │
            │                         ▼        │            │          │
@@ -98,11 +98,12 @@ A distributed voting system for the Eurovision Song Contest, featuring a modern 
 | Service | Technology | Internal Port | README |
 |---|---|---|---|
 | Caddy | `caddy:2.8-alpine` | 80, 443 | [backend/Caddy/README.md](backend/Caddy/README.md) |
-| Frontend | Python 3.12, Flask 3.x, Gunicorn, Tailwind CSS | 5000 | [frontend/README.md](frontend/README.md) |
+| Frontend | Node.js 22, Express.js, Tailwind CSS | 3001 | [esc-frontend/README.md](esc-frontend/README.md) |
 | CRUD DB API | Go 1.24, net/http, gRPC, Prometheus, OTel | 8000, 50051 | [backend/CRUD-DB-API/README.md](backend/CRUD-DB-API/README.md) |
 | PublicVoteConverter | Go 1.24, net/http, gRPC client, Prometheus, OTel | 8090 | [backend/PublicVoteConverter/README.md](backend/PublicVoteConverter/README.md) |
 | EuroStats | Python 3.11, FastAPI, gRPC, OTel | 8880 | [backend/EuroStats/README.md](backend/EuroStats/README.md) |
 | MySQL | MySQL 8.0 | 3306 | [backend/DB/README.md](backend/DB/README.md) |
+| EuroMail | Node.js, Express, Resend API | 3000 (internal) | - |
 | Observability | OTel Collector, Prometheus, Grafana, Loki, Tempo | 4317–4318, 9090, 3000, 3100, 3200 | [backend/Observability/README.md](backend/Observability/README.md) |
 
 ## 🌐 Service URLs
@@ -117,6 +118,7 @@ All services are accessed through Caddy on a single HTTPS host. Replace `<host>`
 | Frontend — Admin Dashboard | `https://<host>/admin` |
 | Frontend — Jury Voting | `https://<host>/jury` |
 | CRUD DB API (direct access) | `https://<host>/crud-api/` |
+| PublicVoteConverter (direct access) | `https://<host>/esc-converter/` |
 | EuroStats | `https://<host>/eurostats/` |
 | Grafana | `https://<host>/grafana/` |
 | Prometheus | `https://<host>/prometheus/` |
@@ -124,6 +126,27 @@ All services are accessed through Caddy on a single HTTPS host. Replace `<host>`
 | Loki | `https://<host>/loki/` |
 
 > **Note:** Plain HTTP (`http://<host>`) redirects automatically to HTTPS.
+
+### Public Internet Access via Cloudflare Tunnel
+
+To expose the ESC Voting System to the internet via `escvoting.dev`, use Cloudflare Tunnel:
+
+**Setup:**
+1. Create a Cloudflare account and add your domain to Cloudflare DNS
+2. In the Cloudflare dashboard, go to **Zero Trust → Tunnels** and create a new tunnel named `escvoting`
+3. Copy the tunnel token and add it to your `.env`:
+   ```env
+   CLOUDFLARE_SECRET=<your-token-from-cloudflare-dashboard>
+   ```
+4. Start Docker Compose — the `cloudflared` service will automatically connect to your tunnel
+
+**Public Routes (via `escvoting.dev`):**
+- Frontend: `https://escvoting.dev/`
+- Grafana: `https://escvoting.dev/grafana/`
+
+**Security:** Only the frontend and Grafana are exposed to the internet. All other services (database, APIs, Prometheus, Tempo, Loki) remain internal and are unreachable from outside the Docker network.
+
+**TLS:** Cloudflare manages the public HTTPS certificate at the edge. Internally, services communicate via Caddy's self-signed certificates.
 
 ### HTTPS / Certificate Trust
 
@@ -174,8 +197,8 @@ juryPassword1=change-me-jury-1
 juryPassword2=change-me-jury-2
 juryPassword3=change-me-jury-3
 
-# Flask
-FLASK_SECRET_KEY=change-me-flask-secret
+# Frontend
+SESSION_SECRET=change-me-session-secret
 ```
 
 ### Running
@@ -222,26 +245,41 @@ All API paths below are relative to the CRUD API's internal address (`db-crud-ap
 | `GET` | `/health` | Health check |
 | `GET` | `/votes/` | All songs ranked by total points |
 | `GET` | `/countries/` | List all countries |
+| `GET` | `/countryByName/{NAME}` | Get a country by name |
 | `GET` | `/songs/` | Full song list with artist, country, composers, and voting status |
 | `GET` | `/songByID/{ID}` | Single song detail by ID |
 | `POST` | `/vote/` | Cast a public vote |
-| `GET` | `/contest/current/` | Current song in the active contest run with full details and progress |
+| `GET` | `/contest/current` | Current song in the active contest run with full details and progress |
 | `GET` | `/metrics/` | Prometheus metrics |
 
-### Protected Endpoints
+### Authentication Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/auth/requestToken` | Request an authentication token |
+| `GET` | `/auth/verifyToken/{token}` | Verify an authentication token |
+| `POST` | `/auth/login` | Login with credentials |
+| `POST` | `/auth/verify` | Verify authentication |
+
+### Admin Endpoints
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/admin/authenticate` | Admin token | Validate an admin token — `202` on success, `403` on failure |
-| `POST` | `/admin/open/` | Admin token | Open voting |
+| `POST` | `/admin/open` | Admin token | Open voting |
 | `POST` | `/admin/close` | Admin token | Close voting |
 | `DELETE` | `/admin/deleteVotes/` | Admin token | Reset all votes |
 | `POST` | `/admin/addCountry/` | Admin token | Add a country |
 | `POST` | `/admin/addSong/` | Admin token | Add a song (accepts optional `YoutubeURL` parameter) |
 | `POST` | `/admin/addArtist/` | Admin token | Add an artist |
 | `POST` | `/admin/addInterpret/` | Admin token | Add a composer |
-| `POST` | `/admin/startContest/` | Admin token | Shuffle all songs and start a new contest run |
-| `POST` | `/admin/advanceContest/` | Admin token | Advance to the next song in the active contest |
+| `POST` | `/admin/startContest` | Admin token | Shuffle all songs and start a new contest run |
+| `POST` | `/admin/advanceContest` | Admin token | Advance to the next song in the active contest |
+
+### Jury Endpoints
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
 | `GET` | `/jury/authenticate` | Jury token | Validate a jury token — `202` on success, `403` on failure |
 | `POST` | `/jury/vote/` | Jury token | Cast a jury vote |
 
@@ -254,6 +292,7 @@ Accessible externally at `https://<host>/eurostats/`.
 | `GET` | `/health` | Health check |
 | `GET` | `/votes/subscribe` | Poll current vote snapshot (up to 100 entries) |
 | `WS` | `/ws/votes` | WebSocket — real-time vote event stream |
+| `WS` | `/ws/stats` | WebSocket — real-time statistics update stream |
 
 ## 🐳 Docker Networks
 
@@ -263,7 +302,8 @@ Services communicate over isolated Docker networks. No service other than Caddy 
 |---|---|
 | `backend` | `db`, `api`, `public-vote-converter`, `eurostats` |
 | `frontend` | `api`, `public-vote-converter`, `frontend`, `caddy` |
-| `observability` | `api`, `public-vote-converter`, `frontend`, `eurostats`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo`, `caddy` |
+| `mail` | `api`, `euromail` |
+| `observability` | `api`, `public-vote-converter`, `frontend`, `eurostats`, `euromail`, `otel-collector`, `prometheus`, `grafana`, `loki`, `tempo`, `caddy` |
 
 ## 🔭 Observability Pipeline
 
