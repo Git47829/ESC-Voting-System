@@ -1,4 +1,4 @@
-import type { ContestService } from "./interfaces.js";
+import type { ContestService, AuthCredentials } from "./interfaces.js";
 import type { Song } from "../types.js";
 import { upstream } from "../upstream.js";
 import { authHeaders, normalizeYoutubeUrl, toInt } from "../utils/helpers.js";
@@ -73,29 +73,34 @@ export class ProductionContestService implements ContestService {
     return raw;
   }
 
-  async startContest() {
-    const response = await upstream.post("/admin/startContest", null);
+  async startContest(credentials?: AuthCredentials) {
+    const response = await upstream.post("/admin/startContest", null, {
+      headers: authHeaders(credentials ?? {})
+    });
     if (response.status >= 200 && response.status < 300) {
       return response.data?.payload;
     }
     throw new Error("Failed to start contest");
   }
 
-  async advanceContest() {
-    const response = await upstream.post("/admin/advanceContest", null);
+  async advanceContest(credentials?: AuthCredentials) {
+    const response = await upstream.post("/admin/advanceContest", null, {
+      headers: authHeaders(credentials ?? {})
+    });
     if (response.status >= 200 && response.status < 300) {
       return response.data?.payload;
     }
     throw new Error("Failed to advance contest");
   }
 
-  async addCountry(countryId: string, countryName: string, pot: number) {
+  async addCountry(countryId: string, countryName: string, pot: number, credentials?: AuthCredentials) {
     const response = await upstream.post("/admin/addCountry/", null, {
       params: {
         ID: countryId,
         Name: countryName,
         Pot: pot
-      }
+      },
+      headers: authHeaders(credentials ?? {})
     });
     if (response.status >= 200 && response.status < 300) {
       return { message: "Country added" };
@@ -103,14 +108,15 @@ export class ProductionContestService implements ContestService {
     throw new Error(response.data?.error ?? "Failed to add country");
   }
 
-  async addArtist(firstName: string, lastName: string, countryId: string) {
+  async addArtist(firstName: string, lastName: string, countryId: string, credentials?: AuthCredentials) {
     const response = await upstream.post("/admin/addArtist/", null, {
       params: {
         vorName: firstName,
         Name: lastName,
         typ: "solo",
         Land: countryId
-      }
+      },
+      headers: authHeaders(credentials ?? {})
     });
     if (response.status >= 200 && response.status < 300) {
       return { message: "Artist added" };
@@ -125,13 +131,14 @@ export class ProductionContestService implements ContestService {
     artistFirstName?: string;
     artistLastName?: string;
     youtubeUrl?: string;
-  }) {
+  }, credentials?: AuthCredentials) {
     const response = await upstream.post("/admin/addSong/", null, {
       params: {
         SongName: input.songName,
         CountryID: input.countryId,
         YoutubeURL: input.youtubeUrl
-      }
+      },
+      headers: authHeaders(credentials ?? {})
     });
     if (response.status >= 200 && response.status < 300) {
       return response.data?.payload;

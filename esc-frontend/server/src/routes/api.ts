@@ -96,7 +96,13 @@ apiRouter.post("/login", authLimiter, asyncHandler(async (req, res) => {
       "user.role": role
     });
     span.end();
-    res.json({ ok: true, role });
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: "Session save failed" });
+        return;
+      }
+      res.json({ ok: true, role });
+    });
   } catch (error) {
     span.setAttributes({
       "user.login_success": false,
@@ -157,7 +163,13 @@ apiRouter.post("/auth/verify", authLimiter, asyncHandler(async (req, res) => {
     delete req.session.pendingEmail;
     delete req.session.pendingRole;
     delete req.session.pendingPassword;
-    res.json({ ok: true, role });
+    req.session.save((err) => {
+      if (err) {
+        res.status(500).json({ error: "Session save failed" });
+        return;
+      }
+      res.json({ ok: true, role });
+    });
   } catch (error) {
     res.status(401).json({ error: "Verification failed" });
   }
@@ -407,9 +419,10 @@ apiRouter.get("/jury/authenticate", authLimiter, asyncHandler(async (req, res) =
   }
 }));
 
-apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), asyncHandler(async (_req, res) => {
+apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    const result = await votingService.setVotingOpen(true);
+    const result = await votingService.setVotingOpen(true, creds);
     res.json(result);
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to open voting" });
@@ -417,8 +430,9 @@ apiRouter.post("/admin/open", authorizedLimiter, requireRole("admin"), asyncHand
 }));
 
 apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    const result = await votingService.setVotingOpen(false);
+    const result = await votingService.setVotingOpen(false, creds);
     res.json(result);
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to close voting" });
@@ -426,8 +440,9 @@ apiRouter.post("/admin/close", authorizedLimiter, requireRole("admin"), asyncHan
 }));
 
 apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    await votingService.resetVotes();
+    await votingService.resetVotes(creds);
     req.session.voteState = { votesRemaining: config.totalVotePoints, votesCast: {} };
     res.json({ message: "Votes reset" });
   } catch (error) {
@@ -436,12 +451,14 @@ apiRouter.delete("/admin/deleteVotes", authorizedLimiter, requireRole("admin"), 
 }));
 
 apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   const pot = toInt(req.body?.pot, 1);
   try {
     const result = await contestService.addCountry(
       String(req.body?.countryId ?? ""),
       String(req.body?.countryName ?? ""),
-      pot
+      pot,
+      creds
     );
     res.json(result);
   } catch (error) {
@@ -450,11 +467,13 @@ apiRouter.post("/admin/addCountry", authorizedLimiter, requireRole("admin"), asy
 }));
 
 apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
     const result = await contestService.addArtist(
       String(req.body?.firstName ?? ""),
       String(req.body?.lastName ?? ""),
-      String(req.body?.countryId ?? "")
+      String(req.body?.countryId ?? ""),
+      creds
     );
     res.json(result);
   } catch (error) {
@@ -463,12 +482,13 @@ apiRouter.post("/admin/addArtist", authorizedLimiter, requireRole("admin"), asyn
 }));
 
 apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
     const song = await contestService.addSong({
       countryId: String(req.body?.countryId ?? ""),
       songName: String(req.body?.songName ?? ""),
       youtubeUrl: String(req.body?.youtubeUrl ?? "")
-    });
+    }, creds);
     res.json({ message: "Song added", payload: song });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to add song" });
@@ -476,8 +496,9 @@ apiRouter.post("/admin/addSong", authorizedLimiter, requireRole("admin"), asyncH
 }));
 
 apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    const contestState = await contestService.startContest();
+    const contestState = await contestService.startContest(creds);
     res.json({ payload: contestState });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to start contest" });
@@ -485,8 +506,9 @@ apiRouter.post("/admin/startContest", authorizedLimiter, requireRole("admin"), a
 }));
 
 apiRouter.post("/admin/advanceContest", authorizedLimiter, requireRole("admin"), asyncHandler(async (req, res) => {
+  const creds = { token: req.session.token, email: req.session.email };
   try {
-    const contestState = await contestService.advanceContest();
+    const contestState = await contestService.advanceContest(creds);
     res.json({ payload: contestState });
   } catch (error) {
     res.status(502).json({ error: error instanceof Error ? error.message : "Failed to advance contest" });

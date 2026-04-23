@@ -1,4 +1,4 @@
-import type { VotingService } from "./interfaces.js";
+import type { VotingService, AuthCredentials } from "./interfaces.js";
 import { config } from "../config.js";
 import { upstream } from "../upstream.js";
 import { authHeaders, toInt } from "../utils/helpers.js";
@@ -50,17 +50,21 @@ export class ProductionVotingService implements VotingService {
     throw new Error("Failed to fetch votes");
   }
 
-  async setVotingOpen(open: boolean) {
+  async setVotingOpen(open: boolean, credentials?: AuthCredentials) {
     const endpoint = open ? "/admin/open" : "/admin/close";
-    const response = await upstream.post(endpoint, null);
+    const response = await upstream.post(endpoint, null, {
+      headers: authHeaders(credentials ?? {})
+    });
     if (response.status >= 200 && response.status < 300) {
       return { message: open ? "Voting opened" : "Voting closed" };
     }
     throw new Error(response.data?.error ?? "Failed to update voting status");
   }
 
-  async resetVotes() {
-    const response = await upstream.delete("/admin/deleteVotes/");
+  async resetVotes(credentials?: AuthCredentials) {
+    const response = await upstream.delete("/admin/deleteVotes/", {
+      headers: authHeaders(credentials ?? {})
+    });
     if (response.status >= 200 && response.status < 300) {
       return { message: "Votes reset" };
     }

@@ -1,5 +1,7 @@
 import type { Song, Country, ContestState, VoteResult } from "../types.js";
 
+export type AuthCredentials = { token?: string; email?: string };
+
 export interface AuthService {
   loginWithToken(role: "admin" | "jury", token: string): Promise<{ ok: boolean; role: string }>;
   loginWithEmail(email: string, password: string, role: "admin" | "jury"): Promise<{ ok: boolean } | { error: string }>;
@@ -11,10 +13,10 @@ export interface ContestService {
   getSongs(): Promise<Song[]>;
   getCountries(): Promise<Country[]>;
   getContestCurrent(): Promise<ContestState>;
-  startContest(): Promise<ContestState>;
-  advanceContest(): Promise<ContestState>;
-  addCountry(countryId: string, countryName: string, pot: number): Promise<{ message: string }>;
-  addArtist(firstName: string, lastName: string, countryId: string): Promise<{ message: string }>;
+  startContest(credentials?: AuthCredentials): Promise<ContestState>;
+  advanceContest(credentials?: AuthCredentials): Promise<ContestState>;
+  addCountry(countryId: string, countryName: string, pot: number, credentials?: AuthCredentials): Promise<{ message: string }>;
+  addArtist(firstName: string, lastName: string, countryId: string, credentials?: AuthCredentials): Promise<{ message: string }>;
   addSong(input: {
     countryId: string;
     countryName?: string;
@@ -22,7 +24,7 @@ export interface ContestService {
     artistFirstName?: string;
     artistLastName?: string;
     youtubeUrl?: string;
-  }): Promise<Song>;
+  }, credentials?: AuthCredentials): Promise<Song>;
 }
 
 export interface VotingService {
@@ -34,8 +36,8 @@ export interface VotingService {
   ): Promise<{ message: string; payload: { votesRemaining: number; votesCast: Record<number, number> } }>;
   castJuryVote(songId: number, points: number): Promise<{ message: string }>;
   getVotes(): Promise<VoteResult[]>;
-  setVotingOpen(open: boolean): Promise<{ message: string }>;
-  resetVotes(): Promise<{ message: string }>;
+  setVotingOpen(open: boolean, credentials?: AuthCredentials): Promise<{ message: string }>;
+  resetVotes(credentials?: AuthCredentials): Promise<{ message: string }>;
 }
 
 export interface ResultsService {
