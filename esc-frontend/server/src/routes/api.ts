@@ -26,7 +26,7 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 15,
+  max: 150000000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many authentication attempts, please try again later" }
